@@ -1,0 +1,24 @@
+.navbar-brand-container .navbar-brand img {
+  max-height: 85px;  /* Adjust this value to increase/decrease logo size */
+  width: auto;
+  margin-right: 10px;  /* Adds some space between the logo and the site title */
+}
+
+
+/* Increase navbar text size */
+.navbar-nav .nav-link,
+.navbar .navbar-nav .nav-link.active, 
+.navbar .navbar-nav .show > .nav-link {
+  font-size: 1.3rem;  /* Adjust this value as needed */
+  font-weight: 500;   /* Optional: makes the text slightly bolder */
+}
+
+/* Adjust dropdown menu text size if needed */
+.navbar .dropdown-item {
+  font-size: 1.1rem;  /* Adjust this value as needed */
+}
+
+/* Ensure proper spacing */
+.navbar-nav .nav-item {
+  padding: 0 0.5rem;  /* Adjust horizontal padding as needed */
+}
