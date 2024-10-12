@@ -1029,7 +1029,7 @@
       "RemoteUsername": "angelfelizr",
       "RemoteRepo": "project.nyc.taxi",
       "RemoteRef": "master",
-      "RemoteSha": "592c620b2a952808ad38857b512557d2fc8c2bbc",
+      "RemoteSha": "5a2df6d2c727684e132078313f4ab526a92a999e",
       "Requirements": [
         "DBI",
         "R",
@@ -1044,7 +1044,7 @@
         "utils",
         "withr"
       ],
-      "Hash": "ebea356e460decdc7da0eb623531a1ea"
+      "Hash": "eab554da3f2ff57f595bf133f996b1d3"
     },
     "promises": {
       "Package": "promises",
