@@ -20,7 +20,6 @@ After completing the [business understanding](https://angelfelizr.github.io/NycT
 As this will help to:
 -   Ensure data quality
 -   Identify key predictors
--   Detect multicollinearity
 -   Guide model choice and feature engineering
 
 
@@ -79,22 +78,11 @@ USING SAMPLE 1% (system, 547548);
 dbExecute(con, ValidZoneSampleQuery)
 ```
 
-### Evaluate the performance
+### Adding the variable to predict
 
-```{r}
-ValidZoneSample <- dbGetQuery(con, "SELECT * FROM ValidZoneSample ORDER BY year, month")
+Once we have a sample of the data, we can add the variable to predict as it isn't part of the of original data by following the next steps:
 
-setDT(ValidZoneSample)
-
-ValidZoneSample =
-  ValidZoneSample[, request_datetime_extra := request_datetime + minutes(15)
-  # For computational limitations we will 
-  # exclude trips that need to search in different months
-  ][floor_date(request_datetime_extra, unit = "month") == 
-      floor_date(request_datetime, unit = "month")]
-
-SampleMonths <- ValidZoneSample[, .N, keyby = c("year", "month")]
-```
+1. Importing the data between points.
 
 ```{r}
 PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
@@ -102,13 +90,44 @@ PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
 setDT(PointMeanDistance)
 ```
 
+2. Split the data by month and link with the original parquet files.
+
 ```{r}
-ParquetFiles <-
-  here::here("raw-data", "trip-data") |>
-  list.files(recursive = TRUE,
-             full.names = TRUE) |>
-  paste0("'", a = _ ,"'") |> 
-  paste0("read_parquet([", a = _ ,"])")
+ValidZoneSample <- dbGetQuery(con, "SELECT * FROM ValidZoneSample")
+
+setDT(ValidZoneSample)
+
+ValidZoneSampleByMonth <-
+  ValidZoneSample[1:5][, request_datetime_extra := request_datetime + minutes(15)
+  ][floor_date(request_datetime_extra, unit = "month") == floor_date(request_datetime, unit = "month"),
+    .(data = list(.SD)), 
+    keyby = c("year", "month"),
+    .SDcols = !c("request_datetime_extra")
+  ][, source_path := dir("raw-data/trip-data", recursive = TRUE, full.names = TRUE)[1]]
+
+tibble::as_tibble(ValidZoneSampleByMonth)
+```
+
+3. Run the process in paralell
+
+```{r}
+options(future.globals.maxSize = 10 * 1e9)
+#plan(multicore, workers = 2)
+
+ValidZoneSampleByMonth[, add_take_current_trip(trip_sample = data[[1L]],
+                                               point_mean_distance = PointMeanDistance,
+                                               parquet_path = source_path)]
+
+FirstData <- dbGetQuery(con, "
+SELECT * 
+FROM 
+  read_parquet('raw-data/trip-data/year=2022/month=01/part-0.parquet')
+WHERE
+  request_datetime >= '2022-01-01 03:05:09' 
+  AND request_datetime < '2022-01-01 04:00:00' 
+") |>
+  as.data.table()
+
 ```
 
 
