@@ -100,7 +100,7 @@ setDT(PointMeanDistance)
 
 ```{r}
 ValidZoneSampleByMonth <-
-  ValidZoneSample[1:60][
+  ValidZoneSample[
     j = request_datetime_extra := request_datetime + minutes(15)
   ][floor_date(request_datetime_extra, unit = "month") == floor_date(request_datetime, unit = "month"),
     .(data = list(.SD)), 
@@ -122,21 +122,10 @@ profvis::profvis({
 ValidZoneSampleByMonth[, add_take_current_trip(trip_sample = data[[1L]],
                                                point_mean_distance = PointMeanDistance,
                                                parquet_path = source_path,
-                                               future.scheduling = 2),
+                                               future.scheduling = 0.5,
+                                               future.chunk.size = 100),
                        by = c("year", "month")]
 })
-
-profvis::profvis(prof_input = "temp.prof")
-
-options(repos = c(
-  CRAN = "https://p3m.dev/cran/__linux__/bookworm/latest"
-))
-
-load("temp.RData")
-
-plot(results, type = "boxplot")
-
-results
 
 ```
 
