@@ -1049,10 +1049,9 @@
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
-      "RemoteRepo": "project.nyc.taxi",
       "RemoteUsername": "angelfelizr",
-      "RemotePkgRef": "angelfelizr/project.nyc.taxi",
-      "RemoteRef": "HEAD",
+      "RemoteRepo": "project.nyc.taxi",
+      "RemoteRef": "master",
       "RemoteSha": "7050a5ffe1e7c161ec40cd44d2597d324f2bb12b",
       "Requirements": [
         "DBI",
@@ -1068,7 +1067,7 @@
         "utils",
         "withr"
       ],
-      "Hash": "e1259e6bf4332a077e710103bf6f95a9"
+      "Hash": "2595e5d04dd4dcc4b5d9575e0b7bc24c"
     },
     "promises": {
       "Package": "promises",
@@ -1150,13 +1149,13 @@
     },
     "renv": {
       "Package": "renv",
-      "Version": "1.0.7",
+      "Version": "1.0.11",
       "Source": "Repository",
       "Repository": "RSPM",
       "Requirements": [
         "utils"
       ],
-      "Hash": "397b7b2a265bc5a7a06852524dabae20"
+      "Hash": "47623f66b4e80b3b0587bc5d7b309888"
     },
     "rlang": {
       "Package": "rlang",
