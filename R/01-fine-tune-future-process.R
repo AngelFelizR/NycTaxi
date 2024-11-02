@@ -1,6 +1,3 @@
-# cd home/rstudio/NycTaxi
-# R -e "source('R/01-fine-tune-future-process.R')"
-
 ### Loading packages to use
 
 ## Custom functions
@@ -37,7 +34,7 @@ ValidZoneSampleByMonth <-
     .(data = list(.SD)), 
     keyby = c("year", "month"),
     .SDcols = !c("request_datetime_extra")
-  ][, source_path := dir("raw-data/trip-data", recursive = TRUE, full.names = TRUE)[1]]
+  ][, source_path := dir(here::here("raw-data/trip-data"), recursive = TRUE, full.names = TRUE)[1]]
 
 
 # Defining configurations to validate
@@ -46,31 +43,27 @@ config_to_test <-
   CJ(future.chunk.size = c(25, 50, 100, 200),
      future.scheduling = c(0.4, 0.5, 0.6))
 
-config_to_test[,`:=`(text = paste0("scheduling: ",future.scheduling, " chunk.size:", future.chunk.size),
-                     test_result = list())]
+config_to_test[,text := paste0("scheduling: ",future.scheduling, " chunk.size:", future.chunk.size)]
 
 
 # Renning the process
 
-data.table::setDTthreads(1)
+data.table::setDTthreads(8)
 options(future.globals.maxSize = 17 * 1e9)
-plan(multicore, workers = 7)
+plan(multicore, workers = 4)
 
 for(i in seq_len(nrow(config_to_test))){
   
   tictoc::tic(config_to_test$text[i])
   
-  ValidZoneSampleByMonth[, add_take_current_trip(trip_sample = data[[1L]],
-                                                 point_mean_distance = PointMeanDistance,
-                                                 parquet_path = source_path,
-                                                 future.scheduling = config_to_test$future.scheduling[i],
-                                                 future.chunk.size = config_to_test$future.chunk.size[i]),
-                         by = c("year", "month")]
+  add_take_current_trip(trip_sample = ValidZoneSampleByMonth[1L, data[[1L]]],
+                        point_mean_distance = PointMeanDistance,
+                        parquet_path = ValidZoneSampleByMonth$source_path,
+                        future.scheduling = config_to_test$future.scheduling[i],
+                        future.chunk.size = config_to_test$future.chunk.size[i])
   
-  config_to_test$test_result[[i]] <- tictoc::toc()
-
+  tictoc::toc()
+  
 }
 
-dbDisconnect(con, shutdown = TRUE)
-
-rm(con)
+fst::write_fst(config_to_test, "raw-data/time_confirmed.fst")
