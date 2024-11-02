@@ -62,7 +62,7 @@ dbListTables(conn = con)
 
 ### Sampling data to use
 
-As we have too much data will only need 1% of the data for training and testing the model, which corresponds to 3,272,947 rows between 2022 and 2023.
+As we have too much data will only need 532,466 samples for training and testing the model.
 
 ```r
 ValidZoneSampleQuery <- glue::glue("
@@ -72,7 +72,7 @@ FROM NycTrips t1
 INNER JOIN ZoneCodesFilter t2
   ON t1.PULocationID = t2.PULocationID AND
      t1.DOLocationID = t2.DOLocationID
-USING SAMPLE 1% (system, 547548);
+USING SAMPLE 0.20% (system, 547548);
 ")
 
 dbExecute(con, ValidZoneSampleQuery)
@@ -85,8 +85,8 @@ Once we have a sample of the data, we can add the variable to predict as it isn'
 1. Importing the data.
 
 ```{r}
-PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
 ValidZoneSample <- dbGetQuery(con, "SELECT * FROM ValidZoneSample")
+PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
 ```
 
 2. Changing tables to become data.tables.
@@ -106,28 +106,60 @@ ValidZoneSampleByMonth <-
     .(data = list(.SD)), 
     keyby = c("year", "month"),
     .SDcols = !c("request_datetime_extra")
-  ][, source_path := dir("raw-data/trip-data", recursive = TRUE, full.names = TRUE)[1]]
+  ][, source_path := dir("raw-data/trip-data", recursive = TRUE, full.names = TRUE)]
 
 tibble::as_tibble(ValidZoneSampleByMonth)
 ```
 
-3. Run the process in paralell
+3. Defining configuration of parallel process.
 
 ```{r}
+data.frame(Scheduling = c(0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5),
+           Chunk.size = c(25, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200),
+           Duration = c(528.970, 428.321, 407.558, 382.662, 384.741, 380.178, 379.015, 379.000, 377.592, 373.415, 379.463)) |> 
+  ggplot(aes(Chunk.size, 
+             Duration, 
+             group = Scheduling,
+             color = as.character(Scheduling))) +
+  geom_line() +
+  geom_point() +
+  scale_y_log10() +
+  labs(title = "Future Performace",
+       color = "Scheduling")
+```
+
+
+3. Run the process in parallel
+
+```r
 data.table::setDTthreads(1)
-options(future.globals.maxSize = 10 * 1e9)
+options(future.globals.maxSize = 20 * 1e9)
 plan(multicore, workers = 7)
 
-profvis::profvis({
-ValidZoneSampleByMonth[, add_take_current_trip(trip_sample = data[[1L]],
-                                               point_mean_distance = PointMeanDistance,
-                                               parquet_path = source_path,
-                                               future.scheduling = 0.5,
-                                               future.chunk.size = 100),
-                       by = c("year", "month")]
-})
+ValidZoneSampleByMonthTarget <- ValidZoneSampleByMonth[
+  j = add_take_current_trip(trip_sample = data[[1L]],
+                            point_mean_distance = PointMeanDistance,
+                            parquet_path = source_path,
+                            future.scheduling = 0.4,
+                            future.chunk.size = 200),
+  by = c("year", "month")
+]
 
+dbWriteTable(con, "ValidZoneSampleByMonthTarget", ValidZoneSampleByMonthTarget)
 ```
+
+By running `htop` in the terminal we can confirm that **the process is running as expected**:
+
+1. We are using all the 8 cores of the computer.
+2. The process is running in the 17GB of RAM.
+
+![](../figures/htop_parallel_process.png)
+
+
+```{r echo=FALSE}
+ValidZoneSampleByMonthTarget <- dbGetQuery(con, "SELECT * FROM ValidZoneSampleByMonthTarget")
+```
+
 
 ```{r}
 dbDisconnect(con, shutdown = TRUE)

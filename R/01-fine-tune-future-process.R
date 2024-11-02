@@ -56,8 +56,7 @@ data.table::setDTthreads(1)
 options(future.globals.maxSize = 17 * 1e9)
 plan(multicore, workers = 7)
 
-for(i in nrow(config_to_test)){
-#for(i in seq_len(nrow(config_to_test))){
+for(i in seq_len(nrow(config_to_test))){
   
   tictoc::tic(config_to_test$text[i])
   
@@ -72,17 +71,6 @@ for(i in nrow(config_to_test)){
 
 }
 
-# Saving results
+dbDisconnect(con, shutdown = TRUE)
 
-df <- data.frame(
-  Scheduling = c(0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5),
-  Chunk.size = c(25, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200),
-  Duration = c(528.970, 428.321, 407.558, 382.662, 384.741, 380.178, 379.015, 379.000, 377.592, 373.415, 379.463)
-)
-
-ggplot(df, aes(Chunk.size, Duration, group = Scheduling, color = as.character(Scheduling))) +
-  geom_line() +
-  geom_point() +
-  scale_y_log10() +
-  labs(title = "Future Performace",
-       color = "Scheduling")
+rm(con)

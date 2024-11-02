@@ -432,6 +432,29 @@
       ],
       "Hash": "15aeb8c27f5ea5161f9f6a641fafd93a"
     },
+    "fst": {
+      "Package": "fst",
+      "Version": "0.9.8",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "Rcpp",
+        "fstcore"
+      ],
+      "Hash": "34637e000c63c3de8d8aafceb82fd082"
+    },
+    "fstcore": {
+      "Package": "fstcore",
+      "Version": "0.9.18",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "Rcpp"
+      ],
+      "Hash": "4c33c7202fcfe741cdea205570305630"
+    },
     "future": {
       "Package": "future",
       "Version": "1.34.0",
@@ -1026,10 +1049,11 @@
       "Source": "GitHub",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
-      "RemoteUsername": "angelfelizr",
       "RemoteRepo": "project.nyc.taxi",
-      "RemoteRef": "master",
-      "RemoteSha": "5a2df6d2c727684e132078313f4ab526a92a999e",
+      "RemoteUsername": "angelfelizr",
+      "RemotePkgRef": "angelfelizr/project.nyc.taxi",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "7050a5ffe1e7c161ec40cd44d2597d324f2bb12b",
       "Requirements": [
         "DBI",
         "R",
@@ -1044,7 +1068,7 @@
         "utils",
         "withr"
       ],
-      "Hash": "eab554da3f2ff57f595bf133f996b1d3"
+      "Hash": "e1259e6bf4332a077e710103bf6f95a9"
     },
     "promises": {
       "Package": "promises",
@@ -1378,6 +1402,17 @@
         "vctrs"
       ],
       "Hash": "a84e2cc86d07289b3b6f5069df7a004c"
+    },
+    "tictoc": {
+      "Package": "tictoc",
+      "Version": "1.2.1",
+      "Source": "Repository",
+      "Repository": "https://p3m.dev/cran/__linux__/bookworm/latest",
+      "Requirements": [
+        "R",
+        "methods"
+      ],
+      "Hash": "646895a33d57984ce7534249bd9adf64"
     },
     "tidyr": {
       "Package": "tidyr",
