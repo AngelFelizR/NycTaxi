@@ -146,7 +146,6 @@ ggplot(BenchmarkResults,
        color = "Scheduling") +
   theme_minimal() +
   theme(legend.position = "top")
-
 ```
 
 

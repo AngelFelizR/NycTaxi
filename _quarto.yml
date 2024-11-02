@@ -16,7 +16,7 @@ website:
         href: index.qmd
       - text: "Project Phases"
         menu: 
-          - text: "01 - Defining Environment"
+          - text: "01 - Defining Development Environment"
             href: phases/00-defining-environment.qmd
           - text: "02 - Data Collection Process"
             href: phases/01-data-collection-process.qmd         

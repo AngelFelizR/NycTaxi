@@ -11,8 +11,6 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
-
-library('project.nyc.taxi')
 ```
 
 ## Project Name
@@ -543,7 +541,7 @@ dbListTables(con)
 7. Running the simulation.
 
 ```{r}
-SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
+SimulationHourlyWage <- project.nyc.taxi::simulate_trips(con, SimulationStartDay)
 ```
 
 8. Disconnecting from DB.
@@ -634,7 +632,7 @@ DailyHourlyWage$`Daily Hourly Wage` |>
   quantile(probs = 0.9)
 ```
 
-If we can apply a strategy that can move the `Daily Hourly Wage` to 60 dollars per hour ( $ \frac{60 - 44.26}{44.26} = 36\%$ ) if would be a be a great change for many taxi driver if they apply this strategy.
+If we can apply a strategy that can move the `Daily Hourly Wage` to 60 dollars per hour ( $ \frac{60 - 44.26}{44.26} = 36\%$ ) if would be a be a great change for many taxi drivers if they apply this strategy.
 
 
 ## Ethical Considerations
@@ -659,7 +657,7 @@ As a taxi driver only can take 2 decisions when working to increase their earnin
 
 To address the first decision, we need explore the factors that can improve the `performance_per_hour` of each trip.
 
-But to address the second question, we need to create the variable `best_trip_20_m` which shows 1 if the current trip is the best to take in the following 20 minutes.
+But to address the second question, we need to create the variable `take_current_trip` indicating whether the current trip should be taken based on the future trips that can be taken in the future from that particular position.
 
 ## Deliverables
 
