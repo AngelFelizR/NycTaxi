@@ -5,5 +5,5 @@
 
 /.quarto/
 
-my-db.duckdb
+output/my-db.duckdb
 raw-data/

@@ -163,7 +163,7 @@ ParquetSource
 
 ```r
 con <- DBI::dbConnect(duckdb::duckdb(), 
-                      dbdir = here::here("my-db.duckdb"))
+                      dbdir = here::here("output/my-db.duckdb"))
 ```
 
 3. Saving all files in the database after adding an id to differentiate between trips and adding the performance per our each trips.
@@ -193,7 +193,7 @@ rm(con)
 5. After saving the data in the data base we can confirm its final size.
 
 ```{r}
-here::here("my-db.duckdb") |>
+here::here("output/my-db.duckdb") |>
   file.size() |>
   structure(class = "object_size") |>
   format(units = "auto")

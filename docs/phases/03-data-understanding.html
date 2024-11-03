@@ -133,7 +133,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <ul class="dropdown-menu" aria-labelledby="nav-menu-project-phases">    
         <li>
     <a class="dropdown-item" href="../phases/00-defining-environment.html">
- <span class="dropdown-text">01 - Defining Environment</span></a>
+ <span class="dropdown-text">01 - Defining Development Environment</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../phases/01-data-collection-process.html">
@@ -186,7 +186,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#loading-packages-to-use" id="toc-loading-packages-to-use" class="nav-link" data-scroll-target="#loading-packages-to-use">Loading packages to use</a></li>
   <li><a href="#creating-db-connections" id="toc-creating-db-connections" class="nav-link" data-scroll-target="#creating-db-connections">Creating DB connections</a></li>
   <li><a href="#sampling-data-to-use" id="toc-sampling-data-to-use" class="nav-link" data-scroll-target="#sampling-data-to-use">Sampling data to use</a></li>
-  <li><a href="#evaluate-the-performance" id="toc-evaluate-the-performance" class="nav-link" data-scroll-target="#evaluate-the-performance">Evaluate the performance</a></li>
+  <li><a href="#adding-the-variable-to-predict" id="toc-adding-the-variable-to-predict" class="nav-link" data-scroll-target="#adding-the-variable-to-predict">Adding the variable to predict</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -213,13 +213,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>After completing the <a href="https://angelfelizr.github.io/project.nyc.taxi/articles/02-business-understanding.html">business understanding</a> phase we are ready to perform the <strong>data understanding</strong> phase by performing an EDA with the following steps:</p>
+<p>After completing the <a href="https://angelfelizr.github.io/NycTaxi/phases/02-business-understanding.html">business understanding</a> phase we are ready to perform the <strong>data understanding</strong> phase by performing an EDA with the following steps:</p>
 <ol type="1">
 <li>Exploring the individual distribution of variables.</li>
 <li>Exploring correlations between predictors and target variable.</li>
 <li>Exploring correlations between predictors.</li>
 </ol>
-<p>As this will help to: - Ensure data quality - Identify key predictors - Detect multicollinearity - Guide model choice and feature engineering</p>
+<p>As this will help to: - Ensure data quality - Identify key predictors - Guide model choice and feature engineering</p>
 <section id="setting-the-environment-up" class="level2">
 <h2 class="anchored" data-anchor-id="setting-the-environment-up">Setting the environment up</h2>
 <section id="loading-packages-to-use" class="level3">
@@ -252,125 +252,151 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="creating-db-connections" class="level3">
 <h3 class="anchored" data-anchor-id="creating-db-connections">Creating DB connections</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>con <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(<span class="fu">duckdb</span>(), <span class="at">dbdir =</span> <span class="fu">here</span>(<span class="st">"my-db.duckdb"</span>))</span>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>con <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(<span class="fu">duckdb</span>(), <span class="at">dbdir =</span> <span class="fu">here</span>(<span class="st">"output/my-db.duckdb"</span>))</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">dbListTables</span>(<span class="at">conn =</span> con)</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] "NycTrips"          "PointMeanDistance" "ValidZoneSample"  </span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [4] "ZoneCodesFilter"   "ZoneCodesRef"      "ZoneCodesRefClean"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] "NycTrips"          "PointMeanDistance" "ZoneCodesFilter"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="sampling-data-to-use" class="level3">
 <h3 class="anchored" data-anchor-id="sampling-data-to-use">Sampling data to use</h3>
-<p>As we have too much data will only need 1% of the data for training and testing the model, which corresponds to 3,272,947 rows between 2022 and 2023.</p>
+<p>As we have too much data will only need 532,466 samples for training and testing the model.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>ValidZoneSampleQuery <span class="ot">&lt;-</span> glue<span class="sc">::</span><span class="fu">glue</span>(<span class="st">"</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="st">CREATE TABLE ValidZoneSample AS</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="st">SELECT t1.*</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="st">FROM NycTrips t1</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="st">INNER JOIN ZoneCodesFilter t2</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="st">  ON t1.PULocationID = t2.PULocationID AND</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="st">     t1.DOLocationID = t2.DOLocationID</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="st">USING SAMPLE 1% (system, 547548);</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">dbExecute</span>(con, ValidZoneSampleQuery)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="st">SELECT t1.*</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="st">FROM NycTrips t1</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="st">INNER JOIN ZoneCodesFilter t2</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="st">  ON t1.PULocationID = t2.PULocationID AND</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="st">     t1.DOLocationID = t2.DOLocationID</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="st">USING SAMPLE 0.20% (system, 547548);</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>ValidZoneSample <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(con, ValidZoneSampleQuery)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">DT</span>(ValidZoneSample)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="evaluate-the-performance" class="level3">
-<h3 class="anchored" data-anchor-id="evaluate-the-performance">Evaluate the performance</h3>
+<section id="adding-the-variable-to-predict" class="level3">
+<h3 class="anchored" data-anchor-id="adding-the-variable-to-predict">Adding the variable to predict</h3>
+<p>Once we have a sample of the data, we can add the variable to predict as it isn’t part of the of original data by following the next steps:</p>
+<ol type="1">
+<li>Importing the data <code>PointMeanDistance</code> as <em>data.table</em>.</li>
+</ol>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>ValidZoneSample <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(con, <span class="st">"SELECT * FROM ValidZoneSample ORDER BY year, month"</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">setDT</span>(ValidZoneSample)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>ValidZoneSample <span class="ot">=</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  ValidZoneSample[, request_datetime_extra <span class="sc">:</span><span class="er">=</span> request_datetime <span class="sc">+</span> <span class="fu">minutes</span>(<span class="dv">15</span>)</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="co"># For computational limitations we will </span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="co"># exclude trips that need to search in different months</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  ][<span class="fu">floor_date</span>(request_datetime_extra, <span class="at">unit =</span> <span class="st">"month"</span>) <span class="sc">==</span> </span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>      <span class="fu">floor_date</span>(request_datetime, <span class="at">unit =</span> <span class="st">"month"</span>)]</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>SampleMonths <span class="ot">&lt;-</span> ValidZoneSample[, .N, keyby <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"year"</span>, <span class="st">"month"</span>)]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>PointMeanDistance <span class="ot">&lt;-</span> fst<span class="sc">::</span><span class="fu">read_fst</span>(<span class="fu">here</span>(<span class="st">"output/cache-data/PointMeanDistance.fst"</span>), <span class="at">as.data.table =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<ol start="2" type="1">
+<li>Split the data by month and link with the original parquet files.</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>ValidZoneSampleByMonth <span class="ot">&lt;-</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  ValidZoneSample[</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    j <span class="ot">=</span> request_datetime_extra <span class="sc">:</span><span class="er">=</span> request_datetime <span class="sc">+</span> <span class="fu">minutes</span>(<span class="dv">15</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  ][<span class="fu">floor_date</span>(request_datetime_extra, <span class="at">unit =</span> <span class="st">"month"</span>) <span class="sc">==</span> <span class="fu">floor_date</span>(request_datetime, <span class="at">unit =</span> <span class="st">"month"</span>),</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    .(<span class="at">data =</span> <span class="fu">list</span>(.SD)), </span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    keyby <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"year"</span>, <span class="st">"month"</span>),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    .SDcols <span class="ot">=</span> <span class="sc">!</span><span class="fu">c</span>(<span class="st">"request_datetime_extra"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  ][, source_path <span class="sc">:</span><span class="er">=</span> <span class="fu">here</span>(<span class="st">"raw-data/trip-data"</span>) <span class="sc">|&gt;</span> <span class="fu">dir</span>(<span class="at">recursive =</span> <span class="cn">TRUE</span>, <span class="at">full.names =</span> <span class="cn">TRUE</span>)]</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>tibble<span class="sc">::</span><span class="fu">as_tibble</span>(ValidZoneSampleByMonth)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 24 × 4</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     year month data               source_path                                   </span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    &lt;dbl&gt; &lt;chr&gt; &lt;list&gt;             &lt;chr&gt;                                         </span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1  2022 01    &lt;dt [18,668 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2  2022 02    &lt;dt [29,536 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3  2022 03    &lt;dt [9,543 × 26]&gt;  /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4  2022 04    &lt;dt [15,632 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5  2022 05    &lt;dt [19,053 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6  2022 06    &lt;dt [10,458 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7  2022 07    &lt;dt [15,217 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8  2022 08    &lt;dt [34,336 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9  2022 09    &lt;dt [34,385 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10  2022 10    &lt;dt [32,263 × 26]&gt; /home/rstudio/NycTaxi/raw-data/trip-data/year…</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # ℹ 14 more rows</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<ol start="3" type="1">
+<li>Defining configuration of parallel process.</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>BenchmarkResults <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">CoreConfiguration =</span> <span class="fu">c</span>(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rep</span>(<span class="st">"Future: 7 and DT: 1 Cores"</span>, <span class="at">times =</span> <span class="dv">11</span>L),</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rep</span>(<span class="st">"Future: 4 and DT: 8 Cores"</span>, <span class="at">times =</span> <span class="dv">12</span>L)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">Scheduling =</span> <span class="fu">c</span>(</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.4</span>, <span class="fl">0.5</span>, <span class="fl">0.6</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">ChunkSize =</span> <span class="fu">c</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="dv">25</span>, <span class="dv">25</span>, <span class="dv">25</span>, <span class="dv">50</span>, <span class="dv">50</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">100</span>, <span class="dv">100</span>, <span class="dv">200</span>, <span class="dv">200</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="dv">5</span>, <span class="dv">25</span>, <span class="dv">25</span>, <span class="dv">50</span>, <span class="dv">50</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">100</span>, <span class="dv">100</span>, <span class="dv">200</span>, <span class="dv">200</span>, <span class="dv">200</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">Duration =</span> <span class="fu">c</span>(</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="fl">528.970</span>, <span class="fl">428.321</span>, <span class="fl">407.558</span>, <span class="fl">382.662</span>, <span class="fl">384.741</span>, <span class="fl">380.178</span>, <span class="fl">379.015</span>, <span class="fl">379.000</span>, <span class="fl">377.592</span>, <span class="fl">373.415</span>, <span class="fl">379.463</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="fl">538.531</span>, <span class="fl">442.395</span>, <span class="fl">458.97</span>, <span class="fl">424.615</span>, <span class="fl">366.119</span>, <span class="fl">361.745</span>, <span class="fl">350.42</span>, <span class="fl">347.733</span>, <span class="fl">346.434</span>, <span class="fl">351.716</span>, <span class="fl">348.664</span>, <span class="fl">358.177</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  ))</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(BenchmarkResults,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>       <span class="fu">aes</span>(<span class="at">x =</span> ChunkSize, </span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>           <span class="at">y =</span> Duration, </span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>           <span class="at">color =</span> <span class="fu">as.character</span>(Scheduling),</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>           <span class="at">group =</span> <span class="fu">interaction</span>(Scheduling, CoreConfiguration))) <span class="sc">+</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_log10</span>() <span class="sc">+</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="fu">vars</span>(CoreConfiguration)) <span class="sc">+</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Future Performance"</span>,</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>       <span class="at">color =</span> <span class="st">"Scheduling"</span>) <span class="sc">+</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"top"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="03-data-understanding_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<ol start="3" type="1">
+<li>Run the process in parallel</li>
+</ol>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>data.table<span class="sc">::</span><span class="fu">setDTthreads</span>(<span class="dv">1</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">future.globals.maxSize =</span> <span class="dv">20</span> <span class="sc">*</span> <span class="fl">1e9</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multicore, <span class="at">workers =</span> <span class="dv">7</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>ValidZoneSampleByMonthTarget <span class="ot">&lt;-</span> ValidZoneSampleByMonth[</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  j <span class="ot">=</span> <span class="fu">add_take_current_trip</span>(<span class="at">trip_sample =</span> data[[<span class="dv">1</span>L]],</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>                            <span class="at">point_mean_distance =</span> PointMeanDistance,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>                            <span class="at">parquet_path =</span> source_path,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>                            <span class="at">future.scheduling =</span> <span class="fl">0.4</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>                            <span class="at">future.chunk.size =</span> <span class="dv">200</span>),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  by <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"year"</span>, <span class="st">"month"</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="fu">dbWriteTable</span>(con, <span class="st">"ValidZoneSampleByMonthTarget"</span>, ValidZoneSampleByMonthTarget)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By running <code>htop</code> in the terminal we can confirm that <strong>the process is running as expected</strong>:</p>
+<ol type="1">
+<li>We are using all the 8 cores of the computer.</li>
+<li>The process is running in the 17GB of RAM.</li>
+</ol>
+<p><img src="../figures/htop_parallel_process.png" class="img-fluid"></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>all_data <span class="ot">&lt;-</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">here</span>(<span class="st">"output/take-trip-fst"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list.files</span>(<span class="at">full.names =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(<span class="at">FUN =</span> fst<span class="sc">::</span>read_fst,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>         <span class="at">as.data.table =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rbindlist</span>()</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>all_data[, .(<span class="at">avg =</span> <span class="fu">mean</span>(take_current_trip)),</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>         .(<span class="at">year =</span> <span class="fu">year</span>(request_datetime))]</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     year    avg</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    &lt;num&gt;  &lt;num&gt;</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1:  2022 0.7583</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2:  2023 0.7742</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>PointMeanDistance <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(con, <span class="st">"SELECT * FROM PointMeanDistance"</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">setDT</span>(PointMeanDistance)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>ParquetFiles <span class="ot">&lt;-</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"raw-data"</span>, <span class="st">"trip-data"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list.files</span>(<span class="at">recursive =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>             <span class="at">full.names =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"'"</span>, <span class="at">a =</span> _ ,<span class="st">"'"</span>) <span class="sc">|&gt;</span> </span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"read_parquet(["</span>, <span class="at">a =</span> _ ,<span class="st">"])"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">future.globals.maxSize =</span> <span class="dv">7</span> <span class="sc">*</span> <span class="dv">1024</span><span class="sc">^</span><span class="dv">3</span>)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multisession, <span class="at">workers =</span> <span class="dv">4</span>)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(SampleMonths), \(month_i){</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    ValidZoneSample_i <span class="ot">&lt;-</span> ValidZoneSample[SampleMonths[month_i], on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"year"</span>, <span class="st">"month"</span>)]</span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    NycTrips_i <span class="ot">&lt;-</span> <span class="fu">dbGetQuery</span>(con,<span class="fu">glue</span>(<span class="st">"SELECT * FROM {ParquetFiles[month_i]}"</span>))</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">setDT</span>(NycTrips_i)</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 1: Calculate waiting_secs and performance_per_hour for joined data</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    trip_data <span class="ot">&lt;-</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">future_lapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(ValidZoneSample_i), \(n_row){</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        time_trips <span class="ot">&lt;-</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>          NycTrips_i[ValidZoneSample_i[n_row], </span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>                     on <span class="ot">=</span> <span class="st">"hvfhs_license_num"</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>          ][request_datetime <span class="sc">&gt;=</span> i.request_datetime <span class="sc">&amp;</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>              request_datetime <span class="sc">&lt;=</span> request_datetime_extra]</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        current_trip_alternatives <span class="ot">&lt;-</span></span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>          PointMeanDistance[.(ValidZoneSample_i<span class="sc">$</span><span class="st">`</span><span class="at">PULocationID</span><span class="st">`</span>[n_row]),</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>                            on <span class="ot">=</span> <span class="st">"PULocationID"</span>,</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>                            nomatch <span class="ot">=</span> <span class="cn">NULL</span></span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>          ][time_trips,</span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>            on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"DOLocationID"</span> <span class="ot">=</span> <span class="st">"PULocationID"</span>),</span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>          ][, waiting_secs <span class="sc">:</span><span class="er">=</span> <span class="fu">as.numeric</span>(<span class="fu">difftime</span>(request_datetime, i.request_datetime, <span class="at">units =</span> <span class="st">"secs"</span>))</span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>          ][, performance_per_hour <span class="sc">:</span><span class="er">=</span> (driver_pay <span class="sc">+</span> tips) <span class="sc">/</span> ((trip_time <span class="sc">+</span> waiting_secs) <span class="sc">/</span> <span class="dv">3600</span>)</span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>          ][(request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">60</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">1</span>) <span class="sc">|</span></span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">180</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">3</span>) <span class="sc">|</span></span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">300</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">5</span>) <span class="sc">|</span></span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">420</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">7</span>) <span class="sc">|</span></span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">540</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">9</span>) <span class="sc">|</span></span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">660</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">11</span>) <span class="sc">|</span></span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">780</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">13</span>) <span class="sc">|</span></span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>              (request_datetime <span class="sc">&lt;=</span> i.request_datetime <span class="sc">+</span> <span class="dv">900</span> <span class="sc">&amp;</span> trip_miles_mean <span class="sc">&lt;=</span> <span class="dv">15</span>) <span class="sc">&amp;</span></span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>              ((i.wav_match_flag <span class="sc">==</span> <span class="st">'Y'</span> <span class="sc">&amp;</span> wav_match_flag <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'Y'</span>, <span class="st">'N'</span>)) <span class="sc">|</span></span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>                 (i.wav_match_flag <span class="sc">==</span> <span class="st">'N'</span> <span class="sc">&amp;</span> wav_match_flag <span class="sc">==</span> <span class="st">'N'</span>))]</span>
-<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>        <span class="fu">return</span>(current_trip_alternatives)</span>
-<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>      }) <span class="sc">|&gt;</span></span>
-<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>      <span class="fu">rbindlist</span>()</span>
-<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 2: Aggregate data by performance metrics</span></span>
-<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>    aggregated_data <span class="ot">&lt;-</span> trip_data[</span>
-<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>      , .(<span class="at">percentile_75_performance =</span> <span class="fu">quantile</span>(performance_per_hour, <span class="fl">0.75</span>, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)),</span>
-<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>      by <span class="ot">=</span> <span class="st">"trip_id"</span></span>
-<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3: Join aggregated data with ValidZoneSample</span></span>
-<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>    final_data <span class="ot">&lt;-</span> </span>
-<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>      ValidZoneSample_i[aggregated_data, </span>
-<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>                        on <span class="ot">=</span> <span class="st">"trip_id"</span></span>
-<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>      ][, take_current_trip <span class="sc">:</span><span class="er">=</span> <span class="fu">fifelse</span>(performance_per_hour <span class="sc">&gt;</span> percentile_75_performance, <span class="dv">0</span>L, <span class="dv">1</span>L)]</span>
-<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Result</span></span>
-<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(final_data[])</span>
-<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>  })<span class="sc">|&gt;</span></span>
-<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rbindlist</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dbDisconnect</span>(con, <span class="at">shutdown =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span>(con)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dbDisconnect</span>(con, <span class="at">shutdown =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span>(con)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 
 

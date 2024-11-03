@@ -55,7 +55,7 @@ options(datatable.print.nrows = 15, digits = 4)
 ### Creating DB connections
 
 ```{r}
-con <- dbConnect(duckdb(), dbdir = here("my-db.duckdb"))
+con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
 
 dbListTables(conn = con)
 ```
@@ -66,7 +66,6 @@ As we have too much data will only need 532,466 samples for training and testing
 
 ```r
 ValidZoneSampleQuery <- glue::glue("
-CREATE TABLE ValidZoneSample AS
 SELECT t1.*
 FROM NycTrips t1
 INNER JOIN ZoneCodesFilter t2
@@ -75,28 +74,33 @@ INNER JOIN ZoneCodesFilter t2
 USING SAMPLE 0.20% (system, 547548);
 ")
 
-dbExecute(con, ValidZoneSampleQuery)
+ValidZoneSample <- dbGetQuery(con, ValidZoneSampleQuery)
+DT(ValidZoneSample)
 ```
+
+```{r echo=FALSE}
+if(exists("ValidZoneSample")){
+  fst::write_fst(ValidZoneSample, here("output/cache-data/ValidZoneSample.fst"))
+}else{
+  ValidZoneSample <- fst::read_fst(
+    here("output/cache-data/ValidZoneSample.fst"),
+    as.data.table = TRUE
+  )
+}
+```
+
 
 ### Adding the variable to predict
 
 Once we have a sample of the data, we can add the variable to predict as it isn't part of the of original data by following the next steps:
 
-1. Importing the data.
+1. Importing the data `PointMeanDistance` as _data.table_.
 
 ```{r}
-ValidZoneSample <- dbGetQuery(con, "SELECT * FROM ValidZoneSample")
-PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
+PointMeanDistance <- fst::read_fst(here("output/cache-data/PointMeanDistance.fst"), as.data.table = TRUE)
 ```
 
-2. Changing tables to become data.tables.
-
-```{r}
-setDT(ValidZoneSample)
-setDT(PointMeanDistance)
-```
-
-3. Split the data by month and link with the original parquet files.
+2. Split the data by month and link with the original parquet files.
 
 ```{r}
 ValidZoneSampleByMonth <-
@@ -177,7 +181,7 @@ By running `htop` in the terminal we can confirm that **the process is running a
 
 ```{r}
 all_data <-
-  here("raw-data/take_trip_fst") |>
+  here("output/take-trip-fst") |>
   list.files(full.names = TRUE) |>
   lapply(FUN = fst::read_fst,
          as.data.table = TRUE) |>

@@ -3,29 +3,17 @@
 ## Custom functions
 library('project.nyc.taxi')
 
-## To transform data larger than RAM
-library(DBI)
-library(duckdb)
-
 ## To transform data that fits in RAM
 library(lubridate)
 library(data.table)
 library(future)
-library(future.apply)
 
-### Creating DB connections
-con <- dbConnect(duckdb(), dbdir = "my-db.duckdb")
 
-### Getting data
-PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
-ValidZoneSample <- dbGetQuery(con, "SELECT * FROM ValidZoneSample")
+# Importing data
 
-### Closing DB connections
-dbDisconnect(con, shutdown = TRUE)
+PointMeanDistance <- fst::read_fst(here("output/cache-data/PointMeanDistance.fst"), as.data.table = TRUE)
+ValidZoneSample <- fst::read_fst(here("output/cache-data/ValidZoneSample.fst"), as.data.table = TRUE)
 
-### Updating to data.table
-setDT(PointMeanDistance)
-setDT(ValidZoneSample)
 
 ### Split the data by month
 ValidZoneSampleByMonth <-
@@ -46,10 +34,34 @@ config_to_test <-
 config_to_test[,text := paste0("scheduling: ",future.scheduling, " chunk.size:", future.chunk.size)]
 
 
-# Renning the process
+# Running the process
 
-data.table::setDTthreads(8)
 options(future.globals.maxSize = 17 * 1e9)
+
+
+# Configuration 1
+
+setDTthreads(1)
+plan(multicore, workers = 7)
+
+for(i in seq_len(nrow(config_to_test))){
+  
+  tictoc::tic(config_to_test$text[i])
+  
+  add_take_current_trip(trip_sample = ValidZoneSampleByMonth[1L, data[[1L]]],
+                        point_mean_distance = PointMeanDistance,
+                        parquet_path = ValidZoneSampleByMonth$source_path,
+                        future.scheduling = config_to_test$future.scheduling[i],
+                        future.chunk.size = config_to_test$future.chunk.size[i])
+  
+  tictoc::toc()
+  
+}
+
+
+# Configuration 2
+
+setDTthreads(8)
 plan(multicore, workers = 4)
 
 for(i in seq_len(nrow(config_to_test))){
@@ -66,4 +78,3 @@ for(i in seq_len(nrow(config_to_test))){
   
 }
 
-fst::write_fst(config_to_test, "raw-data/time_confirmed.fst")

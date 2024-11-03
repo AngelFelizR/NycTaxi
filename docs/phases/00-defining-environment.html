@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>NycTaxi - Defining Environment</title>
+<title>NycTaxi - Defining Development Environment</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -133,7 +133,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <ul class="dropdown-menu" aria-labelledby="nav-menu-project-phases">    
         <li>
     <a class="dropdown-item" href="../phases/00-defining-environment.html">
- <span class="dropdown-text">01 - Defining Environment</span></a>
+ <span class="dropdown-text">01 - Defining Development Environment</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../phases/01-data-collection-process.html">
@@ -184,7 +184,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Defining Environment</h1>
+<h1 class="title">Defining Development Environment</h1>
 </div>
 
 
@@ -203,73 +203,55 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <p>In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:</p>
 <ol type="1">
-<li><p>Install <strong>docker</strong> by installing <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> or just the <a href="https://docs.docker.com/engine/install/">Docker Engine</a> if Linux is your operating system. I used <a href="https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-debian-10">this article</a> as a guide to complete the task on debian 12.</p></li>
+<li><p>Install <strong>docker</strong> by installing <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> or just the <a href="https://docs.docker.com/engine/install/">Docker Engine</a> if Linux is your operating system. I used <a href="https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-debian-10">this article</a> as a guide to complete the task on <strong>debian 12</strong>.</p></li>
 <li><p>Install <a href="https://git-scm.com/downloads">git</a>.</p></li>
 </ol>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> apt install git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <ol start="3" type="1">
 <li>Download the image related with this project.</li>
 </ol>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull angelfelizr/project.nyc.taxi:0.0.0.9000</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull angelfelizr/nyctaxi:4.4.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <ol start="4" type="1">
-<li>Select the parent directory to save your project and confirm its path by running.</li>
+<li><p>Go the parent directory under you want to clone the project.</p></li>
+<li><p>Create a directory to cache installed packages.</p></li>
 </ol>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">pwd</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ol start="5" type="1">
-<li>Create a directory to save the installed packages.</li>
-</ol>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> r-lib-4.4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> pkg_cache_r_4.4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <ol start="6" type="1">
-<li>Create other directory to cache installed packages.</li>
+<li>Download the repo by running.</li>
 </ol>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> cache_4.4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/AngelFelizR/NycTaxi</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <ol start="7" type="1">
-<li>Download the repo by running <code>git clone</code> or downloading as a zip.</li>
-</ol>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/AngelFelizR/project.nyc.taxi.git</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ol start="8" type="1">
 <li>Update the <code>docker-compose.yml</code> file with your parent directory path.</li>
 </ol>
 <pre><code>services:
   taxi_project:
-    image: angelfelizr/project.nyc.taxi:0.0.0.9000
-    container_name: TaxiProject
+    image: angelfelizr/nyctaxi:4.4.1
+    container_name: Rstudio
     environment:
       - DISABLE_AUTH=true
       - RENV_PATHS_CACHE=/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
     ports:
-      - "127.0.0.1:5555:8787"
+      - "127.0.0.1:8787:8787"
     volumes:
-      - [parent directory path]:/home/rstudio
-      - [parent directory path]/r-lib-4.4:/usr/local/lib/R/site-library
-      - [parent directory path]/cache_4.4:/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
-</code></pre>
-<ol start="9" type="1">
+      - [your parent directory]:/home/rstudio
+      - [your parent directory]/pkg_cache_r_4.4:/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu</code></pre>
+<ol start="8" type="1">
 <li>After creating both folders we can run our container by running the next command based on your working directory.</li>
 </ol>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ol start="10" type="1">
-<li><p>Then you can go to your favorite browser and go to <a href="http://localhost:5555/">localhost:5555</a>. This address is used to access the RStudio Server interface running in the Docker container.</p></li>
-<li><p>Click over <code>~/project.nyc.taxi/project.nyc.taxi.Rproj</code> to open the project.</p></li>
-<li><p>Open an R console or an R script in the RStudio interface.</p></li>
-<li><p>Install the packages used:</p></li>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<ol start="9" type="1">
+<li><p>Then you can go to your favorite browser and go to <a href="http://localhost:8787/">localhost:8787</a>. This address is used to access the RStudio Server interface running in the Docker container.</p></li>
+<li><p>Click over <code>~/NycTaxi/NycTaxi.Rproj</code> to open the project.</p></li>
+<li><p>Open a R console and restore all packages listed on the <code>renv.lock</code> file.</p></li>
 </ol>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>renv<span class="sc">::</span><span class="fu">restore</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ol start="14" type="1">
-<li>To reproduce the analysis presented, we have two alternatives:</li>
-</ol>
-<ul>
-<li>Using the function <code>devtools::build_rmd()</code> to render each article without installing the library.</li>
-</ul>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">build_rmd</span>(<span class="st">"vignettes/01-data-collection-process.Rmd"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ul>
-<li>Installing the local library to be able to run the code in an interactive session.</li>
-</ul>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">install_local</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<ol start="15" type="1">
-<li>When you’re done with your work and want to stop the container, you can use the following command:</li>
-</ol>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> container kill TaxiProject</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Using Posit Public Package Manager for installing packages faster using pak</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">repos =</span> <span class="fu">c</span>(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">CRAN =</span> <span class="st">"https://p3m.dev/cran/__linux__/bookworm/latest"</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>renv<span class="sc">::</span><span class="fu">restore</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If later you want to stop Rstudio and the R session you can run.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> container stop Rstudio</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note: Make sure to save your work before stopping the container.</p>
 
 

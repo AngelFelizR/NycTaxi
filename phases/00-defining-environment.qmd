@@ -71,6 +71,11 @@ docker compose up -d
 11. Open a R console and restore all packages listed on the `renv.lock` file.
 
 ```r
+# Using Posit Public Package Manager for installing packages faster using pak
+options(repos = c(
+  CRAN = "https://p3m.dev/cran/__linux__/bookworm/latest",
+))
+
 renv::restore()
 ```
 

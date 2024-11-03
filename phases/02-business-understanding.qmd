@@ -103,72 +103,35 @@ digraph SIPOC {
 
 In this project, we will use a subset of the data available in the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from 2022 to 2023 for **High Volume For-Hire Vehicle** with the columns described below in the [data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
 
+### Available Before Arriving at the Pick-Up Location
+
+They will be used as the __predictors__ to train the model.
+
 |**Field Name**|**Description**|
 |:-------------|:--------------|
 |**hvfhs_license_num**|The TLC license number of the HVFHS base or business. As of September 2019, the HVFHS licensees are the following: <br> - HV0002: Juno <br> - HV0003: Uber <br> - HV0004: Via <br> - HV0005: Lyft|
-|**dispatching_base_num**|The TLC Base License Number of the base that dispatched the trip|
-|**originating_base_num**|Base number of the base that received the original trip request|
+|**wav_match_flag**|Did the trip occur in a wheelchair-accessible vehicle (WAV)? (Y/N)|
 |**request_datetime**|Date/time when passenger requested to be picked up|
-|**on_scene_datetime**|Date/time when driver arrived at the pick-up location (Accessible Vehicles-only)|
-|**pickup_datetime**|The date and time of the trip pick-up|
-|**dropoff_datetime**|The date and time of the trip drop-off|
 |**PULocationID**|TLC Taxi Zone in which the trip began|
 |**DOLocationID**|TLC Taxi Zone in which the trip ended|
-|**trip_miles**|Total miles for passenger trip|
-|**trip_time**|Total time in seconds for passenger trip|
-|**base_passenger_fare**|Base passenger fare before tolls, tips, taxes, and fees|
-|**tolls**|Total amount of all tolls paid in trip|
-|**bcf**|Total amount collected in trip for Black Car Fund|
-|**sales_tax**|Total amount collected in trip for NYS sales tax|
-|**congestion_surcharge**|Total amount collected in trip for NYS congestion surcharge|
 |**airport_fee**|$2.50 for both drop off and pick up at LaGuardia, Newark, and John F. Kennedy airports|
-|**tips**|Total amount of tips received from passenger|
-|**driver_pay**|Total driver pay (not including tolls or tips and net of commission, surcharges, or taxes)|
+|**base_passenger_fare**|Base passenger fare before tolls, tips, taxes, and fees|
+|**trip_miles**|Total miles for passenger trip|
 |**shared_request_flag**|Did the passenger agree to a shared/pooled ride, regardless of whether they were matched? (Y/N)|
-|**shared_match_flag**|Did the passenger share the vehicle with another passenger who booked separately at any point during the trip? (Y/N)|
 |**access_a_ride_flag**|Was the trip administered on behalf of the Metropolitan Transportation Authority (MTA)? (Y/N)|
+|**dispatching_base_num**|The TLC Base License Number of the base that dispatched the trip|
+|**originating_base_num**|Base number of the base that received the original trip request|
 |**wav_request_flag**|Did the passenger request a wheelchair-accessible vehicle (WAV)? (Y/N)|
-|**wav_match_flag**|Did the trip occur in a wheelchair-accessible vehicle (WAV)? (Y/N)|
-
-Based on the variables available, we can divide them into 2 categories:
-
-### Available Before Arriving at the Pick-Up Location
-
-They will be used as the predictors to train the model and can be divided into 2 groups:
-
-1. Fixed during the experiment as they can not be changed from trip to trip.
-  - *hvfhs_license_num*
-  - *wav_match_flag*
-
-2. Valid for changing from trip to trip.
-- ***request_datetime***
-- ***PULocationID***
-- ***DOLocationID***
-- *airport_fee*
-- *base_passenger_fare*
-- *trip_miles*
-- *shared_request_flag*
-- *access_a_ride_flag*
-- *wav_request_flag*
-- *dispatching_base_num*
-- *originating_base_num*
-
 
 ### Available After Ending the Trip
 
 They can be used to create the **outcome variable** needed to be predicted by the model.
 
-- ***trip_time***
-- ***driver_pay***
-- ***tips***
-- *on_scene_datetime*
-- *pickup_datetime*
-- *dropoff_datetime*
-- *congestion_surcharge*
-- *tolls*
-- *bcf*
-- *sales_tax*
-- *shared_match_flag*
+|**Field Name**|**Description**|
+|:-------------|:--------------|
+|**trip_time**|Total time in seconds for passenger trip|
+|**driver_pay**|Total driver pay (not including tolls or tips and net of commission, surcharges, or taxes)|
+|**tips**|Total amount of tips received from passenger|
 
 
 ## Defining Business Metric
@@ -225,13 +188,21 @@ library(glue)
 options(datatable.print.nrows = 15)
 ```
 
-2. Creating a connection with DuckDB.
+2. Creating folders to save data on disk.
 
 ```{r}
-con <- dbConnect(duckdb(), dbdir = here("my-db.duckdb"))
+if(!dir.exists(here("output"))) dir.create(here("output"))
+if(!dir.exists(here("output/take-trip-fst"))) dir.create(here("output/take-trip-fst"))
+if(!dir.exists(here("output/cache-data"))) dir.create(here("output/cache-data"))
 ```
 
-3. Importing the definition of each code zone.
+3. Creating a connection with DuckDB.
+
+```{r}
+con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
+```
+
+4. Importing the definition of each code zone.
 
 ```r
 ZoneCodesRef <- fread(
@@ -253,15 +224,15 @@ ZoneCodesRef <- fread(
 
 setDT(ZoneCodesRef)
 
-dbWriteTable(con, "ZoneCodesRef", ZoneCodesRef)
+# Saving the result to use later
+fst::write_fst(ZoneCodesRef, here("output/cache-data/ZoneCodesRef.fst"))
 ```
 
 ```{r echo=FALSE}
-if(!exists("ZoneCodesRef")){
-  ZoneCodesRef <- dbReadTable(con, "ZoneCodesRef")
-  
-  setDT(ZoneCodesRef)
-}
+ZoneCodesRef <- fst::read_fst(
+  here("output/cache-data/ZoneCodesRef.fst"),
+  as.data.table = TRUE
+)
 ```
 
 ```{r}
@@ -274,7 +245,7 @@ BoroughColors <- c(
   'EWR' = '#a65628'
 )
 
-plot_map(
+project.nyc.taxi::plot_map(
   ZoneCodesRef,
   lng_var = "long",
   lat_var = "lat",
@@ -380,7 +351,7 @@ ZoneCodesRefClean[, Zone := data.table::fcase(
   Zone
 )]
 
-plot_map(
+project.nyc.taxi::plot_map(
   ZoneCodesRefClean,
   lng_var = "long",
   lat_var = "lat",
@@ -389,12 +360,6 @@ plot_map(
   radius = 3,
   label_var = "Zone"
 )
-```
-
-Now we can save the results in the database.
-
-```r
-dbWriteTable(con, "ZoneCodesRefClean", ZoneCodesRefClean)
 ```
 
 5. Creating and saving a temporal table listing all possible combinations of locations in **Manhattan**, **Brooklyn** and **Queens** (they have more trips that other borough in NYC) to be used as filter.
@@ -406,11 +371,21 @@ ZoneCodesFilter <-
                     CJ(PULocationID = LocationID,
                        DOLocationID = LocationID)]
 
+# Saving resutls
 dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
+fst::write_fst(ZoneCodesFilter, here("output/cache-data/ZoneCodesFilter.fst"))
+
+ZoneCodesFilter
 ```
 
-5. Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so I saved the data as part of the package of this project, so you have a easy access by running `proyect.nyc.taxi::SimulationStartDay`, this why creating the `trip_id` column was so important.
+```{r echo=FALSE}
+ZoneCodesFilter <-
+here("output/cache-data/ZoneCodesFilter.fst") |>
+  fst::read_fst(as.data.table = TRUE)
+```
 
+
+5. Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so we need to save the on disk to keep using the same data.
 ```r
 SimulationStartDayQuery <- "
 SELECT t1.*
@@ -424,19 +399,16 @@ USING SAMPLE reservoir(60 ROWS) REPEATABLE (3518);
 
 SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
 
+fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
+
 setDT(SimulationStartDay)
 
 pillar::glimpse(SimulationStartDay)
 ```
 
-```{r include=FALSE, eval=FALSE}
-usethis::use_data(SimulationStartDay,
-                  overwrite = TRUE,
-                  compress = "xz",
-                  version = 3)
-```
-
 ```{r echo=FALSE}
+SimulationStartDay <- fst::read_fst(here("output/cache-data/SimulationStartDay.fst"),
+                                    as.data.table = TRUE)
 pillar::glimpse(SimulationStartDay)
 ```
 
@@ -529,19 +501,29 @@ WHERE n_row = 1
 ORDER BY PULocationID, trip_miles_mean;
 "
 
+# Saving table on DB for simulation
 dbExecute(con, MeanDistanceQuery)
 
-dbListTables(con)
-```
-
-```{r echo=FALSE}
-dbListTables(con)
+# Saving the table as a file
+PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
+fst::write_fst(PointMeanDistance,here("output/cache-data/PointMeanDistance.fst"))
 ```
 
 7. Running the simulation.
 
-```{r}
+```r
 SimulationHourlyWage <- project.nyc.taxi::simulate_trips(con, SimulationStartDay)
+```
+
+```{r echo=FALSE}
+if(exists("SimulationHourlyWage")){
+  fst::write_fst(SimulationHourlyWage, here("output/cache-data/SimulationHourlyWage.fst"))
+}else{
+  SimulationHourlyWage <- fst::read_fst(
+    here("output/cache-data/SimulationHourlyWage.fst"),
+    as.data.table = TRUE
+  )
+}
 ```
 
 8. Disconnecting from DB.
@@ -549,6 +531,7 @@ SimulationHourlyWage <- project.nyc.taxi::simulate_trips(con, SimulationStartDay
 ```{r}
 dbDisconnect(con, shutdown = TRUE)
 ```
+
 
 9. Showing simulation results.
 
