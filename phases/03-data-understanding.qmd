@@ -18,10 +18,12 @@ After completing the [business understanding](https://angelfelizr.github.io/NycT
 3.  Exploring correlations between predictors.
 
 As this will help to:
--   Ensure data quality
--   Identify key predictors
--   Guide model choice and feature engineering
 
+-   Ensure data quality
+
+-   Identify key predictors
+
+-   Guide model choice and feature engineering
 
 ## Setting the environment up
 
@@ -60,11 +62,11 @@ con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
 dbListTables(conn = con)
 ```
 
-### Sampling data to use
+## Sampling data to use
 
 As we have too much data will only need 532,466 samples for training and testing the model.
 
-```r
+``` r
 ValidZoneSampleQuery <- glue::glue("
 SELECT t1.*
 FROM NycTrips t1
@@ -89,18 +91,17 @@ if(exists("ValidZoneSample")){
 }
 ```
 
-
 ### Adding the variable to predict
 
 Once we have a sample of the data, we can add the variable to predict as it isn't part of the of original data by following the next steps:
 
-1. Importing the data `PointMeanDistance` as _data.table_.
+1.  Importing the data `PointMeanDistance` as *data.table*.
 
 ```{r}
 PointMeanDistance <- fst::read_fst(here("output/cache-data/PointMeanDistance.fst"), as.data.table = TRUE)
 ```
 
-2. Split the data by month and link with the original parquet files.
+2.  0.850.85Split the data by month and link with the original parquet files.
 
 ```{r}
 ValidZoneSampleByMonth <-
@@ -115,7 +116,7 @@ ValidZoneSampleByMonth <-
 tibble::as_tibble(ValidZoneSampleByMonth)
 ```
 
-3. Defining configuration of parallel process.
+3.  Defining configuration of parallel process.
 
 ```{r}
 BenchmarkResults <- data.frame(
@@ -152,10 +153,9 @@ ggplot(BenchmarkResults,
   theme(legend.position = "top")
 ```
 
+3.  Run the process in parallel
 
-3. Run the process in parallel
-
-```r
+``` r
 data.table::setDTthreads(1)
 options(future.globals.maxSize = 20 * 1e9)
 plan(multicore, workers = 7)
@@ -174,8 +174,8 @@ dbWriteTable(con, "ValidZoneSampleByMonthTarget", ValidZoneSampleByMonthTarget)
 
 By running `htop` in the terminal we can confirm that **the process is running as expected**:
 
-1. We are using all the 8 cores of the computer.
-2. The process is running in the 17GB of RAM.
+1.  We are using all the 8 cores of the computer.
+2.  The process is running in the 17GB of RAM.
 
 ![](../figures/htop_parallel_process.png)
 
@@ -191,11 +191,8 @@ all_data[, .(avg = mean(take_current_trip)),
          .(year = year(request_datetime))]
 ```
 
-
-
 ```{r}
 dbDisconnect(con, shutdown = TRUE)
 
 rm(con)
 ```
-

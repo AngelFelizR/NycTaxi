@@ -17,26 +17,7 @@ knitr::opts_chunk$set(
 
 **Increasing NYC Taxi Drivers Earnings**.
 
-## Problem Statement
-
-Taxi drivers could increase their earnings by changing the strategy to select the trips to take, and zone and time to start working.
-
-## Project Objective
-
-Develop a model to increase NYC taxi drivers' hourly earnings by 20% through optimal trip selection.
-
-## Project Scope
-
-This project will be limited to Juno, Uber, Via and Lyft taxi drivers who work in New York City in trips that take place between any zone of Manhattan, Brooklyn or Queens (the more active ones).
-
-## Stakeholders
-
--   Taxi drivers
--   Taxi companies
--   Customers
--   NYC Taxi and Limousine Commission
-
-## Top Process Definition
+## Business Understanding Overview
 
 The elements of the process are defined using a **SIPOC** diagram.
 
@@ -95,7 +76,36 @@ digraph SIPOC {
 ')
 ```
 
-## Data to Use
+## Business Objectives
+
+### Problem Statement
+
+Taxi drivers could increase their earnings by changing the strategy to select the trips to take, and zone and time to start working.
+
+### Defining Business Metric
+
+Based on the current information, we can say that our objective is to increase the **Daily Hourly Wage** received by each taxi driver defined by the following formula:
+
+$$
+\text{Daily Hourly Wage} = \frac{\text{Total Earnings}}{\text{Total Hours Worked}}
+$$
+
+### Business Success Criteria
+
+Develop a model to increase NYC taxi drivers' hourly earnings by 20% through optimal trip selection.
+
+### Project Scope
+
+This project will be limited to Juno, Uber, Via and Lyft taxi drivers who work in New York City in trips that take place between any zone of Manhattan, Brooklyn or Queens (the more active ones).
+
+### Stakeholders
+
+-   Taxi drivers
+-   Taxi companies
+-   Customers
+-   NYC Taxi and Limousine Commission
+
+## Assessing the Situation
 
 In this project, we will use a subset of the data available in the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from 2022 to 2023 for **High Volume For-Hire Vehicle** with the columns described below in the [data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
 
@@ -129,14 +139,6 @@ They can be used to create the **outcome variable** needed to be predicted by th
 | **driver_pay** | Total driver pay (not including tolls or tips and net of commission, surcharges, or taxes) |
 | **tips**       | Total amount of tips received from passenger                                               |
 
-## Defining Business Metric
-
-Based on the current information, we can say that our objective is to increase the **Daily Hourly Wage** received by each taxi driver defined by the following formula:
-
-$$
-\text{Daily Hourly Wage} = \frac{\text{Total Earnings}}{\text{Total Hours Worked}}
-$$
-
 ## Defining Metric's Base Line
 
 Defining the baseline based on this data is a challenge as the data doesn't have any *unique id* to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
@@ -144,12 +146,10 @@ Defining the baseline based on this data is a challenge as the data doesn't have
 The simulation will be based on the following **assumptions** related to the taxi drivers:
 
 1.  They can start to work:
+
     -   From any zone of Manhattan, Brooklyn or Queens (the more active ones)
     -   From any month, weekday or hour.
 
-```{=html}
-<!-- -->
-```
 2.  The TLC license number (taxi company) needs to keep constant for all trips in workday.
 
 3.  Only wheelchair-accessible vehicles can accept trips with that request.
@@ -618,11 +618,25 @@ GoalRate <-
 GoalRate
 ```
 
-If we can apply a strategy that can move the `Daily Hourly Wage` to `r GoalRate` dollars per hour, assuming the the taxi driver works 5 days every week for 8 hours, that would mean a increase of __`r scales::dollar((GoalRate - BootstrapInterval[1L][[1L]]) * 8 * 5 * 4)` every month__.
+If we can apply a strategy that can move the `Daily Hourly Wage` to `r GoalRate` dollars per hour, assuming the the taxi driver works 5 days every week for 8 hours, that would mean a increase of **`r scales::dollar((GoalRate - BootstrapInterval[1L][[1L]]) * 8 * 5 * 4)` every month**.
 
-## Defining Outcome to Predict
+## Opportunities
 
-To improve the mean income of taxi drivers we can give guide lines to support the following decisions:
+To improve the mean income of taxi drivers we can give guidelines to support the following decisions:
 
-1.  **When and where to start working**.
-2.  **Accept or reject each individual trip request.**
+1.  **When and where to start working**
+2.  **Accept or reject each individual trip request**
+
+## Determining Data Mining Goals
+
+1.  **When and where to start working**
+    -   Create a regression model to predict `performance_per_hour` with:
+        -   Target accuracy: RMSE \<= \$10
+        -   Deploy via Shiny App Dashboard to show best results based on the positions provided on the training set
+        -   Success metric: **5% increase** in average hourly earnings
+2.  **Accept or reject trip requests**
+    -   Create a classification model to evaluate trips with:
+        -   Target accuracy: \> 80%
+        -   Maximum 3-second prediction time
+        -   Real-time deployment via Shiny App Dashboard and user input
+        -   Success metric: **15% increase** in average hourly earnings
