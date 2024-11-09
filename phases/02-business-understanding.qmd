@@ -105,7 +105,7 @@ This project will be limited to Juno, Uber, Via and Lyft taxi drivers who work i
 -   Customers
 -   NYC Taxi and Limousine Commission
 
-## Assessing the Situation
+## Data to use
 
 In this project, we will use a subset of the data available in the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from 2022 to 2023 for **High Volume For-Hire Vehicle** with the columns described below in the [data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
 
@@ -143,6 +143,8 @@ They can be used to create the **outcome variable** needed to be predicted by th
 
 Defining the baseline based on this data is a challenge as the data doesn't have any *unique id* to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
 
+### Simulation Assumptions
+
 The simulation will be based on the following **assumptions** related to the taxi drivers:
 
 1.  They can start to work:
@@ -169,6 +171,10 @@ The simulation will be based on the following **assumptions** related to the tax
 6.  They have a 30 minutes break after 4 hours working once ending the current trip.
 
 7.  They will take their last trip after working 8 hours, without taking into consideration the 30 minutes break.
+
+::: {.callout-note title="Note - Code Quality"}
+To make sure our simulation meets all those rules the created the `project.nyc.taxi::simulate_trips()` function with unit tests to ensure its accuracy, as you can see in [github](https://github.com/AngelFelizR/project.nyc.taxi/blob/master/tests/testthat/test-simulate_trips.R).
+:::
 
 ### Running trips simulation
 
