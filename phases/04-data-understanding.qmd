@@ -30,169 +30,37 @@ As this will help to:
 ### Loading packages to use
 
 ```{r warning = FALSE, message = FALSE}
-## Custom functions
-library('project.nyc.taxi')
-
 ## To manage relative paths
 library(here)
 
-## To transform data larger than RAM
-library(DBI)
-library(duckdb)
+## To import and export data frames as binary files
+library(fst)
 
 ## To transform data that fits in RAM
 library(data.table)
 library(lubridate)
-library(future)
-library(future.apply)
 
 ## To create plots
 library(ggplot2)
-library(scales)
+library(ggiraph)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
 ```
 
-### Creating DB connections
+### Importing training sample
 
 ```{r}
-con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
-
-dbListTables(conn = con)
-```
-
-## Sampling data to use
-
-As we have too much data will only need 532,466 samples for training and testing the model.
-
-``` r
-ValidZoneSampleQuery <- glue::glue("
-SELECT t1.*
-FROM NycTrips t1
-INNER JOIN ZoneCodesFilter t2
-  ON t1.PULocationID = t2.PULocationID AND
-     t1.DOLocationID = t2.DOLocationID
-USING SAMPLE 0.20% (system, 547548);
-")
-
-ValidZoneSample <- dbGetQuery(con, ValidZoneSampleQuery)
-DT(ValidZoneSample)
-```
-
-```{r echo=FALSE}
-if(exists("ValidZoneSample")){
-  fst::write_fst(ValidZoneSample, here("output/cache-data/ValidZoneSample.fst"))
-}else{
-  ValidZoneSample <- fst::read_fst(
-    here("output/cache-data/ValidZoneSample.fst"),
-    as.data.table = TRUE
-  )
-}
-```
-
-### Adding the variable to predict
-
-Once we have a sample of the data, we can add the variable to predict as it isn't part of the of original data by following the next steps:
-
-1.  Importing the data `PointMeanDistance` as *data.table*.
-
-```{r}
-PointMeanDistance <- fst::read_fst(here("output/cache-data/PointMeanDistance.fst"), as.data.table = TRUE)
-```
-
-2.  0.850.85Split the data by month and link with the original parquet files.
-
-```{r}
-ValidZoneSampleByMonth <-
-  ValidZoneSample[
-    j = request_datetime_extra := request_datetime + minutes(15)
-  ][floor_date(request_datetime_extra, unit = "month") == floor_date(request_datetime, unit = "month"),
-    .(data = list(.SD)), 
-    keyby = c("year", "month"),
-    .SDcols = !c("request_datetime_extra")
-  ][, source_path := here("raw-data/trip-data") |> dir(recursive = TRUE, full.names = TRUE)]
-
-tibble::as_tibble(ValidZoneSampleByMonth)
-```
-
-3.  Defining configuration of parallel process.
-
-```{r}
-BenchmarkResults <- data.frame(
-  CoreConfiguration = c(
-    rep("Future: 7 and DT: 1 Cores", times = 11L),
-    rep("Future: 4 and DT: 8 Cores", times = 12L)
-  ),
-  Scheduling = c(
-    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5,
-    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6
-  ),
-  ChunkSize = c(
-    25, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200,
-    5, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200, 200
-  ),
-  Duration = c(
-    528.970, 428.321, 407.558, 382.662, 384.741, 380.178, 379.015, 379.000, 377.592, 373.415, 379.463,
-    538.531, 442.395, 458.97, 424.615, 366.119, 361.745, 350.42, 347.733, 346.434, 351.716, 348.664, 358.177
-  ))
-
-
-ggplot(BenchmarkResults,
-       aes(x = ChunkSize, 
-           y = Duration, 
-           color = as.character(Scheduling),
-           group = interaction(Scheduling, CoreConfiguration))) +
-  geom_line() +
-  geom_point() +
-  scale_y_log10() +
-  facet_wrap(vars(CoreConfiguration)) +
-  labs(title = "Future Performance",
-       color = "Scheduling") +
-  theme_minimal() +
-  theme(legend.position = "top")
-```
-
-3.  Run the process in parallel
-
-``` r
-data.table::setDTthreads(1)
-options(future.globals.maxSize = 20 * 1e9)
-plan(multicore, workers = 7)
-
-ValidZoneSampleByMonthTarget <- ValidZoneSampleByMonth[
-  j = add_take_current_trip(trip_sample = data[[1L]],
-                            point_mean_distance = PointMeanDistance,
-                            parquet_path = source_path,
-                            future.scheduling = 0.4,
-                            future.chunk.size = 200),
-  by = c("year", "month")
-]
-
-dbWriteTable(con, "ValidZoneSampleByMonthTarget", ValidZoneSampleByMonthTarget)
-```
-
-By running `htop` in the terminal we can confirm that **the process is running as expected**:
-
-1.  We are using all the 8 cores of the computer.
-2.  The process is running in the 17GB of RAM.
-
-![](../figures/htop_parallel_process.png)
-
-```{r}
-all_data <-
+TrainingSample <-
   here("output/take-trip-fst") |>
   list.files(full.names = TRUE) |>
-  lapply(FUN = fst::read_fst,
-         as.data.table = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst, as.data.table = TRUE) |>
   rbindlist()
-
-all_data[, .(avg = mean(take_current_trip)),
-         .(year = year(request_datetime))]
 ```
 
-```{r}
-dbDisconnect(con, shutdown = TRUE)
 
-rm(con)
-```

@@ -12,15 +12,18 @@ library(future)
 ## To import and export data frames as binary files
 library(fst)
 
+## To manage relative paths
+library(here)
+
 
 # Importing data ----
 
 PointMeanDistance <-
-  here::here("output/cache-data/PointMeanDistance.fst") |>
+  here("output/cache-data/PointMeanDistance.fst") |>
   read_fst(as.data.table = TRUE)
 
 ValidZoneSample <-
-  here::here("output/cache-data/ValidZoneSample.fst") |>
+  here("output/cache-data/ValidZoneSample.fst") |>
   read_fst(as.data.table = TRUE)
 
 
@@ -41,7 +44,7 @@ ValidZoneSampleByMonth <-
     .SDcols = !c("request_datetime_extra")
     
   ## Adding path first parquet month
-  ][, source_path := here::here("raw-data/trip-data/year=2022/month=01/part-0.parquet")]
+  ][, source_path := here("raw-data/trip-data/year=2022/month=01/part-0.parquet")]
 
 
 # Defining configurations to validate ----

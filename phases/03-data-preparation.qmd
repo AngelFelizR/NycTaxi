@@ -193,19 +193,27 @@ And after checking this results we ended with the next configuration:
 
 -   Scheduling used by `future`: 0.6
 
-### Adding variable
+### Running process
 
-Once we know how to set up the parallel process
+Once we know how to set up the parallel process we need to run it month by month and save the results to avoid losing the progress in case of any process fail.
 
-```{r}
+As this process was very demanding for my computer so we preferred to run each month on individual R session to avoid filling the memory by using the next __bash script__ and passing the each month as param for the __Rscript__.
+
+```{bash}
 #| eval: false
-all_data <-
-  here("output/take-trip-fst") |>
-  list.files(full.names = TRUE) |>
-  lapply(FUN = fst::read_fst,
-         as.data.table = TRUE) |>
-  rbindlist()
+#| file: ../R/run_add_target.sh
+```
 
-all_data[, .(avg = mean(take_current_trip)),
-         .(year = year(request_datetime))]
+Once defined the bash script we can use it by running the next command in the terminal.
+
+```bash
+docker exec -ti Rstudio bash
+cd home/rstudio/NycTaxi
+bash R/run_add_target.sh R/02-add-target.R  1 24
+```
+
+Here we can see that the 24 files have been saved as fst binnary files.
+
+```{bash}
+ls -lh ../output/take-trip-fst
 ```
