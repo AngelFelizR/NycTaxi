@@ -17,15 +17,15 @@ website:
       - text: "Project Phases"
         menu: 
           - text: "01 - Defining Development Environment"
-            href: phases/00-defining-environment.qmd
+            href: phases/01-defining-environment.qmd
           - text: "02 - Data Collection Process"
-            href: phases/01-data-collection-process.qmd         
+            href: phases/02-data-collection-process.qmd         
           - text: "03 - Business Understanding"
-            href: phases/02-business-understanding.qmd   
+            href: phases/03-business-understanding.qmd   
           - text: "04 - Data Preparation"
-            href: phases/03-data-preparation.qmd
+            href: phases/04-data-preparation.qmd
           - text: "05 - Data Understanding"
-            href: phases/04-data-understanding.qmd 
+            href: phases/05-data-understanding.qmd 
     right:
       - text: "About Angel Feliz"
         href: about.qmd
