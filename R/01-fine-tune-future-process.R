@@ -15,14 +15,13 @@ library(fst)
 
 # Importing data ----
 
-PointMeanDistance <- 
-  here("output/cache-data/PointMeanDistance.fst") |>
+PointMeanDistance <-
+  here::here("output/cache-data/PointMeanDistance.fst") |>
   read_fst(as.data.table = TRUE)
 
-ValidZoneSample <- 
-  here("output/cache-data/ValidZoneSample.fst") |>
-  read_fst(as.data.table = TRUE) |>
-  head(2000L)
+ValidZoneSample <-
+  here::here("output/cache-data/ValidZoneSample.fst") |>
+  read_fst(as.data.table = TRUE)
 
 
 # Selecting the data to use -----

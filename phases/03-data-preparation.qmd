@@ -33,7 +33,7 @@ library(lubridate)
 
 ## To create plots
 library(ggplot2)
-library(scales)
+library(ggiraph)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -107,7 +107,7 @@ For a trip to be considered valid, it must meet the following requirements:
 
 ### Implementation
 
-Since this process is resource-intensive and each iteration is independent, running it in parallel as a **multicore process** (supported by {future}) is optimal. This approach utilizes the full capacity of my computer, which has 8 cores and 17 GB of RAM.
+Since this process is resource-intensive and each iteration is independent, running it in parallel as a **multicore process** (supported by `future`) is optimal. This approach utilizes the full capacity of my computer, which has 8 cores and 17 GB of RAM.
 
 The only disadvantage of this approach that my current IDE (Rstudio) don't support this process, but it can be run without issues from the **linux terminal** by writing the process on **Rscript files**.
 
@@ -117,38 +117,28 @@ The process was implemented in the **`project.nyc.taxi::add_take_current_trip()`
 
 Before running a process 500k times, it's important to make sure we are using the best configuration due the code and the hardware were are using.
 
-```{r}
-#| echo: true
-#| eval: false
-#| file: ../R/01-fine-tune-future-process.R
+In our case we focus in defining best values for:
+
+-   Number of cores used by `data.table`
+
+-   Number of cores used by `future`
+
+-   Chunk.size used by `future`
+
+-   Scheduling used by `future`
+
+For that reason we have created the `R/01-fine-tune-future-process.R` script, which print the time needed for each process on the terminal after completing each one.
+
+``` bash
+docker exec -ti Rstudio bash
+cd home/rstudio/NycTaxi
+Rscript R/01-fine-tune-future-process.R
 ```
 
-Once we have a sample of the data, we can add the variable to predict as it isn't part of the of original data by following the next steps:
-
-1.  Importing the data `PointMeanDistance` as a *data.table*.
+The below plot summaries the obtained results.
 
 ```{r}
-PointMeanDistance <- read_fst(here("output/cache-data/PointMeanDistance.fst"), as.data.table = TRUE)
-```
-
-2.  0.850.85Split the data by month and link with the original parquet files.
-
-```{r}
-ValidZoneSampleByMonth <-
-  ValidZoneSample[
-    j = request_datetime_extra := request_datetime + minutes(15)
-  ][floor_date(request_datetime_extra, unit = "month") == floor_date(request_datetime, unit = "month"),
-    .(data = list(.SD)), 
-    keyby = c("year", "month"),
-    .SDcols = !c("request_datetime_extra")
-  ][, source_path := here("raw-data/trip-data") |> dir(recursive = TRUE, full.names = TRUE)]
-
-tibble::as_tibble(ValidZoneSampleByMonth)
-```
-
-3.  Defining configuration of parallel process.
-
-```{r}
+#| echo: false
 BenchmarkResults <- data.frame(
   CoreConfiguration = c(
     rep("Future: 7 and DT: 1 Cores", times = 11L),
@@ -167,49 +157,48 @@ BenchmarkResults <- data.frame(
     538.531, 442.395, 458.97, 424.615, 366.119, 361.745, 350.42, 347.733, 346.434, 351.716, 348.664, 358.177
   ))
 
-
-ggplot(BenchmarkResults,
-       aes(x = ChunkSize, 
-           y = Duration, 
-           color = as.character(Scheduling),
-           group = interaction(Scheduling, CoreConfiguration))) +
+BenchmarkPlot <-
+  ggplot(BenchmarkResults,
+         aes(x = ChunkSize, 
+             y = Duration, 
+             color = as.character(Scheduling),
+             group = interaction(Scheduling, CoreConfiguration),
+             tooltip = round(Duration,2))) +
   geom_line() +
-  geom_point() +
+  geom_point_interactive(size = 1.5) +
   scale_y_log10() +
   facet_wrap(vars(CoreConfiguration)) +
   labs(title = "Future Performance",
-       color = "Scheduling") +
+       color = "Scheduling",
+       y = "Duration (s)",
+       x = "Chunk Size") +
   theme_minimal() +
-  theme(legend.position = "top")
+  theme(legend.position = "top",
+        plot.title = element_text(face = "bold"))
+
+girafe(ggobj = BenchmarkPlot)
 ```
 
-3.  Run the process in parallel
-
-``` r
-data.table::setDTthreads(1)
-options(future.globals.maxSize = 20 * 1e9)
-plan(multicore, workers = 7)
-
-ValidZoneSampleByMonthTarget <- ValidZoneSampleByMonth[
-  j = add_take_current_trip(trip_sample = data[[1L]],
-                            point_mean_distance = PointMeanDistance,
-                            parquet_path = source_path,
-                            future.scheduling = 0.4,
-                            future.chunk.size = 200),
-  by = c("year", "month")
-]
-
-dbWriteTable(con, "ValidZoneSampleByMonthTarget", ValidZoneSampleByMonthTarget)
-```
-
-By running `htop` in the terminal we can confirm that **the process is running as expected**:
-
-1.  We are using all the 8 cores of the computer.
-2.  The process is running in the 17GB of RAM.
+And as we can see the got better performance by using fewer cores for future, due the RAM capacity limit, when using only 4 cores and increasing the number of task per core we can see the time needed to complete the 2k samples it's reduced as it didn't use the SWAP memory while running the process, as we can see in the next screenshot.
 
 ![](../figures/htop_parallel_process.png)
 
+And after checking this results we ended with the next configuration:
+
+-   Number of cores used by `data.table`: 8
+
+-   Number of cores used by `future`: 4
+
+-   Chunk.size used by `future`: 200
+
+-   Scheduling used by `future`: 0.6
+
+### Adding variable
+
+Once we know how to set up the parallel process
+
 ```{r}
+#| eval: false
 all_data <-
   here("output/take-trip-fst") |>
   list.files(full.names = TRUE) |>
