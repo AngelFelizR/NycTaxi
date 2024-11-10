@@ -25,7 +25,7 @@ website:
           - text: "04 - Data Preparation"
             href: phases/03-data-preparation.qmd
           - text: "05 - Data Understanding"
-            href: phases/03-data-understanding.qmd 
+            href: phases/04-data-understanding.qmd 
     right:
       - text: "About Angel Feliz"
         href: about.qmd

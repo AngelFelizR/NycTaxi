@@ -204,7 +204,7 @@ if(!dir.exists(here("output/cache-data"))) dir.create(here("output/cache-data"))
 
 3.  Creating a connection with DuckDB.
 
-```{r}
+```r
 con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
 ```
 
@@ -534,7 +534,7 @@ if(exists("SimulationHourlyWage")){
 
 8.  Disconnecting from DB.
 
-```{r}
+```r
 dbDisconnect(con, shutdown = TRUE)
 ```
 
