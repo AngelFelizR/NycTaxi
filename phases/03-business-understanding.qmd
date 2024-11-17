@@ -116,6 +116,7 @@ They will be used as the **predictors** to train the model.
 | **Field Name**           | **Description**                                                                                                                                                                                   |
 |:----------------------------------|:------------------------------------|
 | **hvfhs_license_num**    | The TLC license number of the HVFHS base or business. As of September 2019, the HVFHS licensees are the following: <br> - HV0002: Juno <br> - HV0003: Uber <br> - HV0004: Via <br> - HV0005: Lyft |
+| **wav_request_flag**     | Did the passenger request a wheelchair-accessible vehicle (WAV)? (Y/N)|
 | **wav_match_flag**       | Did the trip occur in a wheelchair-accessible vehicle (WAV)? (Y/N)                                                                                                                                |
 | **request_datetime**     | Date/time when passenger requested to be picked up                                                                                                                                                |
 | **PULocationID**         | TLC Taxi Zone in which the trip began                                                                                                                                                             |
@@ -127,7 +128,6 @@ They will be used as the **predictors** to train the model.
 | **access_a_ride_flag**   | Was the trip administered on behalf of the Metropolitan Transportation Authority (MTA)? (Y/N)                                                                                                     |
 | **dispatching_base_num** | The TLC Base License Number of the base that dispatched the trip                                                                                                                                  |
 | **originating_base_num** | Base number of the base that received the original trip request                                                                                                                                   |
-| **wav_request_flag**     | Did the passenger request a wheelchair-accessible vehicle (WAV)? (Y/N)                                                                                                                            |
 
 ### Available After Ending the Trip
 

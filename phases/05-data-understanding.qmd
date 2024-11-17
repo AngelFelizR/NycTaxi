@@ -42,7 +42,9 @@ library(lubridate)
 
 ## To create plots
 library(ggplot2)
-library(ggiraph)
+library(scales)
+library(DataExplorer)
+library(GGally)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -63,4 +65,231 @@ TrainingSample <-
   rbindlist()
 ```
 
+### Formatting for EDA
 
+https://boxuancui.github.io/DataExplorer/articles/dataexplorer-intro.html#distributions
+
+https://ggobi.github.io/ggally/articles/ggpairs.html
+
+```{r}
+TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
+```
+
+
+## Explorting individual distributions
+
+### Categorical  variables
+
+In the next plots we can confirm that:
+
+- __Uber__ makes 72% of the trips.
+- __dispatching_base_num__, __originating_base_num__ and __access_a_ride_flag__ are highly correlated with company, in consequence we cannot use it for predicting.
+- Only 1% of trips are shared and 6% needs WAV.
+- __wav_match_flag__ and __wav_request_flag__ are highly correlated.
+
+::: {.panel-tabset}
+
+#### Company
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = .(company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"))
+][, prop := N / sum(N)] |>
+  ggplot(aes(N, company)) +
+  geom_col(fill = "gray80",
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips comes from Uber",
+       x = "",
+       y = "Company Name") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### dispatching_base_num
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("dispatching_base_num", "hvfhs_license_num")
+][,`:=`(prop  = N / sum(N),
+        dispatching_base_num = reorder(dispatching_base_num, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, dispatching_base_num)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = "grey80", 
+                      high = "red",
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "We only have 1 dispaching base per Company",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### originating_base_num
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("hvfhs_license_num",
+                      "originating_base_num")
+][,`:=`(prop  = N / sum(N),
+        originating_base_num = reorder(originating_base_num, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, originating_base_num)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = "grey80", 
+                      high = "red",
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "We only have 1 dispaching base per Company",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### shared_request_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "shared_request_flag"
+][,`:=`(prop = N / sum(N),
+        shared_request_flag = reorder(shared_request_flag, N))] |>
+  ggplot(aes(N, shared_request_flag)) +
+  geom_col(fill = "gray80",
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 8000) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Shared trips are weird") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### shared_match_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("shared_request_flag",
+                      "shared_match_flag")
+][,prop := N / sum(N),
+  by = "shared_request_flag"] |>
+  ggplot(aes(shared_match_flag,
+             shared_request_flag)) +
+  geom_tile(aes(fill = prop))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = "grey80", 
+                      high = "red",
+                      labels = percent)+
+  scale_x_discrete(position = "top")+
+  labs(title = "It's to match a shared trip",
+       fill = "Based on request proportion") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+                                                                
+```
+
+#### access_a_ride_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("hvfhs_license_num",
+                      "access_a_ride_flag")
+][,`:=`(prop  = N / sum(N),
+        access_a_ride_flag = reorder(access_a_ride_flag, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, access_a_ride_flag)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = "grey80", 
+                      high = "red",
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "Don't  show any new detail",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### wav_request_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "wav_request_flag"
+][,`:=`(prop = N / sum(N),
+        wav_request_flag = reorder(wav_request_flag, N))] |>
+ggplot(aes(N, wav_request_flag)) +
+  geom_col(fill = "gray80",
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop, accuracy = 0.01),
+                x = N + c(300000, 250))) +
+  scale_x_continuous(labels = comma_format(),
+                     trans = "log2",
+                     breaks = 2^(seq(0, 20, by = 2))) +
+  labs(title = "Really few trips need WAV",
+       x = "") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+
+#### wav_match_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("wav_match_flag", "wav_request_flag")
+][, prop := N / sum(N),
+  by = "wav_request_flag"] |>
+  ggplot(aes(wav_match_flag, wav_request_flag)) +
+  geom_tile(aes(fill = prop))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = "grey80", 
+                      high = "red",
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "Don't  show any new detail",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+:::
