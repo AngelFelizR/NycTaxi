@@ -1,7 +1,7 @@
 ---
 title: "Data Understanding"
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r, include = FALSE}
@@ -39,12 +39,12 @@ library(fst)
 ## To transform data that fits in RAM
 library(data.table)
 library(lubridate)
+library(timeDate)
+library(recipes)
 
 ## To create plots
 library(ggplot2)
 library(scales)
-library(DataExplorer)
-library(GGally)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -61,18 +61,118 @@ TrainingSample <-
                    name = basename(x)))() |>
   (\(dt) dt[order(n_char, name), full_path])() |>
   head(12L) |>
-  lapply(FUN = fst::read_fst, as.data.table = TRUE) |>
+  lapply(FUN = read_fst, as.data.table = TRUE) |>
   rbindlist()
+
+## Changing target as character
+TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
 ```
 
-### Formatting for EDA
-
-https://boxuancui.github.io/DataExplorer/articles/dataexplorer-intro.html#distributions
-
-https://ggobi.github.io/ggally/articles/ggpairs.html
+### Integrating with locations
 
 ```{r}
-TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
+ZoneCodeRef <-
+  here("output/cache-data/ZoneCodesRef.fst") |>
+  read_fst(as.data.table = TRUE)
+
+TrainingSampleZones <-
+  
+  ZoneCodeRef[TrainingSample,
+              on = c("LocationID" = "PULocationID"),
+              nomatch = NULL
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
+    
+  ][, ZoneCodeRef[.SD,
+                  on = c("LocationID" = "DOLocationID"),
+                  nomatch = NULL]
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
+```
+
+### Extrating time data
+
+```{r}
+# timeDate::listHolidays("US") |>
+#   (\(x) paste0("`Days to ", x, "` = ", 
+#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
+#                " |> as.integer()") )() |>
+#   paste0(collapse = ",\n") |>
+#   cat()
+
+TimeRecipe <-
+  recipe(~ ., data = TrainingSampleZones) |>
+  
+  # Daily cycle
+  step_harmonic(request_datetime, 
+                frequency = 1,
+                cycle_size = 3600*24, 
+                keep_original_cols = TRUE) |>
+  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
+              request_datetime_cos_daily = request_datetime_cos_1) |>
+  
+  # Weekly cycle
+  step_harmonic(request_datetime, 
+                frequency = 1, 
+                cycle_size = 3600*24*7, 
+                keep_original_cols = TRUE) %>%
+  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
+              request_datetime_cos_weekly = request_datetime_cos_1) |>
+  
+  # Extracting additional information
+  step_date(request_datetime,
+            features = c("year",
+                         "doy",
+                         "week",
+                         "decimal",
+                         "semester", 
+                         "quarter",
+                         "dow", 
+                         "month")) |>
+  step_holiday(request_datetime,
+               holidays = c('USChristmasDay',
+                            'USColumbusDay',
+                            'USCPulaskisBirthday',
+                            'USDecorationMemorialDay',
+                            'USElectionDay',
+                            'USGoodFriday',
+                            'USInaugurationDay',
+                            'USIndependenceDay',
+                            'USJuneteenthNationalIndependenceDay',
+                            'USLaborDay',
+                            'USLincolnsBirthday',
+                            'USMemorialDay',
+                            'USMLKingsBirthday',
+                            'USNewYearsDay',
+                            'USPresidentsDay',
+                            'USThanksgivingDay',
+                            'USVeteransDay',
+                            'USWashingtonsBirthday')) |>
+  step_mutate(request_datetime_am = am(request_datetime),
+              request_datetime_pm = pm(request_datetime),
+              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
+
+
+TrainingSampleZonesTime <-
+  prep(TimeRecipe) |>
+  bake(new_data = NULL)
+
+glimpse(TrainingSampleZonesTime)
 ```
 
 
@@ -80,12 +180,17 @@ TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
 
 ### Categorical  variables
 
-In the next plots we can confirm that:
+In these plots we can confirm that:
 
-- __Uber__ makes 72% of the trips.
-- __dispatching_base_num__, __originating_base_num__ and __access_a_ride_flag__ are highly correlated with company, in consequence we cannot use it for predicting.
-- Only 1% of trips are shared and 6% needs WAV.
-- __wav_match_flag__ and __wav_request_flag__ are highly correlated.
+- __Uber__ accounts for 72% of all trips.
+
+- __dispatching_base_num__, __originating_base_num__ and __access_a_ride_flag__ are highly correlated with company and don't seem to be useful for prediction.
+
+- Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
+
+- If you request a shared trip, you will only be matched with other riders in 23% of cases.
+
+- When someone requests a WAV, they are able to find this type of vehicle most of the time.
 
 ::: {.panel-tabset}
 
@@ -211,7 +316,7 @@ TrainingSample[, .N,
   theme_minimal()+
   theme(panel.grid = element_blank(),
         plot.title = element_text(face = "bold", size = 15)) 
-                                                                
+
 ```
 
 #### access_a_ride_flag
@@ -250,7 +355,7 @@ TrainingSample[, .N,
                by = "wav_request_flag"
 ][,`:=`(prop = N / sum(N),
         wav_request_flag = reorder(wav_request_flag, N))] |>
-ggplot(aes(N, wav_request_flag)) +
+  ggplot(aes(N, wav_request_flag)) +
   geom_col(fill = "gray80",
            color = "black",
            width = 0.5) +
@@ -285,11 +390,44 @@ TrainingSample[, .N,
                       high = "red",
                       labels = comma)+
   scale_x_discrete(position = "top")+
-  labs(title = "Don't  show any new detail",
+  labs(title = "The WAV request is met",
        fill = "Number of trips") +
   theme_minimal()+
   theme(panel.grid = element_blank(),
         plot.title = element_text(face = "bold", size = 15)) 
 ```
 
+#### take_current_trip
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "take_current_trip"
+][,`:=`(prop = N / sum(N),
+        take_current_trip = reorder(take_current_trip, N))] |>
+  ggplot(aes(N, take_current_trip)) +
+  geom_col(fill = "gray80",
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop, accuracy = 1)),
+            nudge_x = 10000) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Must of the trips can be taken",
+       x = "") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
 :::
+
+
+### Numeric variables
+
+```{r}
+TrainingSample[, sapply(.SD, \(x) paste0(class(x), collapse = "_") ), .SDcols = !is.character ]
+```
+
