@@ -1,7 +1,7 @@
 ---
 title: "Data Understanding"
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
 
 ```{r, include = FALSE}
@@ -45,6 +45,7 @@ library(recipes)
 ## To create plots
 library(ggplot2)
 library(scales)
+library(plotly)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -67,114 +68,6 @@ TrainingSample <-
 ## Changing target as character
 TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
 ```
-
-### Integrating with locations
-
-```{r}
-ZoneCodeRef <-
-  here("output/cache-data/ZoneCodesRef.fst") |>
-  read_fst(as.data.table = TRUE)
-
-TrainingSampleZones <-
-  
-  ZoneCodeRef[TrainingSample,
-              on = c("LocationID" = "PULocationID"),
-              nomatch = NULL
-  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
-    
-  ][, ZoneCodeRef[.SD,
-                  on = c("LocationID" = "DOLocationID"),
-                  nomatch = NULL]
-  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
-```
-
-### Extrating time data
-
-```{r}
-# timeDate::listHolidays("US") |>
-#   (\(x) paste0("`Days to ", x, "` = ", 
-#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
-#                " |> as.integer()") )() |>
-#   paste0(collapse = ",\n") |>
-#   cat()
-
-TimeRecipe <-
-  recipe(~ ., data = TrainingSampleZones) |>
-  
-  # Daily cycle
-  step_harmonic(request_datetime, 
-                frequency = 1,
-                cycle_size = 3600*24, 
-                keep_original_cols = TRUE) |>
-  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
-              request_datetime_cos_daily = request_datetime_cos_1) |>
-  
-  # Weekly cycle
-  step_harmonic(request_datetime, 
-                frequency = 1, 
-                cycle_size = 3600*24*7, 
-                keep_original_cols = TRUE) %>%
-  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
-              request_datetime_cos_weekly = request_datetime_cos_1) |>
-  
-  # Extracting additional information
-  step_date(request_datetime,
-            features = c("year",
-                         "doy",
-                         "week",
-                         "decimal",
-                         "semester", 
-                         "quarter",
-                         "dow", 
-                         "month")) |>
-  step_holiday(request_datetime,
-               holidays = c('USChristmasDay',
-                            'USColumbusDay',
-                            'USCPulaskisBirthday',
-                            'USDecorationMemorialDay',
-                            'USElectionDay',
-                            'USGoodFriday',
-                            'USInaugurationDay',
-                            'USIndependenceDay',
-                            'USJuneteenthNationalIndependenceDay',
-                            'USLaborDay',
-                            'USLincolnsBirthday',
-                            'USMemorialDay',
-                            'USMLKingsBirthday',
-                            'USNewYearsDay',
-                            'USPresidentsDay',
-                            'USThanksgivingDay',
-                            'USVeteransDay',
-                            'USWashingtonsBirthday')) |>
-  step_mutate(request_datetime_am = am(request_datetime),
-              request_datetime_pm = pm(request_datetime),
-              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
-
-
-TrainingSampleZonesTime <-
-  prep(TimeRecipe) |>
-  bake(new_data = NULL)
-
-glimpse(TrainingSampleZonesTime)
-```
-
 
 ## Explorting individual distributions
 
@@ -420,6 +313,143 @@ TrainingSample[, .N,
   theme(panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
+```
+
+:::
+
+
+### Datetime variables
+
+
+```{r}
+RequestTimeDetails <- TrainingSample[
+  j = .(request_datetime,
+        request_date = as_date(request_datetime),
+        is_holiday = as_date(request_datetime) %in% as_date(holidayNYSE(2022)),
+        is_weekend = isWeekend(request_datetime),
+        weekday = wday(request_datetime, label = TRUE, abbr = FALSE),
+        month = month(request_datetime, label = TRUE, abbr = FALSE),
+        hour = hour(request_datetime))
+]
+```
+
+
+
+::: {.panel-tabset}
+
+
+#### Dayly
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+DaylyRequestPlot <-
+  ggplot(TrainingSample,
+         aes(as_date(request_datetime),
+             text = paste0("Date: ", format(request_datetime, "%m-%d")))) +
+  geom_bar(color = "black",
+           linewidth = 0.05,
+           fill = "grey80")+
+  scale_x_date(date_breaks = "2 weeks",
+               date_labels = "%m-%d")+
+  scale_y_continuous(labels = comma_format(accuracy = 1))+
+  labs(title = "Distribution of dayly trip requets",
+       x = "Day") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+
+ggplotly(DaylyRequestPlot, tooltip = c("text", "count"))
+```
+
+#### Bi-weekly
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(TrainingSample, aes(request_datetime)) +
+  geom_histogram(binwidth = 3600*24*7*2,
+                 fill = "grey70")+
+  scale_x_datetime(date_breaks = "2 weeks",
+                   date_labels = "%m-%d")+
+  scale_y_continuous(labels = comma_format(accuracy = 1))+
+  labs(title = "Distribution of BI-weekly trip requets") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+
+#### Month
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+RequestTimeDetails[, .(n_trips = .N),
+                   by = "month"] |>
+  ggplot(aes(n_trips, factor(month, sort(month, decreasing = TRUE)))) +
+  geom_col(fill = "gray80",
+           color = "black",
+           width = 0.8) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Few samples for December",
+       y = "",
+       x = "Number of Trips") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+
+#### Hour
+
+```{r}
+NTripsByHour <- RequestTimeDetails[
+  j = .(n_trips = .N,
+        is_top_hour = FALSE),
+  by = hour
+]
+
+NTripsByHour[order(-n_trips)[1:2], is_top_hour := TRUE]
+
+TopHours <- NTripsByHour[is_top_hour == TRUE, hour] |> sort()
+
+ggplot(NTripsByHour,
+       aes(n_trips, 
+           factor(hour, sort(hour, decreasing = TRUE)),
+           fill = is_top_hour)) +
+  geom_col(color = "black",
+           linewidth = 0.3) +
+  scale_fill_manual(values = c("FALSE"= "grey80", "TRUE" = "skyblue")) +
+  labs(title = paste0("Hightest demand at ", TopHours[1]," and ",TopHours[2]," hours"),
+       y = "",
+       x = "Number of Trips") +
+  theme_minimal()+
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+
+#### Holy days
+
+```{r}
+RequestTimeDetails[, .(avg_n_trips = .N / uniqueN(request_date)),
+                   by = "is_holiday"]
+```
+
+#### Day of week
+
+```{r}
+RequestTimeDetails[, .(avg_n_trips = .N / uniqueN(request_date)),
+                   by = c("is_weekend","weekday")]
 ```
 
 :::

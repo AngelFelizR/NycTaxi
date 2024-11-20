@@ -1,0 +1,112 @@
+---
+title: "Data Preparation"
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+### Adding features
+
+```r
+ZoneCodeRef <-
+  here("output/cache-data/ZoneCodesRef.fst") |>
+  read_fst(as.data.table = TRUE)
+
+TrainingSampleZones <-
+  
+  ZoneCodeRef[TrainingSample,
+              on = c("LocationID" = "PULocationID"),
+              nomatch = NULL
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
+    
+  ][, ZoneCodeRef[.SD,
+                  on = c("LocationID" = "DOLocationID"),
+                  nomatch = NULL]
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
+```
+
+
+```r
+# timeDate::listHolidays("US") |>
+#   (\(x) paste0("`Days to ", x, "` = ", 
+#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
+#                " |> as.integer()") )() |>
+#   paste0(collapse = ",\n") |>
+#   cat()
+
+TimeRecipe <-
+  recipe(~ ., data = TrainingSampleZones) |>
+  
+  # Daily cycle
+  step_harmonic(request_datetime, 
+                frequency = 1,
+                cycle_size = 3600*24, 
+                keep_original_cols = TRUE) |>
+  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
+              request_datetime_cos_daily = request_datetime_cos_1) |>
+  
+  # Weekly cycle
+  step_harmonic(request_datetime, 
+                frequency = 1, 
+                cycle_size = 3600*24*7, 
+                keep_original_cols = TRUE) %>%
+  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
+              request_datetime_cos_weekly = request_datetime_cos_1) |>
+  
+  # Extracting additional information
+  step_date(request_datetime,
+            features = c("year",
+                         "doy",
+                         "week",
+                         "decimal",
+                         "semester", 
+                         "quarter",
+                         "dow", 
+                         "month")) |>
+  step_holiday(request_datetime,
+               holidays = c('USChristmasDay',
+                            'USColumbusDay',
+                            'USCPulaskisBirthday',
+                            'USDecorationMemorialDay',
+                            'USElectionDay',
+                            'USGoodFriday',
+                            'USInaugurationDay',
+                            'USIndependenceDay',
+                            'USJuneteenthNationalIndependenceDay',
+                            'USLaborDay',
+                            'USLincolnsBirthday',
+                            'USMemorialDay',
+                            'USMLKingsBirthday',
+                            'USNewYearsDay',
+                            'USPresidentsDay',
+                            'USThanksgivingDay',
+                            'USVeteransDay',
+                            'USWashingtonsBirthday')) |>
+  step_mutate(request_datetime_am = am(request_datetime),
+              request_datetime_pm = pm(request_datetime),
+              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
+
+
+TrainingSampleZonesTime <-
+  prep(TimeRecipe) |>
+  bake(new_data = NULL)
+
+glimpse(TrainingSampleZonesTime)
+```
