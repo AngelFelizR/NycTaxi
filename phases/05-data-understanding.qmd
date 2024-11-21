@@ -35,6 +35,7 @@ library(here)
 
 ## To import and export data frames as binary files
 library(fst)
+library(fstcore)
 
 ## To transform data that fits in RAM
 library(data.table)
@@ -320,6 +321,7 @@ TrainingSample[, .N,
 
 ### Datetime variables
 
+As request `request_datetime` is the only variable we will use for predicting, we need to extract from it some feature to cofirm if they can be useful.
 
 ```{r}
 RequestTimeDetails <- TrainingSample[
@@ -333,36 +335,14 @@ RequestTimeDetails <- TrainingSample[
 ]
 ```
 
+Based on the results that we can see below, we can confirm that:
+
+1. We are missing date for first week of July and second week of December.
+2. We have dates with an unusual number of trips ending January. Taking a deeper look we can confirm that most sampled date were Jan 27, Jan 31 and Feb 05.
+3. The months with higher number or trips are February, August, September and October.
 
 
 ::: {.panel-tabset}
-
-
-#### Dayly
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-DaylyRequestPlot <-
-  ggplot(TrainingSample,
-         aes(as_date(request_datetime),
-             text = paste0("Date: ", format(request_datetime, "%m-%d")))) +
-  geom_bar(color = "black",
-           linewidth = 0.05,
-           fill = "grey80")+
-  scale_x_date(date_breaks = "2 weeks",
-               date_labels = "%m-%d")+
-  scale_y_continuous(labels = comma_format(accuracy = 1))+
-  labs(title = "Distribution of dayly trip requets",
-       x = "Day") +
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 90),
-        panel.grid = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-
-ggplotly(DaylyRequestPlot, tooltip = c("text", "count"))
-```
 
 #### Bi-weekly
 
@@ -370,12 +350,12 @@ ggplotly(DaylyRequestPlot, tooltip = c("text", "count"))
 #| code-fold: true
 #| code-summary: "Show the code"
 
-ggplot(TrainingSample, aes(request_datetime)) +
-  geom_histogram(binwidth = 3600*24*7*2,
-                 fill = "grey70")+
+ggplot(RequestTimeDetails, aes(request_datetime)) +
+  geom_histogram(binwidth = 3600*24*7*2)+
   scale_x_datetime(date_breaks = "2 weeks",
                    date_labels = "%m-%d")+
-  scale_y_continuous(labels = comma_format(accuracy = 1))+
+  scale_y_continuous(breaks = breaks_width(5000),
+                     labels = comma_format(accuracy = 1))+
   labs(title = "Distribution of BI-weekly trip requets") +
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90),
@@ -383,6 +363,50 @@ ggplot(TrainingSample, aes(request_datetime)) +
         plot.title = element_text(face = "bold", size = 15))
 ```
 
+#### Trips per day
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripsPerDay <- RequestTimeDetails[, .N, request_date]
+
+ggplot(TripsPerDay, aes(N)) +
+  geom_histogram(bins = 15) +
+  scale_x_continuous(breaks = breaks_width(1000),
+                     labels = \(x) comma(x/1000, accuracy = 0.1, suffix = "k")) +
+    labs(title = paste("Number of trips per day in", nrow(TripsPerDay), "dates")) +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Busiest Travel Dates
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripsPerDay[order(-N)[1:10],
+            .(request_date = reorder(format(request_date, "%a, %b %d"),
+                                     -as.numeric(request_date)),
+              N)
+  ][, is_top_3 := c(rep(TRUE, 3), rep(FALSE, 7))] |>
+  ggplot(aes(N, request_date, fill = is_top_3)) +
+  geom_col(color = "black",
+           width = 0.7) +
+  scale_x_continuous(breaks = breaks_width(1000),
+                     labels = comma_format()) +
+  scale_fill_manual(values = c("TRUE" = "skyblue", "FALSE" = "gray80"))+
+  labs(title = "Busiest Travel Dates: A Closer Look",
+       x = "",
+       y = "Request Date") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
 
 #### Month
 
@@ -390,18 +414,24 @@ ggplot(TrainingSample, aes(request_datetime)) +
 #| code-fold: true
 #| code-summary: "Show the code"
 
-RequestTimeDetails[, .(n_trips = .N),
-                   by = "month"] |>
+RequestTimeDetails[ 
+  j = .(is_top_4 = FALSE,
+        n_trips = .N),
+  by = "month"
+][order(-n_trips)[1:4], 
+  is_top_4 := TRUE] |>
   ggplot(aes(n_trips, factor(month, sort(month, decreasing = TRUE)))) +
-  geom_col(fill = "gray80",
+  geom_col(aes(fill = is_top_4),
            color = "black",
            width = 0.8) +
+  scale_fill_manual(values = c("TRUE" = "skyblue", "FALSE" = "gray80"))+
   scale_x_continuous(labels = comma_format()) +
-  labs(title = "Few samples for December",
+  labs(title = "Feb, Aug and Sept have more samples",
        y = "",
        x = "Number of Trips") +
   theme_minimal() +
-  theme(panel.grid.major.y = element_blank(),
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
 ```
@@ -410,6 +440,9 @@ RequestTimeDetails[, .(n_trips = .N),
 #### Hour
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
 NTripsByHour <- RequestTimeDetails[
   j = .(n_trips = .N,
         is_top_hour = FALSE),
