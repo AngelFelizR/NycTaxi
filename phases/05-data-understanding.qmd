@@ -27,6 +27,14 @@ As this will help to:
 
 ## Setting the environment up
 
+### Defining colors to use
+
+```{r}
+ColorHighlight <- "lightslateblue"
+ColorGray <- "gray80"
+```
+
+
 ### Loading packages to use
 
 ```{r warning = FALSE, message = FALSE}
@@ -98,7 +106,7 @@ TrainingSample[, .N,
                by = .(company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"))
 ][, prop := N / sum(N)] |>
   ggplot(aes(N, company)) +
-  geom_col(fill = "gray80",
+  geom_col(fill = ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop)),
@@ -126,8 +134,8 @@ TrainingSample[, .N,
   ggplot(aes(hvfhs_license_num, dispatching_base_num)) +
   geom_tile(aes(fill = N))+
   geom_text(aes(label = percent(prop, accuracy = 1))) +
-  scale_fill_gradient(low = "grey80", 
-                      high = "red",
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
                       labels = comma)+
   scale_x_discrete(position = "top")+
   labs(title = "We only have 1 dispaching base per Company",
@@ -152,8 +160,8 @@ TrainingSample[, .N,
   ggplot(aes(hvfhs_license_num, originating_base_num)) +
   geom_tile(aes(fill = N))+
   geom_text(aes(label = percent(prop, accuracy = 1))) +
-  scale_fill_gradient(low = "grey80", 
-                      high = "red",
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
                       labels = comma)+
   scale_x_discrete(position = "top")+
   labs(title = "We only have 1 dispaching base per Company",
@@ -174,7 +182,7 @@ TrainingSample[, .N,
 ][,`:=`(prop = N / sum(N),
         shared_request_flag = reorder(shared_request_flag, N))] |>
   ggplot(aes(N, shared_request_flag)) +
-  geom_col(fill = "gray80",
+  geom_col(fill = ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop)),
@@ -201,8 +209,8 @@ TrainingSample[, .N,
              shared_request_flag)) +
   geom_tile(aes(fill = prop))+
   geom_text(aes(label = percent(prop, accuracy = 1))) +
-  scale_fill_gradient(low = "grey80", 
-                      high = "red",
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
                       labels = percent)+
   scale_x_discrete(position = "top")+
   labs(title = "It's to match a shared trip",
@@ -228,8 +236,8 @@ TrainingSample[, .N,
   ggplot(aes(hvfhs_license_num, access_a_ride_flag)) +
   geom_tile(aes(fill = N))+
   geom_text(aes(label = percent(prop, accuracy = 1))) +
-  scale_fill_gradient(low = "grey80", 
-                      high = "red",
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
                       labels = comma)+
   scale_x_discrete(position = "top")+
   labs(title = "Don't  show any new detail",
@@ -250,7 +258,7 @@ TrainingSample[, .N,
 ][,`:=`(prop = N / sum(N),
         wav_request_flag = reorder(wav_request_flag, N))] |>
   ggplot(aes(N, wav_request_flag)) +
-  geom_col(fill = "gray80",
+  geom_col(fill = ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop, accuracy = 0.01),
@@ -280,8 +288,8 @@ TrainingSample[, .N,
   ggplot(aes(wav_match_flag, wav_request_flag)) +
   geom_tile(aes(fill = prop))+
   geom_text(aes(label = percent(prop, accuracy = 1))) +
-  scale_fill_gradient(low = "grey80", 
-                      high = "red",
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
                       labels = comma)+
   scale_x_discrete(position = "top")+
   labs(title = "The WAV request is met",
@@ -302,7 +310,7 @@ TrainingSample[, .N,
 ][,`:=`(prop = N / sum(N),
         take_current_trip = reorder(take_current_trip, N))] |>
   ggplot(aes(N, take_current_trip)) +
-  geom_col(fill = "gray80",
+  geom_col(fill = ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop, accuracy = 1)),
@@ -329,7 +337,7 @@ RequestTimeDetails <- TrainingSample[
         request_date = as_date(request_datetime),
         is_holiday = as_date(request_datetime) %in% as_date(holidayNYSE(2022)),
         is_weekend = isWeekend(request_datetime),
-        weekday = wday(request_datetime, label = TRUE, abbr = FALSE),
+        weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
         month = month(request_datetime, label = TRUE, abbr = FALSE),
         hour = hour(request_datetime))
 ]
@@ -397,7 +405,8 @@ TripsPerDay[order(-N)[1:10],
            width = 0.7) +
   scale_x_continuous(breaks = breaks_width(1000),
                      labels = comma_format()) +
-  scale_fill_manual(values = c("TRUE" = "skyblue", "FALSE" = "gray80"))+
+  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
+                               "FALSE" = ColorGray))+
   labs(title = "Busiest Travel Dates: A Closer Look",
        x = "",
        y = "Request Date") +
@@ -424,9 +433,10 @@ RequestTimeDetails[
   geom_col(aes(fill = is_top_4),
            color = "black",
            width = 0.8) +
-  scale_fill_manual(values = c("TRUE" = "skyblue", "FALSE" = "gray80"))+
+  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
+                               "FALSE" = ColorGray))+
   scale_x_continuous(labels = comma_format()) +
-  labs(title = "Feb, Aug and Sept have more samples",
+  labs(title = "4 months have around 30k trips",
        y = "",
        x = "Number of Trips") +
   theme_minimal() +
@@ -436,38 +446,52 @@ RequestTimeDetails[
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-
-#### Hour
+#### Weekday
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-NTripsByHour <- RequestTimeDetails[
-  j = .(n_trips = .N,
-        is_top_hour = FALSE),
-  by = hour
-]
 
-NTripsByHour[order(-n_trips)[1:2], is_top_hour := TRUE]
+```
 
-TopHours <- NTripsByHour[is_top_hour == TRUE, hour] |> sort()
 
-ggplot(NTripsByHour,
-       aes(n_trips, 
-           factor(hour, sort(hour, decreasing = TRUE)),
-           fill = is_top_hour)) +
-  geom_col(color = "black",
-           linewidth = 0.3) +
-  scale_fill_manual(values = c("FALSE"= "grey80", "TRUE" = "skyblue")) +
-  labs(title = paste0("Hightest demand at ", TopHours[1]," and ",TopHours[2]," hours"),
-       y = "",
-       x = "Number of Trips") +
-  theme_minimal()+
+
+#### Weekday by Hour
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+HourWeekdayPlot <-
+  RequestTimeDetails[
+    j = .(n_trips = .N),
+    by = c("hour", "weekday")
+  ][, `:=`(trip_cat = fifelse(n_trips %in% sort(n_trips, TRUE)[1:3],
+                              "extreme_value",
+                              "normal"),
+           prop_trips = n_trips / sum(n_trips)),
+    by = "weekday"] |>
+  ggplot(aes(hour, 
+             prop_trips, 
+             colour = trip_cat)) +
+  geom_point()+
+  scale_color_manual(values = c("extreme_value" = ColorHighlight,
+                                "normal" = ColorGray)) +
+  scale_x_continuous(breaks = breaks_width(6)) +
+  scale_y_continuous(labels = percent_format())+
+  facet_wrap(vars(weekday)) +
+  expand_limits(y = 0, x = c(0,24)) +
+  labs(title = "Higher demand hours start at 12 pm",
+       y = "Proportion of trips per weekday",
+       x = "Hour") +
+  theme_minimal() +
   theme(legend.position = "none",
-        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
+
+ggplotly(HourWeekdayPlot)
 ```
 
 
