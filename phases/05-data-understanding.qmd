@@ -27,7 +27,7 @@ As this will help to:
 
 ## Setting the environment up
 
-### Defining colors to use
+### Define colors to use
 
 ```{r}
 ColorHighlight <- "lightslateblue"
@@ -48,8 +48,6 @@ library(fstcore)
 ## To transform data that fits in RAM
 library(data.table)
 library(lubridate)
-library(timeDate)
-library(recipes)
 
 ## To create plots
 library(ggplot2)
@@ -82,17 +80,19 @@ TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
 
 ### Categorical  variables
 
-In these plots we can confirm that:
+These plots confirm that:
 
-- __Uber__ accounts for 72% of all trips.
+- Uber accounts for 72% of trips. In consequence, the results of the this project will be __more related to Uber than Lyft__.
 
-- __dispatching_base_num__, __originating_base_num__ and __access_a_ride_flag__ are highly correlated with company and don't seem to be useful for prediction.
+- `dispatching_base_num`, `originating_base_num` and `access_a_ride_flag` all seem to be highly correlated with company and are __unlikely to be useful for prediction__.
 
 - Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
 
 - If you request a shared trip, you will only be matched with other riders in 23% of cases.
 
 - When someone requests a WAV, they are able to find this type of vehicle most of the time.
+
+- As most trips can be taken (76%), we might need to __over-sample the trips that shouldn't be taken__ to improve model performance for a class imbalance.
 
 ::: {.panel-tabset}
 
@@ -316,7 +316,7 @@ TrainingSample[, .N,
   geom_text(aes(label = percent(prop, accuracy = 1)),
             nudge_x = 10000) +
   scale_x_continuous(labels = comma_format()) +
-  labs(title = "Must of the trips can be taken",
+  labs(title = "Most trips can be taken",
        x = "") +
   theme_minimal() +
   theme(panel.grid.major.y = element_blank(),
@@ -329,26 +329,31 @@ TrainingSample[, .N,
 
 ### Datetime variables
 
-As request `request_datetime` is the only variable we will use for predicting, we need to extract from it some feature to cofirm if they can be useful.
+As request `request_datetime` is the only variable we will use for predicting, we need to extract from it some feature to confirm if they can be useful.
 
 ```{r}
 RequestTimeDetails <- TrainingSample[
   j = .(request_datetime,
         request_date = as_date(request_datetime),
-        is_holiday = as_date(request_datetime) %in% as_date(holidayNYSE(2022)),
-        is_weekend = isWeekend(request_datetime),
         weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
         month = month(request_datetime, label = TRUE, abbr = FALSE),
         hour = hour(request_datetime))
 ]
 ```
 
-Based on the results that we can see below, we can confirm that:
+The following can be confirmed based on the results below:
 
-1. We are missing date for first week of July and second week of December.
-2. We have dates with an unusual number of trips ending January. Taking a deeper look we can confirm that most sampled date were Jan 27, Jan 31 and Feb 05.
-3. The months with higher number or trips are February, August, September and October.
+1. Trip counts show variability, with most days falling between __1,000–3,000 trips__.
 
+2. __Strong monthly trends are present__, with peaks in specific months (February, August, September, and October).
+
+3. Bi-weekly peaks suggest __periodic patterns__, indicating the need for temporal features like week number or bi-weekly intervals to capture this behavior.
+
+4. __Thursday__ has significantly more trips compared to other days, revealing a clear __weekly trend__.
+
+6. Demand consistently __increases around 12 PM__ across different days, with some variation by weekday and weekend. Incorporating hour-of-day as a feature can capture __intraday patterns__.
+
+In summary, the data indicates strong temporal patterns so extracting features like weekday, month, hour of day, and potentially even a __sin/cosine__ transformation (for capturing seasonality) would be beneficial for model performance.
 
 ::: {.panel-tabset}
 
@@ -389,34 +394,6 @@ ggplot(TripsPerDay, aes(N)) +
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Busiest Travel Dates
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TripsPerDay[order(-N)[1:10],
-            .(request_date = reorder(format(request_date, "%a, %b %d"),
-                                     -as.numeric(request_date)),
-              N)
-  ][, is_top_3 := c(rep(TRUE, 3), rep(FALSE, 7))] |>
-  ggplot(aes(N, request_date, fill = is_top_3)) +
-  geom_col(color = "black",
-           width = 0.7) +
-  scale_x_continuous(breaks = breaks_width(1000),
-                     labels = comma_format()) +
-  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
-                               "FALSE" = ColorGray))+
-  labs(title = "Busiest Travel Dates: A Closer Look",
-       x = "",
-       y = "Request Date") +
-  theme_minimal() +
-  theme(legend.position = "none",
-        panel.grid.major.y = element_blank(),
-        panel.grid.minor.x = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-```
-
 #### Month
 
 ```{r}
@@ -446,15 +423,33 @@ RequestTimeDetails[
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Weekday
+
+#### Day of week
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-
+RequestTimeDetails[ 
+  j = .(n_trips = .N),
+  keyby = .(weekday = forcats::fct_rev(weekday))
+][, is_top := n_trips == max(n_trips)] |>
+  ggplot(aes(n_trips, weekday)) +
+  geom_col(aes(fill = is_top),
+           color = "black",
+           width = 0.7) +
+  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Must of the samples take place on Thursday",
+       y = "",
+       x = "Number of Trips") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
 ```
-
 
 
 #### Weekday by Hour
@@ -494,27 +489,9 @@ HourWeekdayPlot <-
 ggplotly(HourWeekdayPlot)
 ```
 
-
-#### Holy days
-
-```{r}
-RequestTimeDetails[, .(avg_n_trips = .N / uniqueN(request_date)),
-                   by = "is_holiday"]
-```
-
-#### Day of week
-
-```{r}
-RequestTimeDetails[, .(avg_n_trips = .N / uniqueN(request_date)),
-                   by = c("is_weekend","weekday")]
-```
-
 :::
 
 
-### Numeric variables
+### Numerical variables
 
-```{r}
-TrainingSample[, sapply(.SD, \(x) paste0(class(x), collapse = "_") ), .SDcols = !is.character ]
-```
-
+### Correlations between predictors and the target variable
