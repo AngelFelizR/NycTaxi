@@ -359,6 +359,10 @@ ZoneCodesRefClean[, Zone := data.table::fcase(
   Zone
 )]
 
+# Saving results
+fst::write_fst(ZoneCodesRefClean, here("output/cache-data/ZoneCodesRefClean.fst"))
+
+# Showing results
 project.nyc.taxi::plot_map(
   ZoneCodesRefClean,
   lng_var = "long",

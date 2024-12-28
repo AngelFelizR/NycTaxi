@@ -5,6 +5,100 @@ editor_options:
 ---
 
 
+### Geospatial features
+
+Okay, let's break down these questions about spatial feature engineering for your NYC taxi project.
+
+**1. In which phase should I create spatial features based on lat and long?**
+
+   *   **The best phase to create spatial features is in the 'Data Preparation' phase.** Here's why:
+        *   **Availability:** You need the latitude and longitude data to create spatial features. The lat and long fields are available in the `ZoneCodesRef` object obtained in the business understanding phase.
+        *   **Data Transformation:** Feature engineering is, in essence, a transformation of your data. It is best to do this when you know what kind of transformations are needed (based on data exploration), and before you start applying models.
+        *   **Model Input:** Machine learning models (regression or classification) consume data with the required format: the features should be available when the training happens.
+        *   **Efficiency:** Applying these transformations before modelling means you only do them *once* for your training set, not repeatedly within model training loops. If you add them late, you might need to redo them every time you experiment with a different model, especially if you want to do cross validation.
+
+   *   **Why not earlier?**
+        *   **Data Collection & Business Understanding:** While you've *collected* the data and have a general idea of its content in the previous phases, the focus here is on raw data collection and business context. You don't have the full picture yet, and the features might not be obvious until you've explored the data.
+        *   **Data Understanding:** This phase aims at understanding what variables we have, the way they are distributed, and their relationships. While you *might* think of potential features to engineer here, the goal is mostly to *understand* the data. Feature engineering will be best done after this.
+
+    *   **Why not later?**
+         * **Modelling:** The modelling phase should primarily deal with model selection, training, evaluation and fine-tuning. Introducing feature engineering at this stage muddles this purpose and increases the overhead with every new model training.
+
+   *   **In your specific case:** Given the project's context, you need to calculate distances or use surrounding geographies. You need the coordinates before you can make those calculations so the ideal time to do so will be at the beggining of data preparation process.
+
+**2. Which feature could be meaningful based on the information available in OpenStreetMap and US Census Bureau’s data APIs?**
+
+   Here's a breakdown of potentially useful features, keeping in mind the context of your taxi project and its specific target:
+
+   *   **From OpenStreetMap (OSM):**
+        *   **Density of Points of Interest (POIs):**
+            *   **What:** Count the number of bars, restaurants, cafes, hotels, shops, etc. within a radius of the pick-up location (PULocationID) or the drop-off location (DOLocationID).
+            *   **Why:** Areas with higher POI densities might indicate higher demand areas (e.g., entertainment districts). These could be areas where drivers may want to pick up passengers, as well as areas that may have a greater concentration of people who want to be taken somewhere.
+            *   **How:** Use `osmnx` package to download POIs within a bounding box around the locations of interest.
+        *   **Road Network Density:**
+            *   **What:** The length of roads or number of intersections within a certain radius of a given point.
+            *   **Why:** Areas with dense road networks might be correlated with the number of trips or trip duration; a congested area is likely to generate more demand for a taxi or make trips take longer.
+            *   **How:** Use `osmnx` to download the road network and then calculate the metric.
+        *   **Distance to Specific Landmarks:**
+            *   **What:** Calculate the distance of PULocationID or DOLocationID to landmarks like airports, major parks, or business centers.
+            *   **Why:** Airports have specific demand patterns. Parks and business centers might generate additional demand at certain times of the day.
+            *   **How:** Use `osmnx` to get landmarks' positions, then calculate distances using geographical functions.
+        *   **Presence of Transit Stops:**
+            *   **What:** The number and type (subway, bus, train) of transit stops near PULocationID or DOLocationID.
+            *   **Why:** Areas with fewer transit options might increase the demand for taxis.
+            *   **How:** Use `osmnx` to get transit information and calculate the number and type of stops around each zone.
+        *   **Type of Area**:
+            *   **What:** Identify the type of area the PULocationID or DOLocationID is in. This could be whether the zone is a commercial, residential or industrial zone.
+            *   **Why:** These features can provide an overview of the type of area in the dataset.
+            *   **How:** Use `osmnx` to query the building type based on a bounding box and then calculate the type of area using the information obtained.
+
+   *   **From the US Census Bureau (using the Census API):**
+        *   **Population Density:**
+            *   **What:** Population density of the census tract containing the PULocationID or DOLocationID.
+            *   **Why:** Densely populated areas are more likely to generate more trips or have higher demand during certain times of the day.
+            *   **How:** You can use `cenpy` to get census data for the areas.
+        *   **Median Income:**
+            *   **What:** The median household income in the census tract containing the PULocationID or DOLocationID.
+            *   **Why:** Higher income areas might be more likely to produce higher value trips.
+            *   **How:** You can use `cenpy` to get census data for the areas.
+        *   **Percentage of Workers Using Public Transportation:**
+            *   **What:** Proportion of commuters that use public transportation in the census tract containing the PULocationID or DOLocationID.
+            *   **Why:** Lower public transportation usage might generate higher taxi demand.
+            *   **How:** You can use `cenpy` to get census data for the areas.
+         *  **Presence of Commuter Zones:**
+              * **What**: Determine if a PULocationID or DOLocationID falls into an area with a higher proportion of commuters.
+              *  **Why**: Areas with higher commuter rates have more demand during business hour times.
+              *   **How:** Use `cenpy` to query areas based on commuter rates and create a boolean field that categorizes if the location is in a commuter zone.
+        *   **Demographics:**
+            *   **What:** Features such as race/ethnicity, age, or education levels present in a census tract could be useful.
+            *   **Why:** These might correlate with travel patterns or specific transportation needs.
+            *   **How:** You can use `cenpy` to get census data for the areas.
+
+   *   **Combining OSM and Census Data**
+        *   **Contextual Features:** You can also combine data from OSM and census to create even more specific features.
+           *  For example: The density of restaurants near high-income residential areas.
+
+   *   **How to Implement:**
+
+        1.  **Geocode the Locations:** You need a consistent way of linking PULocationIDs and DOLocationIDs to geographical coordinates.
+            *   Your `ZoneCodesRef` table with latitude and longitude will be useful to link locations to geographies or POIs.
+
+        2.  **Buffer Creation:** Create buffer zones around locations to define the area for POI or network summaries.
+            *   You might use 500m, 1km, or 2km buffer radii, as appropriate.
+
+        3.  **Spatial Joins or Intersections:** Use spatial operations to connect locations to OSM POIs, census tracts, etc.
+            *   You can use `geopandas` `sjoin` or other similar spatial join operations.
+        4.  **Create summary metrics** such as counting POIs, obtaining the average population density of a nearby area, or identifying areas near transit locations.
+        5.  **Save Features:** Save the new features as columns in the `TrainingSampleZones` dataframe.
+        6.  **Repeat for all training data**
+
+   *   **Feature selection:**
+        *   Remember that not all these features will be useful. Some might be redundant or not relevant to your problem. You will need to use feature selection techniques to reduce noise and improve the training and inference time for your models.
+
+In summary, there's a wealth of spatial information you can add to your data. The most relevant features depend on your specific research questions, so feel free to experiment with a subset first.
+
+
+
 ### Adding features
 
 ```r
