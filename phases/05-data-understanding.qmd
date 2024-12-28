@@ -52,7 +52,6 @@ library(lubridate)
 ## To create plots
 library(ggplot2)
 library(scales)
-library(plotly)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -486,10 +485,44 @@ HourWeekdayPlot <-
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
 
-ggplotly(HourWeekdayPlot)
+plotly::ggplotly(HourWeekdayPlot)
 ```
 
 :::
+
+### Geospatial data
+
+Getting data from openstreetmap
+
+https://rpubs.com/rubenfbc/openstreetmap
+https://wiki.openstreetmap.org/wiki/Map_features#Additional_attributes
+
+```r
+library(osmdata)
+library(sf)
+
+# Suponiendo que ya tienes:
+# - bb: el bounding box de tu área de interés
+# - df: tu data.frame con las columnas "lat" y "lon"
+
+# Obtener las calles como un objeto sf
+streets <- opq(bbox = bb) %>%
+  add_osm_feature(key = "highway") %>%
+  osmdata_sf() %>%
+  .$osm_lines
+
+# Convertir el data.frame a un objeto sf de puntos
+points <- st_as_sf(df, coords = c("lon", "lat"), crs = 4326)
+
+# Realizar la intersección
+intersections <- st_intersects(points, streets)
+
+# Ver los resultados
+# Si un punto interseca con alguna calle, intersections[[i]] será un entero positivo
+# Si no interseca, será un integer(0)
+intersections
+```
+
 
 
 ### Numerical variables
