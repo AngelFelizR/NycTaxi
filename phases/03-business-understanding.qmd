@@ -212,193 +212,33 @@ con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
 
 4.  Importing the definition of each code zone.
 
-``` r
-ZoneCodesRef <- fread(
-  here("raw-data/taxi_zone_lookup.csv"),
-  colClasses = c("integer",
-                 "character",
-                 "character",
-                 "character"),
-  data.table = TRUE,
-  key = "Borough"
-)[, Address := paste(Zone,
-                     Borough,
-                     "New York",
-                     "United States",
-                     sep = ", ")
-][, tidygeocoder::geocode(.SD,
-                          address = Address,
-                          method = 'arcgis')]
-
-setDT(ZoneCodesRef)
-
-# Saving the result to use later
-fst::write_fst(ZoneCodesRef, here("output/cache-data/ZoneCodesRef.fst"))
+```{r}
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        colClasses = c("integer",
+                       "character",
+                       "character",
+                       "character"))
 ```
 
-```{r echo=FALSE}
-ZoneCodesRef <- fst::read_fst(
-  here("output/cache-data/ZoneCodesRef.fst"),
-  as.data.table = TRUE
-)
-```
+
+5. As most of the trips take place between **Manhattan**, **Brooklyn** and **Queens**, let's list all possible combinations of related locations to use it as filter later.
 
 ```{r}
-BoroughColors <- c(
-  'Manhattan' = '#e41a1c',
-  'Queens' = '#377eb8',
-  'Brooklyn'= '#4daf4a',
-  'Bronx' = '#984ea3',
-  'Staten Island' = '#ff7f00',
-  'EWR' = '#a65628'
-)
-
-project.nyc.taxi::plot_map(
-  ZoneCodesRef,
-  lng_var = "long",
-  lat_var = "lat",
-  color_var = "Borough",
-  color_palette = BoroughColors,
-  radius = 3,
-  label_var = "Zone"
-)
-```
-
-4.  As we saw before there are we need to fix some problems with the locations.
-
-```{r}
-ZoneCodesRefClean <- copy(ZoneCodesRef)
-
-# Corrected by looking the location on Google Maps
-ZoneCodesRefClean[Zone == "Bloomingdale",
-                  c("lat", "long") := .(40.7987912430794, 
-                                        -73.96978865023877)]
-
-ZoneCodesRefClean[Zone == "Newark Airport",
-                  c("lat", "long") := .(40.689499,
-                                        -74.174484)]
-
-ZoneCodesRefClean[Zone == "Governor's Island", 
-                  c("lat", 'long') := .(40.68759208028148,
-                                        -74.02010657167092)]
-
-ZoneCodesRefClean[Zone == "Ellis Island", 
-                  c("lat", 'long') := .(40.69930943708351,
-                                        -74.03975375195799)]
-
-ZoneCodesRefClean[Zone == "Liberty Island", 
-                  c("lat", 'long') := .(40.689975518189954,
-                                        -74.04541235583368)]
-
-# Consolidating Zone names with same locations
-ZoneCodesRefClean[, Zone := data.table::fcase(
-  LocationID %in% c(7L, 179L),
-  "(Old) Astoria",
-  
-  LocationID %in% c(21L, 22L),
-  "Bensonhurst (East|West)",
-  
-  LocationID %in% c(36L, 37L),
-  "Bushwick (North|South)",
-  
-  LocationID %in% c(41L, 42L),
-  "Central Harlem (North)",
-  
-  LocationID %in% c(48L, 50L),
-  "Clinton (East|West)",
-  
-  LocationID %in% c(61L, 62L),
-  "Crown Heights (North|South)",
-  
-  LocationID %in% c(71L, 72L),
-  "East Flatbush (Farragut|Remsen Village)",
-  
-  LocationID %in% c(74L, 75L),
-  "East Harlem (North|South)",
-  
-  LocationID %in% c(82L, 83L),
-  "Elmhurst (Maspeth)",
-  
-  LocationID %in% c(87L, 88L),
-  "Financial District (North|South)",
-  
-  LocationID %in% c(113L, 114L),
-  "Greenwich Village (North|South)",
-  
-  LocationID %in% c(140L, 141L),
-  "Lenox Hill (East|West)",
-  
-  LocationID %in% c(142L, 143L),
-  "Lincoln Square (East|West)",
-  
-  LocationID %in% c(158L, 249L),
-  "(Meatpacking) West Village",
-  
-  LocationID %in% c(177L, 178L),
-  "Ocean (Hill|Parkway South)",
-  
-  LocationID %in% c(218L, 219L),
-  "Springfield Gardens (North|South)",
-  
-  LocationID %in% c(227L, 228L),
-  "Sunset Park (East|West)",
-  
-  LocationID %in% c(236L, 237L),
-  "Upper East Side (North|South)",
-  
-  LocationID %in% c(238L, 239L),
-  "Upper West Side (North|South)",
-  
-  LocationID %in% c(262L, 263L),
-  "Yorkville (East|West)",
-  
-  LocationID %in% c(264L, 265L),
-  "NA",
-  
-  rep(TRUE, times = .N), 
-  Zone
-)]
-
-# Saving results
-fst::write_fst(ZoneCodesRefClean, here("output/cache-data/ZoneCodesRefClean.fst"))
-
-# Showing results
-project.nyc.taxi::plot_map(
-  ZoneCodesRefClean,
-  lng_var = "long",
-  lat_var = "lat",
-  color_var = "Borough",
-  color_palette = BoroughColors,
-  radius = 3,
-  label_var = "Zone"
-)
-```
-
-5.  Creating and saving a temporal table listing all possible combinations of locations in **Manhattan**, **Brooklyn** and **Queens** (they have more trips that other borough in NYC) to be used as filter.
-
-``` r
 ZoneCodesFilter <-
-  ZoneCodesRefClean[c("Manhattan", "Brooklyn", "Queens"), 
-                    on = "Borough",
-                    CJ(PULocationID = LocationID,
-                       DOLocationID = LocationID)]
-
-# Saving resutls
-dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
-fst::write_fst(ZoneCodesFilter, here("output/cache-data/ZoneCodesFilter.fst"))
-
-ZoneCodesFilter
-```
-
-```{r echo=FALSE}
-ZoneCodesFilter <-
-here("output/cache-data/ZoneCodesFilter.fst") |>
-  fst::read_fst(as.data.table = TRUE)
+  ZoneCodesRef[c("Manhattan", "Brooklyn", "Queens"), 
+               on = "Borough",
+               CJ(PULocationID = LocationID,
+                  DOLocationID = LocationID)]
 ```
 
 5.  Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so we need to save the on disk to keep using the same data.
 
 ``` r
+# Addig ZoneCodesFilters to db
+dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
+
+# Sampling 60 trips from db
 SimulationStartDayQuery <- "
 SELECT t1.*
 FROM NycTrips t1
@@ -408,19 +248,20 @@ INNER JOIN ZoneCodesFilter t2
 WHERE t1.year = 2023
 USING SAMPLE reservoir(60 ROWS) REPEATABLE (3518);
 "
-
 SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
-
-fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
-
 setDT(SimulationStartDay)
+
+# Saving results
+fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
 
 pillar::glimpse(SimulationStartDay)
 ```
 
 ```{r echo=FALSE}
-SimulationStartDay <- fst::read_fst(here("output/cache-data/SimulationStartDay.fst"),
-                                    as.data.table = TRUE)
+SimulationStartDay <-
+  here("output/cache-data/SimulationStartDay.fst") |>
+  fst::read_fst(as.data.table = TRUE)
+
 pillar::glimpse(SimulationStartDay)
 ```
 
@@ -435,19 +276,19 @@ SimulationStartDay[, .N, year]
 -   The trips begin on the expected boroughs.
 
 ```{r}
-ZoneCodesRefClean[SimulationStartDay, 
-                  on = c("LocationID" = "PULocationID"),
-                  .N,
-                  by = "Borough"]
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "PULocationID"),
+             .N,
+             by = "Borough"]
 ```
 
 -   The trips end on the expected boroughs.
 
 ```{r}
-ZoneCodesRefClean[SimulationStartDay, 
-                  on = c("LocationID" = "DOLocationID"),
-                  .N,
-                  by = "Borough"]
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "DOLocationID"),
+             .N,
+             by = "Borough"]
 ```
 
 Now we can conclude that the initial data **satisfy the assumption 1**.
