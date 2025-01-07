@@ -494,125 +494,181 @@ plotly::ggplotly(HourWeekdayPlot)
 
 
 ```{r}
-ColsToImport <- c("LocationID", "Borough", "service_zone", "lat", "long")
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        select = c("LocationID" = "integer",
+                   "Borough" = "character",
+                   "service_zone" = "character"))
 
-ZoneCodesRefClean <-
-  here("output/cache-data/ZoneCodesRefClean.fst") |>
-  fst::read_fst(as.data.table = TRUE,
-                columns = ColsToImport)
+TrainingSamplePickUp <-
+  ZoneCodesRef[TrainingSample[, c("PULocationID",
+                                  "take_current_trip")],
+               on = c("LocationID" = "PULocationID")]
 
-StartZoneCode <- copy(ZoneCodesRefClean)
-EndZoneCode <- copy(ZoneCodesRefClean)
-
-setnames(StartZoneCode, c("PULocationID", paste0("PU_", ColsToImport[-1L])))
-setnames(EndZoneCode, c("DOLocationID", paste0("DO_", ColsToImport[-1L])))
-
-GeoSpatialDetails <- TrainingSample[
-  .SDcols = c("PULocationID", "DOLocationID", "trip_miles"),
-  j = EndZoneCode[.SD, on = .NATURAL]
-][
-  j = StartZoneCode[.SD, on = .NATURAL]
-]
+TrainingSampleDropOff <-
+  ZoneCodesRef[TrainingSample[, c("DOLocationID",
+                                  "take_current_trip")],
+               on = c("LocationID" = "DOLocationID")]
 ```
 
+
+1. Good trips take place in points with high demand.
+
+::: {.panel-tabset}
+
+#### Pickup Borough 
 
 ```{r}
-library(sf)
+#| code-fold: true
+#| code-summary: "Show the code"
 
-GeoSpatialDetails[, .(start_n = .N), 
-                  .(lat = PU_lat,
-                    long = PU_long)
-][GeoSpatialDetails[, .(end_n = .N), 
-                    .(lat = DO_lat,
-                      long = DO_long)],
-  on = c("lat", "long")
-][, ratio := fcoalesce(start_n, 0L) / fcoalesce(end_n, 0L)][]
+TrainingSamplePickUp[, .N,
+                     by = "Borough"
+][, `:=`(prop = N / sum(N),
+         Borough = reorder(Borough, N))] |>
+  ggplot(aes(N, Borough)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.7) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips start from Manhattan",
+       x = "",
+       y = "Borough") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Dropoff Borough 
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSampleDropOff[, .N,
+                      by = "Borough"
+][, `:=`(prop = N / sum(N),
+         Borough = reorder(Borough, N))] |>
+  ggplot(aes(N, Borough)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.7) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips end in Manhattan",
+       x = "",
+       y = "Borough") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Pickup Service Zone 
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSamplePickUp[, .N,
+                      by = "service_zone"
+][, `:=`(prop = N / sum(N),
+         service_zone = reorder(service_zone, N))] |>
+  ggplot(aes(N, service_zone)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.7) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips start in Boro Zone",
+       x = "",
+       y = "Service Zone") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
 ```
 
 
+#### Dropoff Service Zone 
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSampleDropOff[, .N,
+                      by = "service_zone"
+][, `:=`(prop = N / sum(N),
+         service_zone = reorder(service_zone, N))] |>
+  ggplot(aes(N, service_zone)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.7) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips end in Boro Zone",
+       x = "",
+       y = "Service Zone") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
 
 
-**1. Spatial Distribution of Pickups and Dropoffs**
+#### Pickups Distribution
 
-   *   **What:** Visualize the locations of pickups (PULocationID) and dropoffs (DOLocationID) on a map. You can plot points, heatmaps, or even create kernel density estimates.
-   *   **Why:**
-        *   **Identify High-Demand Areas:** See which areas are most frequently used for pickups and dropoffs. This helps identify areas with high taxi demand and allows for better regionalized feature engineering.
-        *   **Understand Trip Patterns:** Identify common origin-destination patterns. Are there clusters or corridors of activity?
-        *   **Spot Anomalies:** Detect unusual pickup or dropoff locations that might indicate data errors or outlier trips.
-   *   **How:**
-        *   Use a mapping library like `ggplot2` or `leaflet` in R.
-        *   Consider using `sf` objects for spatial data handling in R.
-        *   Use heatmaps to show density of trips by location.
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 
-**2. Geographic Range and Coverage**
+TrainingSamplePickUp[, .(n_trips = .N),
+                     by = "LocationID"] |>
+  ggplot(aes(n_trips)) +
+  geom_histogram(position = position_identity(),
+                 binwidth = 200)+
+  scale_y_continuous(breaks = breaks_width(5))+
+  scale_x_continuous(breaks = breaks_width(500),
+                     labels = comma_format())+
+  labs(title = "Distribution Pickups Number of Trips",
+       x = "Number of Trips",
+       y = "Number of Locations",
+       fill = "Take Current Trip") +
+  theme_minimal()+
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 90),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
 
-    *   **What:** Explore the geographical boundaries of the available data. Do the pickup and dropoff locations cover all of Manhattan, Brooklyn, and Queens as intended?
-    *   **Why:**
-        *   **Verify Scope:** Ensure that the data fits within your project scope (i.e. the three boroughs).
-        *   **Edge Effects:** Understand if there are any trips occurring at the periphery of the area you intend to analyse.
-        *   **Data Gaps:** Detect any spatial gaps or areas with no or very little data.
-   *   **How:**
-        *   Find the minimum and maximum `lat` and `long` to know how spread out the trips are.
-        *   Plot the boundary using a convex hull of the points on the map.
-        *   Calculate the density of trips using a kernel density function and visualize the area that contains most of the trips.
+#### Dropoff Distribution
 
-**3. Relationship between Location and Other Variables**
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 
-    *   **What:** Explore the relationship of location (lat, long) with key variables from your original dataset, like fares, trip time, driver pay, or tips.
-    *   **Why:**
-        *   **Detect Patterns:** See if there are regions where trips tend to be more profitable or have longer duration.
-        *   **Inform Feature Engineering:** This can give hints as to what kind of geospatial features might be valuable to engineer in the following steps.
-        *   **Prioritize Spatial Areas:** It might be the case that only specific areas are associated to longer trips with higher revenue.
-   *   **How:**
-        *   Group trips by spatial zones (e.g. using a grid or the `LocationID` values you have).
-        *   Calculate the average of numerical features like `trip_miles`, `trip_time`, `driver_pay` or `tips` for each spatial group.
-        *   Visualize the averages as a choropleth map using different ranges of the values.
+TrainingSampleDropOff[, .(n_trips = .N),
+                     by = "LocationID"] |>
+  ggplot(aes(n_trips)) +
+  geom_histogram(position = position_identity(),
+                 binwidth = 200)+
+  scale_y_continuous(breaks = breaks_width(5))+
+  scale_x_continuous(breaks = breaks_width(500),
+                     labels = comma_format())+
+  labs(title = "Distribution Dropoffs Number of Trips",
+       x = "Number of Trips",
+       y = "Number of Locations",
+       fill = "Take Current Trip") +
+  theme_minimal()+
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 90),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
 
-**4. Spatial Outliers**
-
-    *   **What:** Explore locations that are far away from most of the other trips and identify what they are.
-    *   **Why:**
-         *  **Detect Errors:** They might be due to data entry errors.
-         *  **Highlight Unusual Trip Patterns:** If not errors, they could indicate special trips of interest.
-   *   **How:**
-        *   Using a box-plot or other visualization techniques, detect outliers based on their latitude or longitude, or based on the density of trips at that area.
-        *   Manually check the map to see where those trips are taken.
-
-**5. Initial Explorations with Zone Information**
-
-    *   **What:** Map and analyze the zones you are working with using the `ZoneCodesRef` table you created. Check if the zones make sense for the kind of data you have and the area they represent.
-    *   **Why:**
-        *   **Understand spatial groupings:** This initial understanding will inform the kind of features you will engineer in the following step.
-        *   **Spot inconsistencies:** Determine if any of the geographic locations are misaligned on your map.
-   *   **How:**
-        *  Use the `plot_map` function you already have defined.
-        * Check that all locations make sense for the dataset.
-
-**6. Exploring Distances:**
-
-    *   **What:** Plot the distribution of distances between pick-up and drop-off points to see what is the pattern in the dataset.
-    *  **Why:**
-        *   **Define Thresholds**: It will allow to define threshold to search for data in the `add_take_current_trip` functions that is used later.
-        *  **Understand Distribution:** Understand what type of spatial ranges is the most common in the dataset to inform the feature engineering.
-    * **How:**
-        *  Using `geosphere` package in R, calculate the distance between pick-up and drop-off points.
-        * Plot the distribution using a histogram.
-
-**How to present this information:**
-
-   *   **Maps:** Use maps as much as possible. Spatial analysis is fundamentally visual.
-   *   **Summary Statistics:** Calculate and display means, medians, standard deviations, etc. for different zones.
-   *   **Histograms/Boxplots:** Show the distribution of trips and fares across spatial contexts.
-   *  **Scatterplots**: See if there are relationship between locations and other variables of interest.
-
-**In Summary, in the Data Understanding phase:**
-
-*   **Don't engineer, analyze:** Your goal is to *analyze* the spatial data you have, not to start *creating* features yet.
-*   **Visualize to understand:** Use maps to see spatial patterns in pickups and dropoffs and explore geographic outliers.
-*   **Explore and Connect:** Look for correlations between location and existing variables, identifying key insights that will inform the next steps.
-
-This should give you a solid understanding of the spatial aspect of your data, which will guide you when it comes to engineering your spatial features.
-
+:::
 
 
 ### Numerical variables

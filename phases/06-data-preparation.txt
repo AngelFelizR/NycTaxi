@@ -204,3 +204,203 @@ TrainingSampleZonesTime <-
 
 glimpse(TrainingSampleZonesTime)
 ```
+
+
+# Geospatial
+
+```r
+ZoneCodesRef <-
+  
+  # Importing CSV
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        colClasses = c("integer",
+                       "character",
+                       "character",
+                       "character")
+        
+  # Defining the full address to find
+  # making sure that only use the second part of zone with /
+  # to get better results when geocoding
+  )[, Address := paste(sub("^.+\\/", "", Zone, TRUE),
+                       Borough,
+                       "New York",
+                       "United States",
+                     sep = ", ")
+    
+# Getting the results from osm and geocodio if missing
+# To use geocodio you need to get an API key from 
+# https://dash.geocod.io/apikey and save it in 
+][, tidygeocoder::geocode_combine(.SD,
+                                  queries = list(list(method = 'osm'),
+                                                 list(method = 'geocodio')),
+                                  global_params = list(address = 'Address'))]
+
+setDT(ZoneCodesRef)
+
+# Saving the result to use later
+fst::write_fst(ZoneCodesRef, here("output/cache-data/ZoneCodesRef.fst"))
+```
+
+```{r echo=FALSE}
+ZoneCodesRef <- fst::read_fst(
+  here("output/cache-data/ZoneCodesRef.fst"),
+  as.data.table = TRUE
+)
+```
+
+5. Transforming results into a `sf` with coordinates. 
+
+```{r}
+ZoneCodesRefSf <-
+  ZoneCodesRef[!.(c(1L, 264L, 265L)), 
+               on = "LocationID"] |>
+  # CRS WGS84 (EPSG:4326)
+  st_as_sf(coords = c("long", "lat"),
+           crs = 4326)
+```
+
+6. Plotting the results.
+
+```{r}
+BoroughColors <- c(
+  'Manhattan' = '#e41a1c',
+  'Queens' = '#377eb8',
+  'Brooklyn'= '#4daf4a',
+  'Bronx' = '#984ea3',
+  'Staten Island' = '#ff7f00',
+  'EWR' = '#a65628'
+)
+
+tm_shape(ZoneCodesRefSf) +
+  tm_symbols(size = 0.5,
+             fill.scale = tm_scale_categorical(values = BoroughColors),
+             fill = "Borough",
+             fill_alpha = 0.65) +
+  tm_basemap("CartoDB.Positron")
+```
+
+```r
+DistMatrix <-
+  st_distance(ZoneCodesRefUniqueSf,
+              which = "Great Circle")
+
+rownames(DistMatrix) <- ZoneCodesRefUniqueSf$LocationID
+colnames(DistMatrix) <- ZoneCodesRefUniqueSf$LocationID
+diag(DistMatrix) <- NA
+
+ZoneCodesRefDist <-
+  as.data.table(DistMatrix, 
+                keep.rownames = "PULocationID"
+  )[, melt(.SD,
+           id.vars = "PULocationID",
+           variable.name = "DOLocationID",
+           value.name = "dist_m",
+           na.rm = TRUE,
+           variable.factor = FALSE)
+  ][order(dist_m, PULocationID, DOLocationID)]
+```
+
+6. As we could see, the __*Van Cortlandt Village*__ doesn't seems to be correct as it was placed too far way in the last chart. To solve this let's manually see the correct location using __Google Maps__.
+
+```{r}
+ZoneCodesRef["Van Cortlandt Village",
+             on = "Zone",
+             `:=`(long = -73.89327317235693,
+                  lat = 40.88375461275366)]
+
+st_geometry(ZoneCodesRefSf)[which(ZoneCodesRefSf$Zone == "Van Cortlandt Village")] <- st_point(c(-73.89327317235693, 40.88375461275366))
+
+tm_shape(ZoneCodesRefSf) +
+  tm_symbols(size = 0.5,
+             fill.scale = tm_scale_categorical(values = BoroughColors),
+             fill = "Borough",
+             fill_alpha = 0.65) +
+  tm_basemap("CartoDB.Positron")
+```
+
+7. Saving results as geojson.
+
+```r
+st_write(ZoneCodesRefSf, here("output/cache-data/ZoneCodesRefSf.geojson"))
+```
+
+5.  Creating and saving a temporal table listing all possible combinations of locations in **Manhattan**, **Brooklyn** and **Queens** (they have more trips that other borough in NYC) to be used as filter.
+
+```r
+ZoneCodesFilter <-
+  ZoneCodesRef[c("Manhattan", "Brooklyn", "Queens"), 
+               on = "Borough",
+               CJ(PULocationID = LocationID,
+                  DOLocationID = LocationID)]
+
+# Saving resutls
+dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
+fst::write_fst(ZoneCodesFilter, here("output/cache-data/ZoneCodesFilter.fst"))
+
+ZoneCodesFilter
+```
+
+```{r echo=FALSE}
+ZoneCodesFilter <-
+here("output/cache-data/ZoneCodesFilter.fst") |>
+  fst::read_fst(as.data.table = TRUE)
+```
+
+5.  Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so we need to save the on disk to keep using the same data.
+
+``` r
+SimulationStartDayQuery <- "
+SELECT t1.*
+FROM NycTrips t1
+INNER JOIN ZoneCodesFilter t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+WHERE t1.year = 2023
+USING SAMPLE reservoir(60 ROWS) REPEATABLE (3518);
+"
+
+SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
+
+fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
+
+setDT(SimulationStartDay)
+
+pillar::glimpse(SimulationStartDay)
+```
+
+```{r echo=FALSE}
+SimulationStartDay <- fst::read_fst(here("output/cache-data/SimulationStartDay.fst"),
+                                    as.data.table = TRUE)
+pillar::glimpse(SimulationStartDay)
+```
+
+We can also confirm that the sample satisfy the initial restrictions:
+
+-   All trips are from 2023.
+
+```{r}
+SimulationStartDay[, .N, year]
+```
+
+-   The trips begin on the expected boroughs.
+
+```{r}
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "PULocationID"),
+             .N,
+             by = "Borough"]
+```
+
+-   The trips end on the expected boroughs.
+
+```{r}
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "DOLocationID"),
+             .N,
+             by = "Borough"]
+```
+
+Now we can conclude that the initial data **satisfy the assumption 1**.
+
+
+

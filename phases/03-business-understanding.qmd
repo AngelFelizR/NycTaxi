@@ -293,7 +293,7 @@ ZoneCodesRef[SimulationStartDay,
 
 Now we can conclude that the initial data **satisfy the assumption 1**.
 
-6.  Calculating the mean distance present from one location to other if it has **fewer than 10 miles**.
+6.  Calculating the mean distance present from one location to other if it has **fewer than 7 miles**.
 
 ``` r
 MeanDistanceQuery <- "
