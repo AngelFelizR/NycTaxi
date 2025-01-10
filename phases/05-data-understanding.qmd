@@ -52,6 +52,7 @@ library(lubridate)
 ## To create plots
 library(ggplot2)
 library(scales)
+library(patchwork)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -464,7 +465,7 @@ HourWeekdayPlot <-
   ][, `:=`(trip_cat = fifelse(n_trips %in% sort(n_trips, TRUE)[1:3],
                               "extreme_value",
                               "normal"),
-           prop_trips = n_trips / sum(n_trips)),
+           prop_trips = round(n_trips / sum(n_trips), 2)),
     by = "weekday"] |>
   ggplot(aes(hour, 
              prop_trips, 
@@ -492,6 +493,7 @@ plotly::ggplotly(HourWeekdayPlot)
 
 ### Geospatial data
 
+To explore the distribution provided by the `PULocationID` (Pick Up Zone ID) and `DOLocationID` (Drop Off Zone ID) we need need to add extra information. If we check the taxi zone look up table we can find the `Borough` and `service_zone` of each table.
 
 ```{r}
 ZoneCodesRef <-
@@ -500,15 +502,20 @@ ZoneCodesRef <-
                    "Borough" = "character",
                    "service_zone" = "character"))
 
-TrainingSamplePickUp <-
-  ZoneCodesRef[TrainingSample[, c("PULocationID",
-                                  "take_current_trip")],
-               on = c("LocationID" = "PULocationID")]
+TrainingSampleZones <-
+  TrainingSample[
+    j = ZoneCodesRef[j = .(DOLocationID = LocationID,
+                           DOBorough = Borough,
+                           DOServiceZone = service_zone)
+    ][.SD, on = "DOLocationID"]
+  ][
+    j = ZoneCodesRef[j = .(PULocationID = LocationID,
+                           PUBorough = Borough,
+                           PUServiceZone = service_zone)
+    ][.SD, on = "PULocationID"]
+  ]
 
-TrainingSampleDropOff <-
-  ZoneCodesRef[TrainingSample[, c("DOLocationID",
-                                  "take_current_trip")],
-               on = c("LocationID" = "DOLocationID")]
+str(TrainingSampleZones[, 1:6, with = FALSE])
 ```
 
 
@@ -516,116 +523,96 @@ TrainingSampleDropOff <-
 
 ::: {.panel-tabset}
 
-#### Pickup Borough 
+#### Borough 
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TrainingSamplePickUp[, .N,
-                     by = "Borough"
-][, `:=`(prop = N / sum(N),
-         Borough = reorder(Borough, N))] |>
-  ggplot(aes(N, Borough)) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           width = 0.7) +
-  geom_text(aes(label = percent(prop)),
-            nudge_x = 6500) +
-  scale_x_continuous(labels = comma_format()) +
-  labs(title = "Most of the trips start from Manhattan",
-       x = "",
-       y = "Borough") +
-  theme_minimal() +
-  theme(panel.grid.major.y = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
+plot_zone_count <- function(dt, 
+                            var,
+                            manual_colors = NULL) {
+  
+  zone_name = names(var)
+  if(is.null(zone_name)) zone_name = var
+  
+  plot1 =
+    dt[, .N,
+       by = var
+    ][, `:=`(is_max = N == max(N),
+             prop = N / sum(N),
+             zone = reorder(zone, N)),
+      env = list(zone  = zone_name)] |>
+    ggplot(aes(N, get(zone_name))) +
+    geom_col(aes(fill = is_max),
+             color = "black",
+             width = 0.6,
+             show.legend = FALSE) +
+    geom_text(aes(label = percent(prop)),
+              nudge_x = 6500)
+  
+  if(!is.null(manual_colors)) {
+    plot1 = plot1 +
+      scale_fill_manual(values = manual_colors)
+  }
+  
+  plot_final =
+    plot1 +
+    scale_x_continuous(labels = comma_format()) +
+    labs(x = "",
+         y = zone_name) +
+    theme_minimal() +
+    theme(panel.grid.major.y = element_blank())
+  
+  return(plot_final)
+}
+
+PuBoroughPlot <-
+  plot_zone_count(TrainingSampleZones, 
+                  c("Borough" = "PUBorough"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+DoBoroughPlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Borough" = "DOBorough"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+
+(PuBoroughPlot / DoBoroughPlot) +
+  plot_annotation(title = 'Most the trips start and end in Manhattan') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Dropoff Borough 
+#### Service Zone 
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TrainingSampleDropOff[, .N,
-                      by = "Borough"
-][, `:=`(prop = N / sum(N),
-         Borough = reorder(Borough, N))] |>
-  ggplot(aes(N, Borough)) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           width = 0.7) +
-  geom_text(aes(label = percent(prop)),
-            nudge_x = 6500) +
-  scale_x_continuous(labels = comma_format()) +
-  labs(title = "Most of the trips end in Manhattan",
-       x = "",
-       y = "Borough") +
-  theme_minimal() +
-  theme(panel.grid.major.y = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
+PuServiceZonePlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Service Zone" = "PUServiceZone"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+DoServiceZonePlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Service Zone" = "DOServiceZone"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+
+(PuServiceZonePlot / DoServiceZonePlot) +
+  plot_annotation(title = 'Most of the trip take place in the Boro Zone') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Pickup Service Zone 
+#### Distribution
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TrainingSamplePickUp[, .N,
-                      by = "service_zone"
-][, `:=`(prop = N / sum(N),
-         service_zone = reorder(service_zone, N))] |>
-  ggplot(aes(N, service_zone)) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           width = 0.7) +
-  geom_text(aes(label = percent(prop)),
-            nudge_x = 6500) +
-  scale_x_continuous(labels = comma_format()) +
-  labs(title = "Most of the trips start in Boro Zone",
-       x = "",
-       y = "Service Zone") +
-  theme_minimal() +
-  theme(panel.grid.major.y = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-```
-
-
-#### Dropoff Service Zone 
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TrainingSampleDropOff[, .N,
-                      by = "service_zone"
-][, `:=`(prop = N / sum(N),
-         service_zone = reorder(service_zone, N))] |>
-  ggplot(aes(N, service_zone)) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           width = 0.7) +
-  geom_text(aes(label = percent(prop)),
-            nudge_x = 6500) +
-  scale_x_continuous(labels = comma_format()) +
-  labs(title = "Most of the trips end in Boro Zone",
-       x = "",
-       y = "Service Zone") +
-  theme_minimal() +
-  theme(panel.grid.major.y = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-```
-
-
-#### Pickups Distribution
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TrainingSamplePickUp[, .(n_trips = .N),
-                     by = "LocationID"] |>
+TrainingSampleZones[, .(n_trips = .N),
+                    by = c("LocationID" = "PULocationID")] |>
   ggplot(aes(n_trips)) +
   geom_histogram(position = position_identity(),
                  binwidth = 200)+
@@ -641,16 +628,9 @@ TrainingSamplePickUp[, .(n_trips = .N),
         axis.text.x = element_text(angle = 90),
         panel.grid = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
-```
 
-#### Dropoff Distribution
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TrainingSampleDropOff[, .(n_trips = .N),
-                     by = "LocationID"] |>
+TrainingSampleZones[, .(n_trips = .N),
+                    by = c("LocationID" = "DOLocationID")] |>
   ggplot(aes(n_trips)) +
   geom_histogram(position = position_identity(),
                  binwidth = 200)+
@@ -673,4 +653,3 @@ TrainingSampleDropOff[, .(n_trips = .N),
 
 ### Numerical variables
 
-### Correlations between predictors and the target variable
