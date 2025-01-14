@@ -519,9 +519,48 @@ str(TrainingSampleZones[, 1:6, with = FALSE])
 ```
 
 
-1. Good trips take place in points with high demand.
+Based on the next results we can conclude that:
+
+1. The distributions of pick ups and drop offs positions is the same, across boroughs, service zones and individual zones. 
+
+2. 50% of zones get 1k of less trips from the training sample and around 5% of zones get 3k or more trips based on the training set.
+
+3. Must of the trips take place in Manhattan and in the Boro Zone.
 
 ::: {.panel-tabset}
+
+#### Number of Trips by Zone Distribution
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
+rbind(TrainingSampleZones[, .(Type = "Dropoffs",
+                              n_trips = .N),
+                          by = c("LocationID" = "DOLocationID")],
+      TrainingSampleZones[, .(Type = "Pickups",
+                              n_trips = .N),
+                          by = c("LocationID" = "PULocationID")]) |>
+  ggplot(aes(n_trips, color = Type)) +
+  stat_ecdf(linewidth = 1.3,
+            alpha = 0.7) +
+  scale_y_continuous(breaks = breaks_width(0.10),
+                     labels = percent_format())+
+  scale_x_continuous(breaks = breaks_width(1000),
+                     labels = comma_format()) +
+  scale_color_manual(values = c("Dropoffs" = ColorHighlight,
+                                "Pickups" = "black")) +
+  labs(title = "Cumulative Distribution Number of Trips",
+       x = "Number of Trips",
+       y = "Proportion of Unique Locations",
+       fill = "Take Current Trip") +
+  theme_minimal()+
+  theme(strip.text = element_blank(),
+        legend.position = "top",
+        axis.text.x = element_text(angle = 90),
+        plot.title = element_text(face = "bold", size = 15))
+```
 
 #### Borough 
 
@@ -605,51 +644,54 @@ DoServiceZonePlot <-
   theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Distribution
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TrainingSampleZones[, .(n_trips = .N),
-                    by = c("LocationID" = "PULocationID")] |>
-  ggplot(aes(n_trips)) +
-  geom_histogram(position = position_identity(),
-                 binwidth = 200)+
-  scale_y_continuous(breaks = breaks_width(5))+
-  scale_x_continuous(breaks = breaks_width(500),
-                     labels = comma_format())+
-  labs(title = "Distribution Pickups Number of Trips",
-       x = "Number of Trips",
-       y = "Number of Locations",
-       fill = "Take Current Trip") +
-  theme_minimal()+
-  theme(legend.position = "top",
-        axis.text.x = element_text(angle = 90),
-        panel.grid = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-
-TrainingSampleZones[, .(n_trips = .N),
-                    by = c("LocationID" = "DOLocationID")] |>
-  ggplot(aes(n_trips)) +
-  geom_histogram(position = position_identity(),
-                 binwidth = 200)+
-  scale_y_continuous(breaks = breaks_width(5))+
-  scale_x_continuous(breaks = breaks_width(500),
-                     labels = comma_format())+
-  labs(title = "Distribution Dropoffs Number of Trips",
-       x = "Number of Trips",
-       y = "Number of Locations",
-       fill = "Take Current Trip") +
-  theme_minimal()+
-  theme(legend.position = "top",
-        axis.text.x = element_text(angle = 90),
-        panel.grid = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-```
-
 :::
 
 
 ### Numerical variables
+
+Based on the below graphs we can say that:
+
+1. Almost all trips have let's 
+
+```{r}
+
+ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_miles)) +
+  scale_y_continuous(n.breaks = 10,
+                     labels = comma_format()) +
+  theme_minimal()+
+  theme(strip.text = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 15))
+
+ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_miles)) +
+  scale_y_continuous(n.breaks = 10,
+                     labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12,
+                     trans = "log2",
+                     labels = \(x) round(x, 2)) +
+  theme_minimal()+
+  theme(strip.text = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 15))
+
+
+ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_miles)) +
+  scale_y_continuous(n.breaks = 10,
+                     labels = comma_format()) +
+  theme_minimal()+
+  theme(strip.text = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", size = 15))
+
+
+ggplot(TrainingSample) + 
+  geom_boxplot(aes("1",trip_miles)) + 
+  scale_y_log10(breaks = 10^(0:10/2),
+                labels = comma_format())
+
+TrainingSample[, names(.SD), .SDcols = is.numeric]
+```
 
