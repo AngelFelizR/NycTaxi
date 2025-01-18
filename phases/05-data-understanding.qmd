@@ -795,3 +795,59 @@ TripPerformanceRangePlot <-
 
 ```
 :::
+
+## Exploring correlations between predictors and target variable
+
+```{r}
+TrainingSampleZones[, .(take_current_trip,
+                        company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"),
+                        dispatching_base_num,
+                        originating_base_num,
+                        shared_request_flag,
+                        shared_match_flag,
+                        access_a_ride_flag,
+                        wav_request_flag,
+                        wav_match_flag)] |>
+  DataExplorer::plot_bar(by = "take_current_trip")
+
+
+TrainingSampleZones[, .SD, 
+                    .SDcols = patterns("^(PU|DO)|take_current_trip")
+][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 49),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 49))] |>
+  DataExplorer::plot_bar(by = "take_current_trip")
+```
+
+
+```{r}
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0, 
+                    .(performance_per_hour,
+                        company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"),
+                        dispatching_base_num,
+                        originating_base_num,
+                        shared_request_flag,
+                        shared_match_flag,
+                        access_a_ride_flag,
+                        wav_request_flag,
+                        wav_match_flag)] |>
+  melt(id.vars = "performance_per_hour") |>
+  ggplot(aes(value, performance_per_hour)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  facet_wrap(vars(variable), scales = "free")
+
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0, 
+                    .SD, 
+                    .SDcols = patterns("^(PU|DO)|performance_per_hour")
+][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 12),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 12))] |>
+    melt(id.vars = "performance_per_hour") |>
+  ggplot(aes(value, performance_per_hour)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  facet_wrap(vars(variable), scales = "free")
+```
