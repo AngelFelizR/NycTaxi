@@ -34,7 +34,6 @@ ColorHighlight <- "lightslateblue"
 ColorGray <- "gray80"
 ```
 
-
 ### Loading packages to use
 
 ```{r warning = FALSE, message = FALSE}
@@ -76,26 +75,25 @@ TrainingSample <-
 TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
 ```
 
-## Explorting individual distributions
+## Exploring individual distributions
 
-### Categorical  variables
+### Categorical variables
 
 These plots confirm that:
 
-- Uber accounts for 72% of trips. In consequence, the results of the this project will be __more related to Uber than Lyft__.
+-   Uber accounts for 72% of trips. In consequence, the results of the this project will be **more related to Uber than Lyft**.
 
-- `dispatching_base_num`, `originating_base_num` and `access_a_ride_flag` all seem to be highly correlated with company and are __unlikely to be useful for prediction__.
+-   `dispatching_base_num`, `originating_base_num` and `access_a_ride_flag` all seem to be highly correlated with company and are **unlikely to be useful for prediction**.
 
-- Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
+-   Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
 
-- If you request a shared trip, you will only be matched with other riders in 23% of cases.
+-   If you request a shared trip, you will only be matched with other riders in 23% of cases.
 
-- When someone requests a WAV, they are able to find this type of vehicle most of the time.
+-   When someone requests a WAV, they are able to find this type of vehicle most of the time.
 
-- As most trips can be taken (76%), we might need to __over-sample the trips that shouldn't be taken__ to improve model performance for a class imbalance.
+-   As most trips can be taken (76%), we might need to **over-sample the trips that shouldn't be taken** to improve model performance for a class imbalance.
 
-::: {.panel-tabset}
-
+::: panel-tabset
 #### Company
 
 ```{r}
@@ -274,7 +272,6 @@ TrainingSample[, .N,
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-
 #### wav_match_flag
 
 ```{r}
@@ -323,9 +320,7 @@ TrainingSample[, .N,
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
 ```
-
 :::
-
 
 ### Datetime variables
 
@@ -337,26 +332,27 @@ RequestTimeDetails <- TrainingSample[
         request_date = as_date(request_datetime),
         weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
         month = month(request_datetime, label = TRUE, abbr = FALSE),
-        hour = hour(request_datetime))
+        hour = hour(request_datetime),
+        performance_per_hour,
+        take_current_trip)
 ]
 ```
 
 The following can be confirmed based on the results below:
 
-1. Trip counts show variability, with most days falling between __1,000–3,000 trips__.
+1.  Trip counts show variability, with most days falling between **1,000–3,000 trips**.
 
-2. __Strong monthly trends are present__, with peaks in specific months (February, August, September, and October).
+2.  **Strong monthly trends are present**, with peaks in specific months (February, August, September, and October).
 
-3. Bi-weekly peaks suggest __periodic patterns__, indicating the need for temporal features like week number or bi-weekly intervals to capture this behavior.
+3.  Bi-weekly peaks suggest **periodic patterns**, indicating the need for temporal features like week number or bi-weekly intervals to capture this behavior.
 
-4. __Thursday__ has significantly more trips compared to other days, revealing a clear __weekly trend__.
+4.  **Thursday** has significantly more trips compared to other days, revealing a clear **weekly trend**.
 
-6. Demand consistently __increases around 12 PM__ across different days, with some variation by weekday and weekend. Incorporating hour-of-day as a feature can capture __intraday patterns__.
+5.  Demand consistently **increases around 12 PM** across different days, with some variation by weekday and weekend. Incorporating hour-of-day as a feature can capture **intraday patterns**.
 
-In summary, the data indicates strong temporal patterns so extracting features like weekday, month, hour of day, and potentially even a __sin/cosine__ transformation (for capturing seasonality) would be beneficial for model performance.
+In summary, the data indicates strong temporal patterns so extracting features like weekday, month, hour of day, and potentially even a **sin/cosine** transformation (for capturing seasonality) would be beneficial for model performance.
 
-::: {.panel-tabset}
-
+::: panel-tabset
 #### Bi-weekly
 
 ```{r}
@@ -423,7 +419,6 @@ RequestTimeDetails[
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-
 #### Day of week
 
 ```{r}
@@ -450,7 +445,6 @@ RequestTimeDetails[
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
 ```
-
 
 #### Weekday by Hour
 
@@ -488,7 +482,6 @@ HourWeekdayPlot <-
 
 plotly::ggplotly(HourWeekdayPlot)
 ```
-
 :::
 
 ### Geospatial data
@@ -518,17 +511,15 @@ TrainingSampleZones <-
 str(TrainingSampleZones[, 1:6, with = FALSE])
 ```
 
-
 Based on the next results we can conclude that:
 
-1. The distributions of pick ups and drop offs positions is the same, across boroughs, service zones and individual zones. 
+1.  The distributions of pick ups and drop offs positions is the same, across boroughs, service zones and individual zones.
 
-2. 50% of zones get 1k of less trips from the training sample and around 5% of zones get 3k or more trips based on the training set.
+2.  Must of the zones have have 2000 or less in the data and only few have more than 3000 trips in the training set.
 
-3. Must of the trips take place in Manhattan and in the Boro Zone.
+3.  Must of the trips take place in Manhattan and in the Boro Zone.
 
-::: {.panel-tabset}
-
+::: panel-tabset
 #### Number of Trips by Zone Distribution
 
 ```{r}
@@ -542,18 +533,18 @@ rbind(TrainingSampleZones[, .(Type = "Dropoffs",
       TrainingSampleZones[, .(Type = "Pickups",
                               n_trips = .N),
                           by = c("LocationID" = "PULocationID")]) |>
-  ggplot(aes(n_trips, color = Type)) +
-  stat_ecdf(linewidth = 1.3,
-            alpha = 0.7) +
-  scale_y_continuous(breaks = breaks_width(0.10),
-                     labels = percent_format())+
+  ggplot(aes(n_trips, fill = Type)) +
+  geom_histogram() +
+  scale_y_continuous(breaks = breaks_width(5),
+                     labels = comma_format())+
   scale_x_continuous(breaks = breaks_width(1000),
                      labels = comma_format()) +
-  scale_color_manual(values = c("Dropoffs" = ColorHighlight,
-                                "Pickups" = "black")) +
-  labs(title = "Cumulative Distribution Number of Trips",
+  scale_fill_manual(values = c("Dropoffs" = ColorHighlight,
+                                "Pickups" = ColorGray)) +
+  facet_wrap(vars(Type), ncol = 2)+
+  labs(title = "Distribution Number of Trips",
        x = "Number of Trips",
-       y = "Proportion of Unique Locations",
+       y = "Number of Unique Locations",
        fill = "Take Current Trip") +
   theme_minimal()+
   theme(strip.text = element_blank(),
@@ -562,7 +553,7 @@ rbind(TrainingSampleZones[, .(Type = "Dropoffs",
         plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Borough 
+#### Borough
 
 ```{r}
 #| code-fold: true
@@ -622,7 +613,7 @@ DoBoroughPlot <-
   theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
-#### Service Zone 
+#### Service Zone
 
 ```{r}
 #| code-fold: true
@@ -643,55 +634,164 @@ DoServiceZonePlot <-
   plot_annotation(title = 'Most of the trip take place in the Boro Zone') & 
   theme(plot.title = element_text(face = "bold", size = 15))
 ```
-
 :::
-
 
 ### Numerical variables
 
 Based on the below graphs we can say that:
 
-1. Almost all trips have let's 
+1.  **Short trips dominate**: Most trips are short in distance and time, and result in lower prices.
+
+2.  **Skewed distributions**: The variables are heavily skewed, highlighting the use of log-transformations to visualize the data better.
+
+3.  **Needed filters**:
+
+    -   **Minimum Trip Time (5 minutes)**
+
+        -   ***Eliminates Trivial Trips***: Very short trips (e.g., under 5 minutes) are less indicative of regular driving. They might be data artifacts (e.g., a ride request that was canceled immediately) or a different kind of trip (e.g., a minimal hop that doesn't truly represent the work of a driver). They also will dramatically reduce the overall average performance, skewing the performance numbers.
+
+        -   ***Helps to Focus on Driving Activity***: By removing very short trips, the analysis focuses more on periods of actual driving. This provides a better representation of "meaningful" driving work and related performance.
+
+    -   **Positive Base Passenger Fare**
+
+        -   ***Excludes Free Trips***: Trips with a zero or negative base fare might be test rides or special circumstances where the passenger did not pay. The inclusion of these may artificially skew the data and introduce noise that is not related to performance.
+
+        -   ***Focus on Revenue-Generating Trips***: This filter ensures the analysis looks only at trips where the driver actually earned money, not trips done without payment. This way the performance per hour metric captures the revenue part of performance.
+
+::: panel-tabset
+#### Trip miles
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 
-ggplot(TrainingSample) + 
-  geom_histogram(aes(trip_miles)) +
-  scale_y_continuous(n.breaks = 10,
-                     labels = comma_format()) +
-  theme_minimal()+
-  theme(strip.text = element_blank(),
-        legend.position = "top",
-        plot.title = element_text(face = "bold", size = 15))
+TripMilesPlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_miles),
+                 binwidth = 5) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
 
-ggplot(TrainingSample) + 
-  geom_histogram(aes(trip_miles)) +
-  scale_y_continuous(n.breaks = 10,
-                     labels = comma_format()) +
+TripMilesLogPlot <-
+  ggplot(TrainingSample[trip_miles != 0]) + 
+  geom_histogram(aes(trip_miles),
+                 binwidth = 0.3) +
+  scale_y_continuous(labels = comma_format()) +
   scale_x_continuous(n.breaks = 12,
                      trans = "log2",
                      labels = \(x) round(x, 2)) +
-  theme_minimal()+
-  theme(strip.text = element_blank(),
-        legend.position = "top",
-        plot.title = element_text(face = "bold", size = 15))
+  labs(x = "Tip Distance (miles)",
+       y = "Count") +
+  theme_minimal()
 
-
-ggplot(TrainingSample) + 
-  geom_histogram(aes(trip_miles)) +
-  scale_y_continuous(n.breaks = 10,
-                     labels = comma_format()) +
-  theme_minimal()+
-  theme(strip.text = element_blank(),
-        legend.position = "top",
-        plot.title = element_text(face = "bold", size = 15))
-
-
-ggplot(TrainingSample) + 
-  geom_boxplot(aes("1",trip_miles)) + 
-  scale_y_log10(breaks = 10^(0:10/2),
-                labels = comma_format())
-
-TrainingSample[, names(.SD), .SDcols = is.numeric]
+(TripMilesPlot / TripMilesLogPlot) +
+  plot_annotation(title = 'Distribution of trip distance') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
+#### Trip time
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripTimePlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_time/60),
+                 binwidth = 1) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 15,
+                     labels = comma_format()) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
+
+TripTimeLogPlot <-
+  ggplot(TrainingSample[trip_time != 0]) + 
+  geom_histogram(aes(trip_time/60),
+                 binwidth = 1) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 16,
+                     trans = "log2",
+                     labels = comma_format(accuracy = 1)) +
+  labs(x = "Tip Time (minutes)",
+       y = "Count") +
+  theme_minimal()
+
+(TripTimePlot / TripTimeLogPlot) +
+  plot_annotation(title = 'Distribution of trip time') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### tips + base_passenger_fare
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripPricePlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(tips + base_passenger_fare),
+                 bins = 50) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
+
+TripPriceLogPlot <-
+  ggplot(TrainingSample[(tips + base_passenger_fare) > 0]) + 
+  geom_histogram(aes(tips + base_passenger_fare),
+                 bins = 50) +
+  scale_y_continuous(labels = comma_format())  +
+  scale_x_continuous(n.breaks = 12,
+                     trans = "log2",
+                     labels = \(x) round(x, 2)) +
+  labs(x = "Tip Price",
+       y = "Count") +
+  theme_minimal()
+
+(TripPricePlot / TripPriceLogPlot) +
+  plot_annotation(title = 'Distribution of trip price') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### performance_per_hour
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripPerformancePlot <-
+  ggplot(TrainingSample) +
+  stat_ecdf(aes(performance_per_hour)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_x_continuous(labels = comma_format(),
+                     breaks = breaks_width(3000)) +
+  labs(subtitle = "All points of training set",
+       x = "") +
+  theme_minimal()
+
+
+TripPerformanceRangePlot <-
+  ggplot(TrainingSample[trip_time >= 60*5 & base_passenger_fare > 0]) +
+  stat_ecdf(aes(performance_per_hour)) +
+  scale_x_continuous(labels = comma_format(),
+                     n.breaks = 12) +
+  scale_y_continuous(labels = percent_format(),
+                     n.breaks = 5) +
+  labs(subtitle = "Tips with 5 min and positive base fare",
+       x = "") +
+  theme_minimal()
+
+(TripPerformancePlot / TripPerformanceRangePlot) +
+  plot_annotation(title = 'Cumulative distribution of trip performance') & 
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", size = 15),
+        plot.subtitle = element_text(size = 13, face = "italic"))
+
+```
+:::
