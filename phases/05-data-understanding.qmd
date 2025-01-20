@@ -52,6 +52,7 @@ library(lubridate)
 library(ggplot2)
 library(scales)
 library(patchwork)
+library(DataExplorer)
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
@@ -84,6 +85,8 @@ These plots confirm that:
 -   Uber accounts for 72% of trips. In consequence, the results of the this project will be **more related to Uber than Lyft**.
 
 -   `dispatching_base_num`, `originating_base_num` and `access_a_ride_flag` all seem to be highly correlated with company and are **unlikely to be useful for prediction**.
+
+-   `access_a_ride_flag` is perfectly correlated with the company, so **it won't provide any new information for prediction**.
 
 -   Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
 
@@ -659,6 +662,7 @@ Based on the below graphs we can say that:
         -   ***Focus on Revenue-Generating Trips***: This filter ensures the analysis looks only at trips where the driver actually earned money, not trips done without payment. This way the performance per hour metric captures the revenue part of performance.
 
 ::: panel-tabset
+
 #### Trip miles
 
 ```{r}
@@ -796,58 +800,225 @@ TripPerformanceRangePlot <-
 ```
 :::
 
-## Exploring correlations between predictors and target variable
+## Predictors vs `take_current_trip`
+
+As we can see below, the proportion of trips to take change for the next features:
+
+- Location ID
+- Borough
+- Service zone
+- shared_request_flag
+- shared_match-flag
+- wav_request_flag
+- wav_match_flag
+
+But we cannot see important fluctuations for:
+
+- weekday
+- month
+- hour
+
+In the case of `trip_miles`, both groups present similar distributions, but we can see that if the trip has more than 50 miles it's always a good choice to take it.
+
+::: panel-tabset
+
+### Categorical
 
 ```{r}
-TrainingSampleZones[, .(take_current_trip,
-                        company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"),
-                        dispatching_base_num,
-                        originating_base_num,
-                        shared_request_flag,
-                        shared_match_flag,
-                        access_a_ride_flag,
-                        wav_request_flag,
-                        wav_match_flag)] |>
-  DataExplorer::plot_bar(by = "take_current_trip")
-
-
-TrainingSampleZones[, .SD, 
-                    .SDcols = patterns("^(PU|DO)|take_current_trip")
-][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 49),
-         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 49))] |>
-  DataExplorer::plot_bar(by = "take_current_trip")
-```
-
-
-```{r}
-TrainingSampleZones[trip_time >= 60*5 & 
-                      base_passenger_fare > 0 &
-                      performance_per_hour > 0, 
-                    .(performance_per_hour,
-                        company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"),
-                        dispatching_base_num,
-                        originating_base_num,
-                        shared_request_flag,
-                        shared_match_flag,
-                        access_a_ride_flag,
-                        wav_request_flag,
-                        wav_match_flag)] |>
-  melt(id.vars = "performance_per_hour") |>
-  ggplot(aes(value, performance_per_hour)) +
-  geom_boxplot() +
-  scale_y_log10() +
-  facet_wrap(vars(variable), scales = "free")
+#| code-fold: true
+#| code-summary: "Show the code"
 
 TrainingSampleZones[trip_time >= 60*5 & 
                       base_passenger_fare > 0 &
                       performance_per_hour > 0, 
                     .SD, 
-                    .SDcols = patterns("^(PU|DO)|performance_per_hour")
-][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 12),
-         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 12))] |>
-    melt(id.vars = "performance_per_hour") |>
-  ggplot(aes(value, performance_per_hour)) +
-  geom_boxplot() +
-  scale_y_log10() +
-  facet_wrap(vars(variable), scales = "free")
+                    .SDcols = patterns("^(PU|DO)|take_current_trip|license|shared|wav|request_datetime")
+][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 29),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 29),
+         request_datetime = NULL,
+         weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+         month = month(request_datetime, label = TRUE, abbr = FALSE),
+         hour = hour(request_datetime) |> factor())] |>
+  plot_bar(by = "take_current_trip",
+           nrow = 2,
+           ggtheme = theme_minimal(),
+           theme_config = list(legend.position = "top",
+                               panel.grid = element_blank()))
 ```
+
+### trip_miles
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0] |>
+  ggplot(aes(take_current_trip, trip_miles)) +
+  geom_boxplot() +
+  scale_y_continuous(n.breaks = 10) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+:::
+
+
+
+##  Predictors vs `performance_per_hour`
+
+As we can see in the below charts, __categorical predictors don't seem to provide a very impacting variable__ for modeling at a first glance, as the distribution of performance_per_hour is very similar in multiple categories.
+
+If we focus on the trip_miles predictor, we can see how:
+
+- Trips with less than 30 miles present high variation, with very high-paid trips and very low-value trips, but most of the trips present low value. 
+- There is not a linear relationship between the `trip_miles` variable and `performance_per_hour`.
+- On average, the `performance_per_hour increases` with miles, specially for trips with more than 30 miles.
+
+It would be really interesting if the model could identify which trips have a `performance_per_hour >= 100`; **that would be more useful to model**.
+
+::: panel-tabset
+
+### Categorical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 23
+#| fig-width: 10
+
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0, 
+                    .SD, 
+                    .SDcols = patterns("^(PU|DO)|performance_per_hour|license|shared|wav|request_datetime")
+][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 19),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 19),
+         request_datetime = NULL,
+         weekday = wday(request_datetime, week_start = 1) |> factor(),
+         month = month(request_datetime) |> factor(),
+         hour = hour(request_datetime) |> stringr::str_pad(2, pad = "0") |> factor())] |>
+  melt(id.vars = "performance_per_hour") |>
+  ggplot(aes(value, performance_per_hour)) +
+  geom_violin() +
+  scale_y_continuous(transform = "log2",
+                     n.breaks = 5) +
+  facet_wrap(vars(variable),
+             scales = "free",
+             ncol = 2) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+### trip_miles
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
+TrainingSampleZones[trip_time >= 60*5 &
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0] |>
+  ggplot(aes(trip_miles, performance_per_hour))+
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  scale_x_continuous(n.breaks = 15) +
+  scale_y_continuous(n.breaks = 10) +
+  theme_minimal()
+```
+
+:::
+
+## Predictors vs `performance_per_hour >= 100`
+
+After focusing on identifying high-value trips, most of the **categorical predictors reveal more information that could be useful for making predictions**. The distributions of high-value and not-high-value trips show noticeable differences across several categories, although these differences are much more pronounced on some categories than on others. The `wav_match_flag` stands out as an exception with virtually identical distributions for both groups.
+
+The `trip_miles` boxplot confirms that high-value trips are typically associated with short distances. 
+
+::: panel-tabset
+
+### Categorical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0, 
+                    .SD, 
+                    .SDcols = patterns("^(PU|DO)|performance_per_hour|license|shared|wav|request_datetime")
+][, `:=`(performance_per_hour = NULL,
+         high_value_trip = fifelse(performance_per_hour >= 100, "Y", "N"),
+         PULocationID = forcats::fct_lump_n(as.character(PULocationID), 29),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 29),
+         request_datetime = NULL,
+         weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+         month = month(request_datetime, label = TRUE, abbr = FALSE),
+         hour = hour(request_datetime) |> factor())] |>
+  plot_bar(by = "high_value_trip",
+           nrow = 2,
+           ggtheme = theme_minimal(),
+           theme_config = list(legend.position = "top",
+                               panel.grid = element_blank()))
+```
+
+### trip_miles
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0] |>
+  ggplot(aes(fifelse(performance_per_hour >= 100, "Y", "N"), trip_miles)) +
+  geom_boxplot() +
+  scale_y_continuous(n.breaks = 10) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+:::
+
+
+## Exploring correlations between predictors
+
+En general, the only important correlations take place between variables related to trip location.
+
+```{r}
+TrainingSampleZones[trip_time >= 60*5 & 
+                      base_passenger_fare > 0 &
+                      performance_per_hour > 0, 
+                    .SD, 
+                    .SDcols = patterns("^(PU|DO)|license|shared|wav|request_datetime|trip_miles")
+][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 29),
+         DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 29),
+         request_datetime = NULL,
+         weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+         month = month(request_datetime, label = TRUE, abbr = FALSE),
+         hour = hour(request_datetime) |> factor(),
+         trip_miles = cut_interval(trip_miles, 8))
+  ][, corrcat::cramerV_df(.SD, unique = FALSE)] |>
+  ggplot(aes(V1, V2, fill = `Cramer.V`))+
+  geom_tile()+
+  scale_fill_gradient(low = "white",
+                      high = ColorHighlight,
+                      space = "Lab",
+                      na.value = "white") +
+  geom_text(aes(label = percent(`Cramer.V`, accuracy = 1)),
+            size = 2.5) + 
+  labs(title = "Cramer's V correlation")+
+  theme_minimal()+
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        axis.title = element_blank())
+```
+
