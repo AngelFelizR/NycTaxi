@@ -1,0 +1,13 @@
+services:
+  taxi_project:
+    image: angelfelizr/geospatialnode:4.4.2
+    container_name: GeoSpatialNode
+    environment:
+      - DISABLE_AUTH=true
+      - RENV_PATHS_CACHE=/home/rstudio/.cache/R/renv/library/geospatialnode-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - /home/angelfeliz/r-projects:/home/rstudio
+      - /home/angelfeliz/r-projects/pkg_cache_r_4.4:/home/rstudio/.cache/R/renv/library/geospatialnode-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
+      - /home/angelfeliz/r-projects/site-library:/usr/local/lib/R/site-library

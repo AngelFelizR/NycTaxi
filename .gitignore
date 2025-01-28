@@ -4,6 +4,7 @@
 .Ruserdata
 
 /.quarto/
+docs/
 
 output/my-db.duckdb
 raw-data/
