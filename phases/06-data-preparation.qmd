@@ -1,0 +1,364 @@
+---
+title: "Expanding Geospatial Information"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Importing libraries
+
+```{r}
+library(here)
+library(fst)
+library(data.table)
+library(sf)
+library(tmap)
+library(osmdata)
+
+tmap_mode("view")
+BoroughColors <- c(
+  'Manhattan' = '#e41a1c',
+  'Queens' = '#377eb8',
+  'Brooklyn'= '#4daf4a'
+)
+```
+
+## Geocoding the data
+
+```{r}
+#| eval: false
+
+# Importing CSV
+
+ZoneCodesRef <- fread(
+  here("raw-data/taxi_zone_lookup.csv"),
+  colClasses = c("integer",
+                 "character",
+                 "character",
+                 "character")
+)
+
+
+ZoneCodesRefFilter <- ZoneCodesRef[
+  c("Queens", "Brooklyn", "Manhattan"),
+  on = "Borough",
+  nomatch = NULL
+]
+
+
+# Defining the full address to find
+# making sure that only use the second part of zone with /
+# to get better results when geocoding
+ZoneCodesRefFilter[
+  j = Address := paste(sub("^.+\\/", "", Zone, TRUE),
+                       Borough,
+                       "New York",
+                       "United States",
+                       sep = ", ")
+]
+
+
+ZoneCodesRefSf <-
+  
+  # Getting Long and Lat
+  tidygeocoder::geocode_combine(ZoneCodesRefFilter,
+                                queries = list(list(method = 'osm'),
+                                               list(method = 'geocodio')),
+                                global_params = list(address = 'Address')) |>
+  
+  # Defining SF as CRS WGS84 (EPSG:4326)
+  st_as_sf(coords = c("long", "lat"),
+           crs = 4326)
+
+
+# Saving the result to use later
+st_write(ZoneCodesRefSf, here("output/cache-data/ZoneCodesRefSf.geojson"))
+```
+
+
+```{r}
+#| echo: false
+
+ZoneCodesRefSf <- st_read(here("output/cache-data/ZoneCodesRefSf.geojson"))
+```
+
+
+```{r}
+tm_shape(ZoneCodesRefSf) +
+  tm_symbols(size = 0.5,
+             fill.scale = tm_scale_categorical(values = BoroughColors),
+             fill = "Borough",
+             fill_alpha = 0.65) +
+  tm_basemap("CartoDB.Positron")
+```
+
+6. As we could see, the __*Van Cortlandt Village*__ doesn't seems to be correct as it was placed too far way in the last chart. To solve this let's manually see the correct location using __Google Maps__.
+
+```{r}
+ZoneCodesRefSfClean <- ZoneCodesRefSf
+
+st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Central Harlem North")] <- st_point(
+  c(-73.93871445391756, 40.82304561189441)
+)
+
+st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Lenox Hill West")] <- st_point(
+  c(-73.96538508986032, 40.76921775554697)
+)
+
+st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Upper West Side South")] <- st_point(
+  c(-73.98549143859647, 40.772275233655805)
+)
+
+st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Upper West Side North")] <- st_point(
+  c(-73.9647633273013, 40.80194135268728)
+)
+
+
+tm_shape(ZoneCodesRefSfClean) +
+  tm_symbols(size = 0.5,
+             fill.scale = tm_scale_categorical(values = BoroughColors),
+             fill = "Borough",
+             fill_alpha = 0.65) +
+  tm_basemap("CartoDB.Positron")
+```
+
+7. Saving results as geojson.
+
+```{r}
+#| eval: false
+
+st_write(ZoneCodesRefSfClean, here("output/cache-data/ZoneCodesRefSfClean.geojson"))
+```
+
+
+```{r}
+# Compute the overall bounding box
+bb_box <-
+  lapply(X = c("Manhattan, NY", "Brooklyn, NY", "Queens, NY"),
+         FUN = osmdata::getbb) |>
+  do.call(what = "cbind") |>
+  (\(x) cbind(min = apply(x, 1, min),
+              max = apply(x, 1, max)))()
+
+project.nyc.taxi::plot_box(bb_box) +
+  tmap::tm_shape(ZoneCodesRefSfClean) +
+  tmap::tm_symbols(size = 0.5,
+                   fill.scale = tm_scale_categorical(values = BoroughColors),
+                   fill = "Borough",
+                   fill_alpha = 0.65)
+```
+
+I'm fine with horizontal dimension, so we only need to change the vertical coordinates.
+
+```{r}
+bb_box_manual <- bb_box
+bb_box_manual["y", ] <- c(40.541978, 40.9166) 
+
+project.nyc.taxi::plot_box(bb_box_manual) +
+  tmap::tm_shape(ZoneCodesRefSfClean) +
+  tmap::tm_symbols(size = 0.5,
+                   fill.scale = tm_scale_categorical(values = BoroughColors),
+                   fill = "Borough",
+                   fill_alpha = 0.65)
+```
+
+### Geospatial features
+
+   *   **From OpenStreetMap (OSM):**
+        *   **Count of Points of Interest (POIs)** like bars, restaurants, cafes, hotels, offices, residential buildings.
+        *   **OSM Tags:** `amenity=*`, `tourism=*`, `shop=*`, `office=*`, `building=*` etc.
+        
+        *   **Length of roads**
+        *   **Number of intersections within a certain radius**
+        *   **Distance to Specific Landmarks** like airports, major parks, or business centers.
+        *   **Number and type (subway, bus, train) of transit stops**
+
+   *   **From the US Census Bureau (using the Census API):**
+        *   **Population Density of the census tract**
+        *   **Median household income in the census tract**
+        *   **Percentage of Workers Using Public Transportation:**
+        *   **proportion of commuters or commuter zone**
+
+**Focus Areas & Feature Types**
+
+
+Here's a breakdown of relevant OSM features:
+
+1.  **Point of Interest (POI) Density/Type**:
+    *   **Why it matters:** Your EDA shows that some locations have consistently high performance. This could be driven by the kind of places they contain. Areas with dense restaurants or hotels, for example, will have more riders.
+        *   **Features to extract:**
+            *   Count of different POI categories (restaurants, bars, hotels, tourist attractions, shops, ) within a radius of each pickup and drop off location
+            *   Density of specific POIs within a radius (e.g. restaurants per sq km). You might want to separate the "high-end" from the "low-end" (fast food) locations.
+    
+
+2.  **Road Network Characteristics:**
+    *   **Why it matters:** The density and type of roads can impact traffic, which can influence trip times and therefore earnings per hour.
+        *   **Features to extract:**
+            *   Total road length within a given radius of the pick up and drop off locations, also consider the type of road (`highway=*`)
+            *   Density of different types of roads (e.g. highways, main roads, residential streets).
+            *   Count of intersections within a defined radius
+            *   Average speed limit of roads in the area.
+    *   **OSM Tags:** `highway=*`, `maxspeed=*`
+
+3.  **Transit Information:**
+    *   **Why it matters:** Areas near transit hubs are likely to have more demand and impact how people use taxis
+        *   **Features to extract:**
+            *   Distance to the nearest subway or train station
+            *   Number of subway/train stations within a radius
+            *   Distance to the closest bus stop or terminal.
+    *   **OSM Tags:** `railway=*`, `public_transport=*`, `bus_stop=*`
+
+4.  **Land Use:**
+    *   **Why it matters:** Land use type affects the nature of activity in an area (residential, commercial, industrial).
+        *   **Features to extract:**
+            *   Percentage of land covered by different categories like parks, commercial areas, industrial areas, residential areas within a radius of the pickup/dropoff locations.
+    *   **OSM Tags:** `landuse=*`
+
+5.  **Building Footprints/Density:**
+     *  **Why it matters:** The density of buildings often implies how busy a given area is
+        *   **Features to extract:**
+            *   Count of buildings within a specified radius
+            *   Building footprint density (square meters of building area per sq km)
+    *    **OSM Tags:** `building=*`
+
+6.  **Elevation/Topography:**
+    *   **Why it matters:** Elevation changes could affect taxi trip times or cost for short trips
+        *   **Features to extract:**
+            *   Average or maximum elevation within a radius of pick up and drop off
+            *   Changes in elevation of routes between pick up and drop off
+    *   **OSM Data:** you can obtain this information from DEM (Digital Elevation Models), which you can find on raster format.
+
+**How to Use the Features:**
+
+*   **Radius-Based Aggregation:** Most OSM features will be aggregated within a radius around each pick-up and drop-off location. Experiment with different radius sizes (e.g., 0.5 km, 1 km, 2 km) to see which scales capture the most relevant information.
+*   **Feature Engineering:** Combine different OSM features. For instance, you might calculate a ratio of restaurants to total commercial buildings.
+*   **Join:** Use the `PULocationID` and `DOLocationID` to associate each set of OSM features to each trip from your dataset.
+
+**Why These Features Will Help Your Model:**
+
+*   **Contextual Awareness:** They provide more context about why certain locations are busy or have higher earnings per hour.
+*   **Improved Accuracy:** By capturing the built environment and activity around pick-up and drop-off locations, your model will have more fine-grained and predictive features.
+*   **Ability to Generalize:** OSM data is widely available and might help your model generalize better to different areas or future data.
+
+**Tools to Extract OSM data:**
+
+*   **Overpass API:** Great for custom queries.
+*   **osmnx library (Python):** Makes it easy to download, analyze and process OSM data.
+
+**Important Considerations:**
+
+*   **Data Volume:** OSM data can be very large. You might need to optimize the data extraction and storage process.
+*   **Feature Selection:** Be prepared to experiment and select the most relevant features.
+*   **Computational Cost:** Processing spatial data can be computationally expensive, so make sure your system is ready to process all this data.
+
+By incorporating these OSM features, you can add a layer of contextual richness to your data, which will significantly improve your model's ability to predict trip performance and provide valuable insights to taxi drivers.
+
+
+
+
+### Adding features
+
+```r
+ZoneCodeRef <-
+  here("output/cache-data/ZoneCodesRef.fst") |>
+  read_fst(as.data.table = TRUE)
+
+TrainingSampleZones <-
+  
+  ZoneCodeRef[TrainingSample,
+              on = c("LocationID" = "PULocationID"),
+              nomatch = NULL
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
+    
+  ][, ZoneCodeRef[.SD,
+                  on = c("LocationID" = "DOLocationID"),
+                  nomatch = NULL]
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
+```
+
+
+```r
+# timeDate::listHolidays("US") |>
+#   (\(x) paste0("`Days to ", x, "` = ", 
+#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
+#                " |> as.integer()") )() |>
+#   paste0(collapse = ",\n") |>
+#   cat()
+
+TimeRecipe <-
+  recipe(~ ., data = TrainingSampleZones) |>
+  
+  # Daily cycle
+  step_harmonic(request_datetime, 
+                frequency = 1,
+                cycle_size = 3600*24, 
+                keep_original_cols = TRUE) |>
+  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
+              request_datetime_cos_daily = request_datetime_cos_1) |>
+  
+  # Weekly cycle
+  step_harmonic(request_datetime, 
+                frequency = 1, 
+                cycle_size = 3600*24*7, 
+                keep_original_cols = TRUE) %>%
+  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
+              request_datetime_cos_weekly = request_datetime_cos_1) |>
+  
+  # Extracting additional information
+  step_date(request_datetime,
+            features = c("year",
+                         "doy",
+                         "week",
+                         "decimal",
+                         "semester", 
+                         "quarter",
+                         "dow", 
+                         "month")) |>
+  step_holiday(request_datetime,
+               holidays = c('USChristmasDay',
+                            'USColumbusDay',
+                            'USCPulaskisBirthday',
+                            'USDecorationMemorialDay',
+                            'USElectionDay',
+                            'USGoodFriday',
+                            'USInaugurationDay',
+                            'USIndependenceDay',
+                            'USJuneteenthNationalIndependenceDay',
+                            'USLaborDay',
+                            'USLincolnsBirthday',
+                            'USMemorialDay',
+                            'USMLKingsBirthday',
+                            'USNewYearsDay',
+                            'USPresidentsDay',
+                            'USThanksgivingDay',
+                            'USVeteransDay',
+                            'USWashingtonsBirthday')) |>
+  step_mutate(request_datetime_am = am(request_datetime),
+              request_datetime_pm = pm(request_datetime),
+              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
+
+
+TrainingSampleZonesTime <-
+  prep(TimeRecipe) |>
+  bake(new_data = NULL)
+
+glimpse(TrainingSampleZonesTime)
+```
+
+
