@@ -147,36 +147,18 @@ project.nyc.taxi::plot_box(bb_box) +
                    fill_alpha = 0.65)
 ```
 
-I'm fine with horizontal dimension, so we only need to change the vertical coordinates.
-
-```{r}
-bb_box_manual <- bb_box
-bb_box_manual["y", ] <- c(40.541978, 40.9166) 
-
-project.nyc.taxi::plot_box(bb_box_manual) +
-  tmap::tm_shape(ZoneCodesRefSfClean) +
-  tmap::tm_symbols(size = 0.5,
-                   fill.scale = tm_scale_categorical(values = BoroughColors),
-                   fill = "Borough",
-                   fill_alpha = 0.65)
-```
-
-
 ### Getting data
 
 ```{r}
 LandUseData <-
-  opq(bbox = bb_box_manual) |>
-  add_osm_feature(key = 'landuse',
-                  value = c("commercial", "construction", "education",
-                            "fairground", "industrial", "residential",
-                            "retail", "institutional")) |>
+  opq(bbox = bb_box) |>
+  add_osm_feature(key = 'landuse') |>
   osmdata_sf() |>
   (\(df) rbind(df$osm_polygons["landuse"],
                df$osm_multipolygons["landuse"]))()
 
 # Saving the result to use later
-st_write(LandUseData, here("output/cache-data/LandUseData.geojson"))
+st_write(LandUseData, here("output/cache-data/LandUseData.geojson"), append = FALSE)
 ```
 
 ```{r}
