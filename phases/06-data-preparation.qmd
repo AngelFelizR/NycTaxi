@@ -161,51 +161,67 @@ project.nyc.taxi::plot_box(bb_box_manual) +
                    fill_alpha = 0.65)
 ```
 
+
+### Getting data
+
+```{r}
+LandUseData <-
+  opq(bbox = bb_box_manual) |>
+  add_osm_feature(key = 'landuse',
+                  value = c("commercial", "construction", "education",
+                            "fairground", "industrial", "residential",
+                            "retail", "institutional")) |>
+  osmdata_sf() |>
+  (\(df) rbind(df$osm_polygons["landuse"],
+               df$osm_multipolygons["landuse"]))()
+
+# Saving the result to use later
+st_write(LandUseData, here("output/cache-data/LandUseData.geojson"))
+```
+
+```{r}
+#| echo: false
+
+LandUseData <- st_read(here("output/cache-data/LandUseData.geojson"))
+```
+
+```{r}
+# Now combined_polygons is an sf object with landuse and geometry columns
+tm_shape(LandUseData) +
+  tm_polygons(fill = "landuse",
+              fill.scale = tm_scale_categorical()) +
+  tm_basemap("CartoDB.Positron")
+```
+
+
+
 ### Geospatial features
 
    *   **From OpenStreetMap (OSM):**
         *   **Count of Points of Interest (POIs)** like bars, restaurants, cafes, hotels, offices, residential buildings.
         *   **OSM Tags:** `amenity=*`, `tourism=*`, `shop=*`, `office=*`, `building=*` etc.
         
-        *   **Length of roads**
+        *   **Length of roads** Total road length within a given radius of the pick up and drop off locations, also consider the type of road (`highway=*`)
+        *   Density of different types of roads (e.g. highways, main roads, residential streets).
+        *   Average speed limit of roads in the area.
+         *   **OSM Tags:** `highway=*`, `maxspeed=*`
+         
         *   **Number of intersections within a certain radius**
         *   **Distance to Specific Landmarks** like airports, major parks, or business centers.
+        
+        
         *   **Number and type (subway, bus, train) of transit stops**
+        *   Distance to the nearest subway or train station
+        *   Number of subway/train stations within a radius
+        *   Distance to the closest bus stop or terminal.
+    *   **OSM Tags:** `railway=*`, `public_transport=*`, `bus_stop=*`
 
    *   **From the US Census Bureau (using the Census API):**
         *   **Population Density of the census tract**
         *   **Median household income in the census tract**
         *   **Percentage of Workers Using Public Transportation:**
-        *   **proportion of commuters or commuter zone**
+        *   **proportion of commuters or commuter zone*
 
-**Focus Areas & Feature Types**
-
-
-Here's a breakdown of relevant OSM features:
-
-1.  **Point of Interest (POI) Density/Type**:
-    *   **Why it matters:** Your EDA shows that some locations have consistently high performance. This could be driven by the kind of places they contain. Areas with dense restaurants or hotels, for example, will have more riders.
-        *   **Features to extract:**
-            *   Count of different POI categories (restaurants, bars, hotels, tourist attractions, shops, ) within a radius of each pickup and drop off location
-            *   Density of specific POIs within a radius (e.g. restaurants per sq km). You might want to separate the "high-end" from the "low-end" (fast food) locations.
-    
-
-2.  **Road Network Characteristics:**
-    *   **Why it matters:** The density and type of roads can impact traffic, which can influence trip times and therefore earnings per hour.
-        *   **Features to extract:**
-            *   Total road length within a given radius of the pick up and drop off locations, also consider the type of road (`highway=*`)
-            *   Density of different types of roads (e.g. highways, main roads, residential streets).
-            *   Count of intersections within a defined radius
-            *   Average speed limit of roads in the area.
-    *   **OSM Tags:** `highway=*`, `maxspeed=*`
-
-3.  **Transit Information:**
-    *   **Why it matters:** Areas near transit hubs are likely to have more demand and impact how people use taxis
-        *   **Features to extract:**
-            *   Distance to the nearest subway or train station
-            *   Number of subway/train stations within a radius
-            *   Distance to the closest bus stop or terminal.
-    *   **OSM Tags:** `railway=*`, `public_transport=*`, `bus_stop=*`
 
 4.  **Land Use:**
     *   **Why it matters:** Land use type affects the nature of activity in an area (residential, commercial, industrial).
