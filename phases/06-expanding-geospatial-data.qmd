@@ -150,31 +150,82 @@ project.nyc.taxi::plot_box(bb_box) +
 ### Getting data
 
 ```{r}
+keep_valid_osm <- function(osm_list, key) {
+  
+  shape_list =
+    c("osm_points",
+      "osm_lines",
+      "osm_polygons",
+      "osm_multilines",
+      "osm_multipolygons")
+  
+  for(shape_i in shape_list){
+    
+    if(is.null(osm_list[[shape_i]])){
+      next
+    }
+    
+    # Removing cases without key value
+    osm_list[[shape_i]] =
+      subset(osm_list[[shape_i]],
+             !is.na(get(key, inherits = FALSE)),
+             c("name", key))
+    
+    # Fixing not valied geometries
+    not_valid_cases = !sf::st_is_valid(osm_list[[shape_i]])
+    if(sum(not_valid_cases) > 0) {
+      osm_list[[shape_i]] = sf::st_make_valid(osm_list[[shape_i]])
+    }
+    
+  }
+  
+  return(osm_list)
+}
+```
+
+
+#### Land Use
+
+```{r}
+#| eval: false
+
 LandUseData <-
   opq(bbox = bb_box) |>
   add_osm_feature(key = 'landuse') |>
   osmdata_sf() |>
-  (\(df) rbind(df$osm_polygons["landuse"],
-               df$osm_multipolygons["landuse"]))()
+  keep_valid_osm(key = 'landuse')
 
-# Saving the result to use later
-st_write(LandUseData, here("output/cache-data/LandUseData.geojson"), append = FALSE)
+saveRDS(LandUseData, here("output/cache-data/LandUseData.rds"), compress = "xz")
 ```
 
 ```{r}
-#| echo: false
+#| echo: FALSE
 
-LandUseData <- st_read(here("output/cache-data/LandUseData.geojson"))
+if(!exists("LandUseData")) {
+  LandUseData <- readRDS(here("output/cache-data/LandUseData.rds"))
+}
 ```
 
+Ahora estamos pendiente de crear una funcion que pueda crear plots con todos los objetos osm para revisar la informacion disponible.
+
 ```{r}
-# Now combined_polygons is an sf object with landuse and geometry columns
-tm_shape(LandUseData) +
+sapply(LandUseData, \(x) !is.null(x) && inherits(x, "sf")) 
+
+tm_shape(LandUseData$osm_points) +
+  tm_symbols(fill = "landuse",
+             fill.scale = tm_scale_categorical(n.max = 50)) +
+  tm_shape(LandUseData$osm_polygons) +
   tm_polygons(fill = "landuse",
-              fill.scale = tm_scale_categorical()) +
+              fill.scale = tm_scale_categorical(n.max = 50)) +
+  tm_shape(LandUseData$osm_multipolygons) +
+  tm_polygons(fill = "landuse",
+              fill.scale = tm_scale_categorical(n.max = 50)) +
   tm_basemap("CartoDB.Positron")
 ```
 
+#### Amenity
+
+Used to map facilities used by visitors and residents. For example: toilets, telephones, banks, pharmacies, cafes, parking and schools. 
 
 
 ### Geospatial features
