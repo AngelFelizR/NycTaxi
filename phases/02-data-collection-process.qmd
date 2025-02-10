@@ -56,6 +56,16 @@ TaxiZoneLink <-
 TaxiZoneLink
 ```
 
+```{r getting-taxi-zone-shapes-link}
+TaxiZoneShapesLink <-
+  SourcePage |>
+  rvest::html_elements(xpath = '//ul/li/a[text()="Taxi Zone Shapefile"]')  |>
+  rvest::html_attr("href") |>
+  trimws()
+
+TaxiZoneShapesLink
+```
+
 ## Saving trips data
 
 To take advantage of the best capacities of `Duckdb` we need save a each parquet file in folder with useful information to filter later, that why we will have one folder level related to years the next sub-folders related to a month with each parquet with the name `part-0.parquet` by following process.
@@ -137,7 +147,24 @@ for(link_i in seq_along(TripLinks)){
 download.file(TaxiZoneLink,
               destfile = file.path(RawDataPath,"taxi_zone_lookup.csv"),
               mode = "wb")
+
+# Taxi Zone Shapes
+download.file(TaxiZoneShapesLink,
+              destfile = file.path(RawDataPath,"taxi_zones.zip"),
+              mode = "wb")
 ```
+
+### Unziping zone shapes
+
+```{r eval=!HasAllParquet}
+unzip(
+  zipfile = file.path(RawDataPath,"taxi_zones.zip"),
+  exdir = file.path(RawDataPath,"taxi_zones")
+)
+
+file.remove(file.path(RawDataPath,"taxi_zones.zip"))
+```
+
 
 ## Saving results in a database
 

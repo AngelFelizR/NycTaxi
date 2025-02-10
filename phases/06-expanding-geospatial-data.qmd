@@ -4,6 +4,51 @@ editor_options:
   chunk_output_type: console
 ---
 
+## Problem description
+
+Our target variable varies across zones. Merely providing an ID offers limited context for the models to differentiate between zones. Thus, we enrich the data with geospatial features derived from OpenStreetMap (OSM) to provide deeper insights into each zone.
+
+## Strategy
+
+1. **Define Spatial Extent**
+   - Retrieve borough boundaries for Queens, Brooklyn, and Manhattan using `osmdata::getbb()` with polygon output.
+
+2. **Extract OSM Features by Geometry Type**
+   - **Points (e.g., amenity, shop, office, tourism, public_transport, aeroway, emergency, sport):**
+     - Count occurrences within each zone.
+   - **Lines (e.g., highway):**
+     - Compute total road length per zone.
+   - **Polygons (e.g., landuse, building):**
+     - Calculate area using `st_area(geometry)`.
+   - Use `add_osm_feature` for batch extraction to improve efficiency.
+
+3. **Spatial Join with Taxi Zones**
+   - Import the Taxi Zone Shapefile.
+   - Join the OSM features to each zone based on spatial overlap.
+
+4. **Feature Engineering**
+   - Normalize raw counts/measurements by zone area to create density metrics (e.g., `amenity_density = n_amenities / zone_area_km2`).
+   - Derive additional metrics:
+     - Compute distances from zone centroids to key landmarks (e.g., airports, subway stations).
+     - Determine the dominant landuse within each zone.
+
+5. **Exploratory Data Analysis and Data Quality Checks**
+   - Evaluate distributions and correlations of the new OSM features.
+   - Identify and address missing values and outliers.
+   - Confirm relationships between engineered features and the target variable.
+
+6. **Modeling Preparation**
+   - Merge the enriched OSM features with the training and testing datasets.
+
+
+```{r}
+ZonesShapes <-
+  read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
+  subset(borough %chin% c("Queens", "Brooklyn", "Manhattan"))
+
+plot(ZonesShapes["borough"])
+```
+
 ## Importing libraries
 
 ```{r}
@@ -15,6 +60,7 @@ library(tmap)
 library(osmdata)
 
 tmap_mode("view")
+
 BoroughColors <- c(
   'Manhattan' = '#e41a1c',
   'Queens' = '#377eb8',
@@ -22,112 +68,6 @@ BoroughColors <- c(
 )
 ```
 
-## Geocoding the data
-
-```{r}
-#| eval: false
-
-# Importing CSV
-
-ZoneCodesRef <- fread(
-  here("raw-data/taxi_zone_lookup.csv"),
-  colClasses = c("integer",
-                 "character",
-                 "character",
-                 "character")
-)
-
-
-ZoneCodesRefFilter <- ZoneCodesRef[
-  c("Queens", "Brooklyn", "Manhattan"),
-  on = "Borough",
-  nomatch = NULL
-]
-
-
-# Defining the full address to find
-# making sure that only use the second part of zone with /
-# to get better results when geocoding
-ZoneCodesRefFilter[
-  j = Address := paste(sub("^.+\\/", "", Zone, TRUE),
-                       Borough,
-                       "New York",
-                       "United States",
-                       sep = ", ")
-]
-
-
-ZoneCodesRefSf <-
-  
-  # Getting Long and Lat
-  tidygeocoder::geocode_combine(ZoneCodesRefFilter,
-                                queries = list(list(method = 'osm'),
-                                               list(method = 'geocodio')),
-                                global_params = list(address = 'Address')) |>
-  
-  # Defining SF as CRS WGS84 (EPSG:4326)
-  st_as_sf(coords = c("long", "lat"),
-           crs = 4326)
-
-
-# Saving the result to use later
-st_write(ZoneCodesRefSf, here("output/cache-data/ZoneCodesRefSf.geojson"))
-```
-
-
-```{r}
-#| echo: false
-
-ZoneCodesRefSf <- st_read(here("output/cache-data/ZoneCodesRefSf.geojson"))
-```
-
-
-```{r}
-tm_shape(ZoneCodesRefSf) +
-  tm_symbols(size = 0.5,
-             fill.scale = tm_scale_categorical(values = BoroughColors),
-             fill = "Borough",
-             fill_alpha = 0.65) +
-  tm_basemap("CartoDB.Positron")
-```
-
-6. As we could see, the __*Van Cortlandt Village*__ doesn't seems to be correct as it was placed too far way in the last chart. To solve this let's manually see the correct location using __Google Maps__.
-
-```{r}
-ZoneCodesRefSfClean <- ZoneCodesRefSf
-
-st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Central Harlem North")] <- st_point(
-  c(-73.93871445391756, 40.82304561189441)
-)
-
-st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Lenox Hill West")] <- st_point(
-  c(-73.96538508986032, 40.76921775554697)
-)
-
-st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Upper West Side South")] <- st_point(
-  c(-73.98549143859647, 40.772275233655805)
-)
-
-st_geometry(ZoneCodesRefSfClean)[which(ZoneCodesRefSf$Zone == "Upper West Side North")] <- st_point(
-  c(-73.9647633273013, 40.80194135268728)
-)
-
-
-tm_shape(ZoneCodesRefSfClean) +
-  tm_symbols(size = 0.5,
-             fill.scale = tm_scale_categorical(values = BoroughColors),
-             fill = "Borough",
-             fill_alpha = 0.65) +
-  tm_basemap("CartoDB.Positron")
-```
-
-7. Saving results as geojson.
-
-```{r}
-#| eval: false
-
-st_write(ZoneCodesRefSfClean, here("output/cache-data/ZoneCodesRefSfClean.geojson"))
-```
 
 
 ```{r}
@@ -139,15 +79,24 @@ bb_box <-
   (\(x) cbind(min = apply(x, 1, min),
               max = apply(x, 1, max)))()
 
-project.nyc.taxi::plot_box(bb_box) +
-  tmap::tm_shape(ZoneCodesRefSfClean) +
-  tmap::tm_symbols(size = 0.5,
-                   fill.scale = tm_scale_categorical(values = BoroughColors),
-                   fill = "Borough",
-                   fill_alpha = 0.65)
+project.nyc.taxi::plot_box(bb_box)
 ```
 
 ### Getting data
+
+
+**How to Use the Features:**
+
+-   **Radius-Based Aggregation:** Most OSM features will be aggregated within a radius around each pick-up and drop-off location. Experiment with different radius sizes (e.g., 0.5 km, 1 km, 2 km) to see which scales capture the most relevant information.
+-   **Feature Engineering:** Combine different OSM features. For instance, you might calculate a ratio of restaurants to total commercial buildings.
+-   **Join:** Use the `PULocationID` and `DOLocationID` to associate each set of OSM features to each trip from your dataset.
+
+**Why These Features Will Help Your Model:**
+
+-   **Contextual Awareness:** They provide more context about why certain locations are busy or have higher earnings per hour.
+-   **Improved Accuracy:** By capturing the built environment and activity around pick-up and drop-off locations, your model will have more fine-grained and predictive features.
+-   **Ability to Generalize:** OSM data is widely available and might help your model generalize better to different areas or future data.
+
 
 ```{r}
 keep_valid_osm <- function(osm_list, key) {
@@ -183,12 +132,7 @@ keep_valid_osm <- function(osm_list, key) {
 }
 ```
 
-
-#### Land Use
-
-```{r}
-#| eval: false
-
+``` r
 LandUseData <-
   opq(bbox = bb_box) |>
   add_osm_feature(key = 'landuse') |>
@@ -206,107 +150,46 @@ if(!exists("LandUseData")) {
 }
 ```
 
-Ahora estamos pendiente de crear una funcion que pueda crear plots con todos los objetos osm para revisar la informacion disponible.
-
 ```{r}
-sapply(LandUseData, \(x) !is.null(x) && inherits(x, "sf")) 
-
-tm_shape(LandUseData$osm_points) +
-  tm_symbols(fill = "landuse",
-             fill.scale = tm_scale_categorical(n.max = 50)) +
-  tm_shape(LandUseData$osm_polygons) +
-  tm_polygons(fill = "landuse",
-              fill.scale = tm_scale_categorical(n.max = 50)) +
-  tm_shape(LandUseData$osm_multipolygons) +
-  tm_polygons(fill = "landuse",
-              fill.scale = tm_scale_categorical(n.max = 50)) +
+tm_shape(LandUseData$osm_lines) +
+  tm_lines()  +
   tm_basemap("CartoDB.Positron")
+
+for(geom_i in seq_along(LandUseData$osm_multilines$geometry)){
+  print(plot(LandUseData$osm_multilines$geometry[geom_i]))
+}
+
+plot(LandUseData$osm_multilines$geometry[1])
+plot(LandUseData$osm_multilines$geometry[2])
+plot(LandUseData$osm_multilines$geometry[3])
+
+LandUseData$osm_lines <- st_centroid(LandUseData$osm_lines, of_largest_polygon = TRUE)
+LandUseData$osm_multilines <- st_centroid(LandUseData$osm_multilines, of_largest_polygon = TRUE)
+
+sf::sf_use_s2(FALSE)
+tm_shape(LandUseData$osm_lines) +
+  tm_symbols() +
+  tm_basemap("CartoDB.Positron")
+
+tm_shape(LandUseData$osm_multilines) +
+  tm_symbols() +
+  tm_basemap("CartoDB.Positron")
+sf::sf_use_s2(TRUE)
+
+plot(LandUseData$osm_multilines$geometry)
+  
+project.nyc.taxi::plot_box(bb_box) +
+  
+  tm_shape(do.call("rbind", LandUseData[4:8])) +
+  tm_symbols(fill = "landuse",
+             fill.scale = tm_scale_categorical(n.max = 50))+
+  tm_polygons(fill = "landuse",
+              fill.scale = tm_scale_categorical(n.max = 50))
 ```
-
-#### Amenity
-
-Used to map facilities used by visitors and residents. For example: toilets, telephones, banks, pharmacies, cafes, parking and schools. 
-
-
-### Geospatial features
-
-   *   **From OpenStreetMap (OSM):**
-        *   **Count of Points of Interest (POIs)** like bars, restaurants, cafes, hotels, offices, residential buildings.
-        *   **OSM Tags:** `amenity=*`, `tourism=*`, `shop=*`, `office=*`, `building=*` etc.
-        
-        *   **Length of roads** Total road length within a given radius of the pick up and drop off locations, also consider the type of road (`highway=*`)
-        *   Density of different types of roads (e.g. highways, main roads, residential streets).
-        *   Average speed limit of roads in the area.
-         *   **OSM Tags:** `highway=*`, `maxspeed=*`
-         
-        *   **Number of intersections within a certain radius**
-        *   **Distance to Specific Landmarks** like airports, major parks, or business centers.
-        
-        
-        *   **Number and type (subway, bus, train) of transit stops**
-        *   Distance to the nearest subway or train station
-        *   Number of subway/train stations within a radius
-        *   Distance to the closest bus stop or terminal.
-    *   **OSM Tags:** `railway=*`, `public_transport=*`, `bus_stop=*`
-
-   *   **From the US Census Bureau (using the Census API):**
-        *   **Population Density of the census tract**
-        *   **Median household income in the census tract**
-        *   **Percentage of Workers Using Public Transportation:**
-        *   **proportion of commuters or commuter zone*
-
-
-4.  **Land Use:**
-    *   **Why it matters:** Land use type affects the nature of activity in an area (residential, commercial, industrial).
-        *   **Features to extract:**
-            *   Percentage of land covered by different categories like parks, commercial areas, industrial areas, residential areas within a radius of the pickup/dropoff locations.
-    *   **OSM Tags:** `landuse=*`
-
-5.  **Building Footprints/Density:**
-     *  **Why it matters:** The density of buildings often implies how busy a given area is
-        *   **Features to extract:**
-            *   Count of buildings within a specified radius
-            *   Building footprint density (square meters of building area per sq km)
-    *    **OSM Tags:** `building=*`
-
-6.  **Elevation/Topography:**
-    *   **Why it matters:** Elevation changes could affect taxi trip times or cost for short trips
-        *   **Features to extract:**
-            *   Average or maximum elevation within a radius of pick up and drop off
-            *   Changes in elevation of routes between pick up and drop off
-    *   **OSM Data:** you can obtain this information from DEM (Digital Elevation Models), which you can find on raster format.
-
-**How to Use the Features:**
-
-*   **Radius-Based Aggregation:** Most OSM features will be aggregated within a radius around each pick-up and drop-off location. Experiment with different radius sizes (e.g., 0.5 km, 1 km, 2 km) to see which scales capture the most relevant information.
-*   **Feature Engineering:** Combine different OSM features. For instance, you might calculate a ratio of restaurants to total commercial buildings.
-*   **Join:** Use the `PULocationID` and `DOLocationID` to associate each set of OSM features to each trip from your dataset.
-
-**Why These Features Will Help Your Model:**
-
-*   **Contextual Awareness:** They provide more context about why certain locations are busy or have higher earnings per hour.
-*   **Improved Accuracy:** By capturing the built environment and activity around pick-up and drop-off locations, your model will have more fine-grained and predictive features.
-*   **Ability to Generalize:** OSM data is widely available and might help your model generalize better to different areas or future data.
-
-**Tools to Extract OSM data:**
-
-*   **Overpass API:** Great for custom queries.
-*   **osmnx library (Python):** Makes it easy to download, analyze and process OSM data.
-
-**Important Considerations:**
-
-*   **Data Volume:** OSM data can be very large. You might need to optimize the data extraction and storage process.
-*   **Feature Selection:** Be prepared to experiment and select the most relevant features.
-*   **Computational Cost:** Processing spatial data can be computationally expensive, so make sure your system is ready to process all this data.
-
-By incorporating these OSM features, you can add a layer of contextual richness to your data, which will significantly improve your model's ability to predict trip performance and provide valuable insights to taxi drivers.
-
-
-
 
 ### Adding features
 
-```r
+``` r
 ZoneCodeRef <-
   here("output/cache-data/ZoneCodesRef.fst") |>
   read_fst(as.data.table = TRUE)
@@ -324,8 +207,7 @@ TrainingSampleZones <-
   ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
 ```
 
-
-```r
+``` r
 # timeDate::listHolidays("US") |>
 #   (\(x) paste0("`Days to ", x, "` = ", 
 #                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
@@ -409,5 +291,3 @@ TrainingSampleZonesTime <-
 
 glimpse(TrainingSampleZonesTime)
 ```
-
-
