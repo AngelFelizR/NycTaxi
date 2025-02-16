@@ -1,0 +1,5 @@
+outs:
+- md5: beb0e9a587badc386e04f093e1ec04c6
+  size: 59926130688
+  hash: md5
+  path: my-db.duckdb

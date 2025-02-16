@@ -1,0 +1,1080 @@
+---
+title: "Data Understanding"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+After completing the [business understanding](https://angelfelizr.github.io/NycTaxi/phases/02-business-understanding.html) phase, we are ready to perform the **data understanding** phase by performing an EDA with the following steps:
+
+1.  Exploring the individual distribution of variables.
+2.  Exploring correlations between predictors and the target variable.
+3.  Exploring correlations between predictors.
+
+This will help to:
+
+-   Ensure data quality.
+
+-   Identify key predictors.
+
+-   Guide model choice and feature engineering.
+
+## Setting up the environment
+
+### Define colors to use
+
+```{r}
+ColorHighlight <- "lightslateblue"
+ColorGray <- "gray80"
+```
+
+### Loading packages
+
+```{r warning = FALSE, message = FALSE}
+## To manage relative paths
+library(here)
+
+## To import and export data frames as binary files
+library(fst)
+library(fstcore)
+
+## To transform data that fits in RAM
+library(data.table)
+library(lubridate)
+
+## To create plots
+library(ggplot2)
+library(scales)
+library(patchwork)
+library(DataExplorer)
+
+## Defining the print params to use in the report
+options(datatable.print.nrows = 15, digits = 4)
+```
+
+### Importing training sample
+
+```{r}
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = read_fst, as.data.table = TRUE) |>
+  rbindlist()
+
+## Changing target as character
+TrainingSample[, take_current_trip := fifelse(take_current_trip == 1, "Y", "N")]
+```
+
+## Exploring individual distributions
+
+### Categorical variables
+
+These plots confirm that:
+
+-   Uber accounts for 72% of trips. In consequence, the results of this project will be **more related to Uber than Lyft**.
+
+-   `dispatching_base_num`, `originating_base_num`, and `access_a_ride_flag` all seem to be highly correlated with the company and are **unlikely to be useful for prediction**.
+
+-   `access_a_ride_flag` is perfectly correlated with the company, so **it won't provide any new information for prediction**.
+
+-   Shared rides and WAV (Wheelchair Accessible Vehicle) rides are uncommon.
+
+-   If you request a shared trip, you will only be matched with other riders in 23% of cases.
+
+-   When someone requests a WAV, they are able to find this type of vehicle most of the time.
+
+-   As most trips can be taken (76%), we might need to **over-sample the trips that shouldn't be taken** to improve model performance for a class imbalance.
+
+::: panel-tabset
+#### Company
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = .(company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"))
+][, prop := N / sum(N)] |>
+  ggplot(aes(N, company)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 6500) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the trips come from Uber",
+       x = "",
+       y = "Company Name") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### dispatching_base_num
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("dispatching_base_num", "hvfhs_license_num")
+][,`:=`(prop  = N / sum(N),
+        dispatching_base_num = reorder(dispatching_base_num, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, dispatching_base_num)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "We only have 1 dispatching base per company",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### originating_base_num
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("hvfhs_license_num",
+                      "originating_base_num")
+][,`:=`(prop  = N / sum(N),
+        originating_base_num = reorder(originating_base_num, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, originating_base_num)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "We only have 1 dispatching base per company",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### shared_request_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "shared_request_flag"
+][,`:=`(prop = N / sum(N),
+        shared_request_flag = reorder(shared_request_flag, N))] |>
+  ggplot(aes(N, shared_request_flag)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop)),
+            nudge_x = 8000) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Shared trips are uncommon") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### shared_match_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("shared_request_flag",
+                      "shared_match_flag")
+][,prop := N / sum(N),
+  by = "shared_request_flag"] |>
+  ggplot(aes(shared_match_flag,
+             shared_request_flag)) +
+  geom_tile(aes(fill = prop))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
+                      labels = percent)+
+  scale_x_discrete(position = "top")+
+  labs(title = "It shows the matching rate for shared trips",
+       fill = "Based on request proportion") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+
+```
+
+#### access_a_ride_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("hvfhs_license_num",
+                      "access_a_ride_flag")
+][,`:=`(prop  = N / sum(N),
+        access_a_ride_flag = reorder(access_a_ride_flag, N),
+        hvfhs_license_num = reorder(hvfhs_license_num, N))] |>
+  ggplot(aes(hvfhs_license_num, access_a_ride_flag)) +
+  geom_tile(aes(fill = N))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "Doesn't show any new detail",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### wav_request_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "wav_request_flag"
+][,`:=`(prop = N / sum(N),
+        wav_request_flag = reorder(wav_request_flag, N))] |>
+  ggplot(aes(N, wav_request_flag)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop, accuracy = 0.01),
+                x = N + c(300000, 250))) +
+  scale_x_continuous(labels = comma_format(),
+                     trans = "log2",
+                     breaks = 2^(seq(0, 20, by = 2))) +
+  labs(title = "Very few trips need WAV",
+       x = "") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### wav_match_flag
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = c("wav_match_flag", "wav_request_flag")
+][, prop := N / sum(N),
+  by = "wav_request_flag"] |>
+  ggplot(aes(wav_match_flag, wav_request_flag)) +
+  geom_tile(aes(fill = prop))+
+  geom_text(aes(label = percent(prop, accuracy = 1))) +
+  scale_fill_gradient(low = ColorGray, 
+                      high = ColorHighlight,
+                      labels = comma)+
+  scale_x_discrete(position = "top")+
+  labs(title = "The WAV request is usually met",
+       fill = "Number of trips") +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15)) 
+```
+
+#### take_current_trip
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TrainingSample[, .N,
+               by = "take_current_trip"
+][,`:=`(prop = N / sum(N),
+        take_current_trip = reorder(take_current_trip, N))] |>
+  ggplot(aes(N, take_current_trip)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           width = 0.5) +
+  geom_text(aes(label = percent(prop, accuracy = 1)),
+            nudge_x = 10000) +
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most trips can be taken",
+       x = "") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+:::
+
+### Datetime variables
+
+As `request_datetime` is the only variable we will use for predicting, we need to extract some features from it to confirm if they can be useful.
+
+```{r}
+RequestTimeDetails <- TrainingSample[
+  j = .(request_datetime,
+        request_date = as_date(request_datetime),
+        weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+        month = month(request_datetime, label = TRUE, abbr = FALSE),
+        hour = hour(request_datetime),
+        performance_per_hour,
+        take_current_trip)
+]
+```
+
+The following can be confirmed based on the results below:
+
+1.  Trip counts show variability, with most days falling between **1,000–3,000 trips**.
+
+2.  **Strong monthly trends are present**, with peaks in specific months (February, August, September, and October).
+
+3.  Bi-weekly peaks suggest **periodic patterns**, indicating the need for temporal features like week number or bi-weekly intervals to capture this behavior.
+
+4.  **Thursday** has significantly more trips compared to other days, revealing a clear **weekly trend**.
+
+5.  Demand consistently **increases around 12 PM** across different days, with some variation by weekday and weekend. Incorporating hour-of-day as a feature can capture **intraday patterns**.
+
+In summary, the data indicates strong temporal patterns so extracting features like weekday, month, hour of day, and potentially even a **sin/cosine** transformation (for capturing seasonality) would be beneficial for model performance.
+
+::: panel-tabset
+#### Bi-weekly
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(RequestTimeDetails, aes(request_datetime)) +
+  geom_histogram(binwidth = 3600*24*7*2)+
+  scale_x_datetime(date_breaks = "2 weeks",
+                   date_labels = "%m-%d")+
+  scale_y_continuous(breaks = breaks_width(5000),
+                     labels = comma_format(accuracy = 1))+
+  labs(title = "Distribution of bi-weekly trip requests") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Trips per day
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripsPerDay <- RequestTimeDetails[, .N, request_date]
+
+ggplot(TripsPerDay, aes(N)) +
+  geom_histogram(bins = 15) +
+  scale_x_continuous(breaks = breaks_width(1000),
+                     labels = \(x) comma(x/1000, accuracy = 0.1, suffix = "k")) +
+    labs(title = paste("Number of trips per day in", nrow(TripsPerDay), "dates")) +
+  theme_minimal()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Month
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+RequestTimeDetails[ 
+  j = .(is_top_4 = FALSE,
+        n_trips = .N),
+  by = "month"
+][order(-n_trips)[1:4], 
+  is_top_4 := TRUE] |>
+  ggplot(aes(n_trips, factor(month, sort(month, decreasing = TRUE)))) +
+  geom_col(aes(fill = is_top_4),
+           color = "black",
+           width = 0.8) +
+  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "4 months have around 30k trips",
+       y = "",
+       x = "Number of Trips") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Day of week
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+RequestTimeDetails[ 
+  j = .(n_trips = .N),
+  keyby = .(weekday = forcats::fct_rev(weekday))
+][, is_top := n_trips == max(n_trips)] |>
+  ggplot(aes(n_trips, weekday)) +
+  geom_col(aes(fill = is_top),
+           color = "black",
+           width = 0.7) +
+  scale_fill_manual(values = c("TRUE" = ColorHighlight, 
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(labels = comma_format()) +
+  labs(title = "Most of the samples take place on Thursday",
+       y = "",
+       x = "Number of Trips") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Weekday by Hour
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+HourWeekdayPlot <-
+  RequestTimeDetails[
+    j = .(n_trips = .N),
+    by = c("hour", "weekday")
+  ][, `:=`(trip_cat = fifelse(n_trips %in% sort(n_trips, TRUE)[1:3],
+                              "extreme_value",
+                              "normal"),
+           prop_trips = round(n_trips / sum(n_trips), 2)),
+    by = "weekday"] |>
+  ggplot(aes(hour, 
+             prop_trips, 
+             colour = trip_cat)) +
+  geom_point()+
+  scale_color_manual(values = c("extreme_value" = ColorHighlight,
+                                "normal" = ColorGray)) +
+  scale_x_continuous(breaks = breaks_width(6)) +
+  scale_y_continuous(labels = percent_format())+
+  facet_wrap(vars(weekday)) +
+  expand_limits(y = 0, x = c(0,24)) +
+  labs(title = "Higher demand hours start at 12 pm",
+       y = "Proportion of trips per weekday",
+       x = "Hour") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        plot.title = element_text(face = "bold", size = 15))
+
+plotly::ggplotly(HourWeekdayPlot)
+```
+:::
+
+### Geospatial data
+
+To explore the distribution provided by the `PULocationID` (Pick Up Zone ID) and `DOLocationID` (Drop Off Zone ID), we need to add extra information. If we check the taxi zone look up table, we can find the `Borough` and `service_zone` of each table.
+
+```{r}
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        select = c("LocationID" = "integer",
+                   "Borough" = "character",
+                   "service_zone" = "character"))
+
+TrainingSampleZones <-
+  TrainingSample[
+    j = ZoneCodesRef[j = .(DOLocationID = LocationID,
+                           DOBorough = Borough,
+                           DOServiceZone = service_zone)
+    ][.SD, on = "DOLocationID"]
+  ][
+    j = ZoneCodesRef[j = .(PULocationID = LocationID,
+                           PUBorough = Borough,
+                           PUServiceZone = service_zone)
+    ][.SD, on = "PULocationID"]
+  ]
+
+str(TrainingSampleZones[, 1:6, with = FALSE])
+```
+
+Based on the next results, we can conclude that:
+
+1.  The distributions of pick ups and drop offs positions are the same across boroughs, service zones, and individual zones.
+
+2.  Most of the zones have 2,000 or fewer trips in the data, and only a few have more than 3,000 trips in the training set.
+
+3.  Most of the trips take place in Manhattan and in the Boro Zone.
+
+::: panel-tabset
+#### Number of Trips by Zone Distribution
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
+rbind(TrainingSampleZones[, .(Type = "Dropoffs",
+                              n_trips = .N),
+                          by = c("LocationID" = "DOLocationID")],
+      TrainingSampleZones[, .(Type = "Pickups",
+                              n_trips = .N),
+                          by = c("LocationID" = "PULocationID")]) |>
+  ggplot(aes(n_trips, fill = Type)) +
+  geom_histogram() +
+  scale_y_continuous(breaks = breaks_width(5),
+                     labels = comma_format())+
+  scale_x_continuous(breaks = breaks_width(1000),
+                     labels = comma_format()) +
+  scale_fill_manual(values = c("Dropoffs" = ColorHighlight,
+                                "Pickups" = ColorGray)) +
+  facet_wrap(vars(Type), ncol = 2)+
+  labs(title = "Distribution Number of Trips",
+       x = "Number of Trips",
+       y = "Number of Unique Locations",
+       fill = "Take Current Trip") +
+  theme_minimal()+
+  theme(strip.text = element_blank(),
+        legend.position = "top",
+        axis.text.x = element_text(angle = 90),
+        plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Borough
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+plot_zone_count <- function(dt, 
+                            var,
+                            manual_colors = NULL) {
+  
+  zone_name = names(var)
+  if(is.null(zone_name)) zone_name = var
+  
+  plot1 =
+    dt[, .N,
+       by = var
+    ][, `:=`(is_max = N == max(N),
+             prop = N / sum(N),
+             zone = reorder(zone, N)),
+      env = list(zone  = zone_name)] |>
+    ggplot(aes(N, get(zone_name))) +
+    geom_col(aes(fill = is_max),
+             color = "black",
+             width = 0.6,
+             show.legend = FALSE) +
+    geom_text(aes(label = percent(prop)),
+              nudge_x = 6500)
+  
+  if(!is.null(manual_colors)) {
+    plot1 = plot1 +
+      scale_fill_manual(values = manual_colors)
+  }
+  
+  plot_final =
+    plot1 +
+    scale_x_continuous(labels = comma_format()) +
+    labs(x = "",
+         y = zone_name) +
+    theme_minimal() +
+    theme(panel.grid.major.y = element_blank())
+  
+  return(plot_final)
+}
+
+PuBoroughPlot <-
+  plot_zone_count(TrainingSampleZones, 
+                  c("Borough" = "PUBorough"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+DoBoroughPlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Borough" = "DOBorough"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+
+(PuBoroughPlot / DoBoroughPlot) +
+  plot_annotation(title = 'Most of the trips start and end in Manhattan') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Service Zone
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+PuServiceZonePlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Service Zone" = "PUServiceZone"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+DoServiceZonePlot <-
+  plot_zone_count(TrainingSampleZones,
+                  c("Service Zone" = "DOServiceZone"),
+                  c("TRUE" = ColorHighlight, "FALSE" = ColorGray))
+
+
+(PuServiceZonePlot / DoServiceZonePlot) +
+  plot_annotation(title = 'Most of the trips take place in the Boro Zone') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+:::
+
+### Numerical variables
+
+Based on the below graphs, we can say that:
+
+1.  **Short trips dominate:** Most trips are short in distance and time, and result in lower prices.
+
+2.  **Skewed distributions:** The variables are heavily skewed, highlighting the use of log-transformations to visualize the data better.
+
+3.  **The following filters were needed:**
+
+    -   **Minimum Trip Time (5 minutes)**
+
+        -   ***Eliminates trivial trips:*** Very short trips (e.g., under 5 minutes) are less indicative of regular driving. They might be data artifacts (e.g., a ride request that was canceled immediately) or a different kind of trip (e.g., a minimal hop that doesn't truly represent the work of a driver). They also will dramatically reduce the overall average performance, skewing the performance numbers.
+
+        -   ***Helps to focus on driving activity:*** By removing very short trips, the analysis focuses more on periods of actual driving. This provides a better representation of "meaningful" driving work and related performance.
+
+    -   **Positive Base Passenger Fare**
+
+        -   ***Excludes Free Trips:*** Trips with a zero or negative base fare might be test rides or special circumstances where the passenger did not pay. The inclusion of these may artificially skew the data and introduce noise that is not related to performance.
+
+        -   ***Focus on Revenue-Generating Trips:*** This filter ensures the analysis looks only at trips where the driver actually earned money, not trips done without payment. This way the performance per hour metric captures the revenue part of performance.
+
+::: panel-tabset
+
+#### Trip miles
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripMilesPlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_miles),
+                 binwidth = 5) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
+
+TripMilesLogPlot <-
+  ggplot(TrainingSample[trip_miles != 0]) + 
+  geom_histogram(aes(trip_miles),
+                 binwidth = 0.3) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12,
+                     trans = "log2",
+                     labels = \(x) round(x, 2)) +
+  labs(x = "Tip Distance (miles)",
+       y = "Count") +
+  theme_minimal()
+
+(TripMilesPlot / TripMilesLogPlot) +
+  plot_annotation(title = 'Distribution of trip distance') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### Trip time
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripTimePlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(trip_time/60),
+                 binwidth = 1) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 15,
+                     labels = comma_format()) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
+
+TripTimeLogPlot <-
+  ggplot(TrainingSample[trip_time != 0]) + 
+  geom_histogram(aes(trip_time/60),
+                 binwidth = 1) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 16,
+                     trans = "log2",
+                     labels = comma_format(accuracy = 1)) +
+  labs(x = "Trip Time (minutes)",
+       y = "Count") +
+  theme_minimal()
+
+(TripTimePlot / TripTimeLogPlot) +
+  plot_annotation(title = 'Distribution of trip time') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### tips + base_passenger_fare
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripPricePlot <-
+  ggplot(TrainingSample) + 
+  geom_histogram(aes(tips + base_passenger_fare),
+                 bins = 50) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(n.breaks = 12) +
+  labs(x = "",
+       y = "Count") +
+  theme_minimal()
+
+TripPriceLogPlot <-
+  ggplot(TrainingSample[(tips + base_passenger_fare) > 0]) + 
+  geom_histogram(aes(tips + base_passenger_fare),
+                 bins = 50) +
+  scale_y_continuous(labels = comma_format())  +
+  scale_x_continuous(n.breaks = 12,
+                     trans = "log2",
+                     labels = \(x) round(x, 2)) +
+  labs(x = "Trip Price",
+       y = "Count") +
+  theme_minimal()
+
+(TripPricePlot / TripPriceLogPlot) +
+  plot_annotation(title = 'Distribution of trip price') & 
+  theme(plot.title = element_text(face = "bold", size = 15))
+```
+
+#### performance_per_hour
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TripPerformancePlot <-
+  ggplot(TrainingSample) +
+  stat_ecdf(aes(performance_per_hour)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_x_continuous(labels = comma_format(),
+                     breaks = breaks_width(3000)) +
+  labs(subtitle = "All points of training set",
+       x = "") +
+  theme_minimal()
+
+
+TripPerformanceRangePlot <-
+  ggplot(TrainingSample[trip_time >= 60*5 & base_passenger_fare > 0]) +
+  stat_ecdf(aes(performance_per_hour)) +
+  scale_x_continuous(labels = comma_format(),
+                     n.breaks = 12) +
+  scale_y_continuous(labels = percent_format(),
+                     n.breaks = 5) +
+  labs(subtitle = "Trips with 5 min and positive base fare",
+       x = "") +
+  theme_minimal()
+
+(TripPerformancePlot / TripPerformanceRangePlot) +
+  plot_annotation(title = 'Cumulative distribution of trip performance') & 
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", size = 15),
+        plot.subtitle = element_text(size = 13, face = "italic"))
+
+```
+:::
+
+
+### Conclusions
+
+After all that exploration, we need to apply the following changes to keep exploring:
+
+- We don't want to focus on trips that took less than 4 minutes to avoid the __small denominator distortion__ in the `performance_per_hour` metric.
+- The `base_passenger_fare` and the `performance_per_hour` must be positive.
+- Based on the prior exploration, we now that we cannot use the `access_a_ride_flag`, `originating_base_num`, and `dispatching_base_num` for modeling.
+- To help the model differentiate between location IDs, let's count the number of trips we see in the training set.
+- As `PULocationID` and `DOLocationID` have many levels, we only need the top 29 for visualization. The remaining levels will be shown as "Other".
+- To understand better the relations between the target variables and the `request_datetime`, we are going to break it down by month, every other week, weekday, and hour.
+
+```{r}
+TrainingSampleToExplore <-
+  TrainingSampleZones[trip_time >= 60*4 & 
+                        base_passenger_fare > 0 &
+                        performance_per_hour > 0, 
+                      .SD, 
+                      .SDcols = patterns("^(PU|DO)|license|shared|wav|request_datetime|trip_miles|performance_per_hour|take_current_trip")
+  ][, PULocation_annual_trips := .N,
+    by = "PULocationID"
+  ][, DOLocation_annual_trips := .N,
+    by = "DOLocationID"
+  ][, `:=`(hvfhs_license_num = NULL,
+           company = fifelse(hvfhs_license_num == "HV0003", "Uber", "Lyft"),
+           PULocationID = forcats::fct_lump_n(as.character(PULocationID), 29),
+           DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 29),
+           request_datetime = NULL,
+           month = month(request_datetime, label = TRUE, abbr = FALSE),
+           bi_week = floor((week(request_datetime) + 1) / 2) |> (\(x) factor(x, sort(unique(x))) )(),
+           weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+           hour = hour(request_datetime) |> (\(x) factor(x, sort(unique(x))) )())]
+```
+
+
+## Predictors vs `take_current_trip`
+
+As we can see below, the proportion of trips to take changes for the next features:
+
+- Location ID
+- Borough
+- Service zone
+- shared_request_flag
+- shared_match_flag
+- wav_request_flag
+- wav_match_flag
+
+But we cannot see important fluctuations for:
+
+- weekday
+- month
+- hour
+
+In the case of `trip_miles`, both groups present similar distributions, but we can see that if the trip has more than 50 miles it's always a good choice to take it.
+
+::: panel-tabset
+
+### Categorical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
+plot_bar(TrainingSampleToExplore,
+         by = "take_current_trip",
+         nrow = 2,
+         ggtheme = theme_minimal(),
+         theme_config = list(legend.position = "top",
+                             panel.grid = element_blank()))
+```
+
+### Numerical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 10
+#| fig-width: 8
+
+TrainingSampleNumericLong <-
+  TrainingSampleToExplore[j = melt(.SD, id.vars = c("performance_per_hour", "take_current_trip")), 
+                          .SDcols = patterns("annual_trips|trip_miles|performance_per_hour|take_current_trip")]
+
+ggplot(TrainingSampleNumericLong,
+       aes(take_current_trip, value)) +
+  geom_boxplot() +
+  scale_y_continuous(n.breaks = 10) +
+  facet_wrap(vars(variable),
+             scales = "free",
+             ncol = 1) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+:::
+
+##  Predictors vs `performance_per_hour`
+
+As we can see in the below charts, __categorical predictors don't seem to provide a very impactful variable__ for modeling at a first glance, as the distribution of `performance_per_hour` is very similar in multiple categories.
+
+If we focus on the `trip_miles` predictor, we can see how:
+
+- Trips with less than 30 miles present high variation, with very high-paid trips and very low-value trips, but most of the trips present low value.
+- There is not a linear relationship between the `trip_miles` variable and `performance_per_hour`.
+- On average, the `performance_per_hour` increases with miles, especially for trips with more than 30 miles.
+- We don't see any clear relation between `performance_per_hour` and the number of trips for each zone.
+
+It would be really interesting if the model could identify which trips have a `performance_per_hour >= 100`; **that would be more useful to model**.
+
+::: panel-tabset
+
+### Categorical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 23
+#| fig-width: 10
+
+TrainingSampleToExplore[j = melt(.SD, id.vars = "performance_per_hour"), 
+                        .SDcols = !patterns("annual_trips|trip_miles")] |>
+  ggplot(aes(value, performance_per_hour)) +
+  geom_violin() +
+  scale_y_continuous(transform = "log2",
+                     n.breaks = 5) +
+  facet_wrap(vars(variable),
+             scales = "free",
+             ncol = 2) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+### Numerical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 10
+#| fig-width: 8
+
+ggplot(TrainingSampleNumericLong,
+       aes(value, performance_per_hour))+
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  scale_x_continuous(n.breaks = 15) +
+  scale_y_continuous(n.breaks = 10) +
+  facet_wrap(vars(variable),
+             ncol = 1L,
+             scales = "free") +
+  theme_minimal()
+```
+
+:::
+
+## Predictors vs `performance_per_hour >= 100`
+
+After focusing on identifying high-value trips, most of the **categorical predictors reveal more information that could be useful for making predictions**. The distributions of high-value and not-high-value trips show noticeable differences across several categories, although these differences are much more pronounced in some categories than in others. The `wav_match_flag` stands out as an exception with virtually identical distributions for both groups.
+
+High-value trips are typically associated with __short distances__ and locations with __many trips__ per year.
+
+::: panel-tabset
+
+### Categorical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+copy(TrainingSampleToExplore)[, high_value_trip := fifelse(performance_per_hour >= 100, "Y", "N") ]|>
+  plot_bar(by = "high_value_trip",
+           nrow = 2,
+           ggtheme = theme_minimal(),
+           theme_config = list(legend.position = "top",
+                               panel.grid = element_blank()))
+```
+
+### Numerical
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 10
+#| fig-width: 8
+
+TrainingSampleNumericLong |>
+  ggplot(aes(fifelse(performance_per_hour >= 100, "Y", "N"), value)) +
+  geom_boxplot() +
+  scale_y_continuous(n.breaks = 10) +
+  facet_wrap(vars(variable),
+             ncol = 1L,
+             scales = "free") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank())
+```
+
+:::
+
+## Exploring correlations between predictors
+
+`month` and `bi_week` show a 94% correlation, suggesting significant overlap (e.g., biweekly periods may map directly to months). Including both in a model could introduce multicollinearity.
+
+Location-based features like PULocationID ↔ PUBorough (83%) and DOLocationID ↔ DOServiceZone (84%) are strongly associated, as location IDs inherently determine boroughs/zones.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+copy(TrainingSampleToExplore)[, trip_miles := cut_interval(trip_miles, 8)] |>
+  corrcat::cramerV_df(unique = FALSE)|>
+  ggplot(aes(V1, V2, fill = `Cramer.V`))+
+  geom_tile()+
+  scale_fill_gradient(low = "white",
+                      high = ColorHighlight,
+                      space = "Lab",
+                      na.value = "white") +
+  geom_text(aes(label = percent(`Cramer.V`, accuracy = 1)),
+            size = 2.5) + 
+  labs(title = "Cramer's V correlation")+
+  theme_minimal()+
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        axis.title = element_blank())
+```
+
+## Exploring correlation funnel
+
+Based on the below correlation funnels, we can confirm that no predictor has a strong correlation with the target variables, so we know that linear models won't perform well with this data.
+
+::: panel-tabset
+
+### take_current_trip
+
+```{r}
+TrainingSampleToExplore[, -c("performance_per_hour")] |>
+  correlationfunnel::binarize()  |>
+  correlationfunnel::correlate(take_current_trip__Y) |>
+  correlationfunnel::plot_correlation_funnel()
+```
+
+### performance_per_hour >= 100
+
+```{r}
+copy(TrainingSampleToExplore)[, `:=`(take_current_trip = NULL,
+                                     performance_per_hour = NULL,
+                                     high_value_trip = performance_per_hour >= 100)] |>
+  correlationfunnel::binarize()  |>
+  correlationfunnel::correlate(high_value_trip__1) |>
+  correlationfunnel::plot_correlation_funnel()
+```
+
+:::
+
+## Final conclusion
+
+This EDA revealed key patterns and challenges for our NYC taxi trip prediction models:
+
+**Key Findings:**
+
+*   **Data Filtering:** We'll filter out trips under 4 minutes and with zero or negative base fares.
+*   **Uber Dominance:** Uber trips constitute 72% of the data, so model results will be more related to this company.
+*   **Temporal Features:** Strong hourly, daily, bi-weekly, and monthly trends exist, requiring time-based features (weekday, month, hour, sin/cos transformations).
+*   **Geospatial Relevance:**  Location IDs, boroughs, and service zones impact trip selection, but are highly correlated; we'll select one per correlated group of features to avoid multicollinearity.
+*   **Target Insights:**
+    *   `take_current_trip` shows variations based on location, trip type, shared and WAV flags, but not so much on time variables.
+    *   `performance_per_hour` does not show a clear relation with categorical variables, while, high-value trips (`performance_per_hour >= 100`) do show differences on their distributions.
+    *   No strong linear correlations were found, so we will not start with linear models.
+
+**Modeling Implications:**
+
+*   **Non-Linear Models:** Linear models will not be useful, so we will prioritize non-linear models such as tree-based methods or stacked models.
+*   **Feature Engineering:**  We will create time and location-related features. We will use  the count of trips on each location and the `shared` and `wav` flags, and focus on predicting `performance_per_hour >= 100`.
+*   **Class Imbalance:** The target `take_current_trip` has a class imbalance, which should be addressed with oversampling.
+*   **Multicollinearity:** Highly correlated features must be removed (e.g., `month` or `bi_week`, `borough` or `service_zone`).

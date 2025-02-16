@@ -1,0 +1,15 @@
+---
+title: "Increasing NYC Taxi Drivers Earnings"
+---
+
+## Disclaimer 
+
+This project was completed by making strong assumptions due the reality that the data used to create the analysis don't provide any unique identifier for taxi drivers, that could help us to deliver more realistic results.
+
+On the other hand, this project aims to increase **taxi driver earnings**, regardless that if we apply it extensively, it could also end producing the following results:
+
+1.  **Reduced service quality:** Drivers focusing solely on maximizing earnings may avoid less profitable areas or times, potentially leaving some passengers underserved.
+
+2.  **Increased congestion:** Drivers congregating in high-profit areas could worsen traffic in already busy parts of the city.
+
+In conclusion, this project was created to show my abilities as Data Scientist, but it is not a project that should be implemented due this considerations.

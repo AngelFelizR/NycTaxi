@@ -1,0 +1,356 @@
+---
+title: "Expanding Geospatial Information"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Problem description
+
+Our target variable varies across zones. Merely providing an ID offers limited context for the models to differentiate between zones. Thus, we enrich the data with geospatial features derived from OpenStreetMap (OSM) to provide deeper insights into each zone.
+
+## Strategy
+
+1. **Define Spatial Extent**
+   - Retrieve borough boundaries for Queens, Brooklyn, and Manhattan using `osmdata::getbb()` with polygon output.
+
+2. **Extract OSM Features by Geometry Type**
+   - **Points (e.g., amenity, shop, office, tourism, public_transport, aeroway, emergency, sport):**
+     - Count occurrences within each zone.
+   - **Lines (e.g., highway):**
+     - Compute total road length per zone.
+   - **Polygons (e.g., landuse):**
+     - Calculate area using `st_area(geometry)`.
+   - Use `add_osm_feature` for batch extraction to improve efficiency.
+
+3. **Spatial Join with Taxi Zones**
+   - Import the Taxi Zone Shapefile.
+   - Join the OSM features to each zone based on spatial overlap.
+
+4. **Feature Engineering**
+   - Normalize raw counts/measurements by zone area to create density metrics (e.g., `amenity_density = n_amenities / zone_area_km2`).
+   - Derive additional metrics:
+     - Compute distances from zone centroids to key landmarks (e.g., airports, subway stations).
+     - Determine the dominant landuse within each zone.
+
+5. **Exploratory Data Analysis and Data Quality Checks**
+   - Evaluate distributions and correlations of the new OSM features.
+   - Identify and address missing values and outliers.
+   - Confirm relationships between engineered features and the target variable.
+
+6. **Modeling Preparation**
+   - Merge the enriched OSM features with the training and testing datasets.
+
+## Coding
+
+### Importing libraries
+
+```{r}
+library(here)
+library(dplyr)
+library(tidyr)
+library(sf)
+library(tmap)
+library(osmdata)
+
+tmap_mode("view")
+
+BoroughColors <- c(
+  'Manhattan' = '#e41a1c',
+  'Queens' = '#377eb8',
+  'Brooklyn'= '#4daf4a'
+)
+
+BoroughSelected <- names(BoroughColors)
+
+FeaturesToGet <- c(
+   "amenity",
+   "shop",
+   "office",
+   "tourism",
+   "public_transport",
+   "aeroway",
+   "emergency",
+   "sport",
+   "highway",
+   "landuse"
+)
+
+```
+
+### Importing shapes
+
+```{r}
+ZonesShapes <-
+  read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
+  filter(borough %in% BoroughSelected)
+```
+
+### Defining bounding box
+
+```{r}
+bb_box <-
+  lapply(X = paste0(BoroughSelected, ", NY"),
+         FUN = osmdata::getbb) |>
+  do.call(what = "cbind") |>
+  (\(x) cbind(min = apply(x, 1, min),
+              max = apply(x, 1, max)))()
+```
+
+### Plotting resutls
+
+```{r}
+project.nyc.taxi::plot_box(bb_box) +
+  tm_shape(ZonesShapes) +
+  tm_polygons(fill = "borough",
+              fill.scale = tm_scale_categorical(values = BoroughColors),
+              fill_alpha = 0.6)
+```
+
+#### Getting data from OpenStreetMap
+
+```{r}
+keep_feature_value <- function(osm_list, key) {
+  
+  shape_list =
+    c("osm_points",
+      "osm_lines",
+      "osm_polygons",
+      "osm_multilines",
+      "osm_multipolygons")
+  
+  for(shape_i in shape_list){
+    
+    if(is.null(osm_list[[shape_i]])){
+      next
+    }
+    
+    # Removing cases without key value
+    osm_list[[shape_i]] =
+      subset(osm_list[[shape_i]],
+             !is.na(get(key, inherits = FALSE)),
+             select = c("name", key))
+    
+    # Fixing not valid geometries
+    not_valid_cases = !sf::st_is_valid(osm_list[[shape_i]])
+    if(sum(not_valid_cases) > 0) {
+      osm_list[[shape_i]] = sf::st_make_valid(osm_list[[shape_i]])
+    }
+    
+  }
+  
+  return(osm_list)
+}
+```
+
+```r
+for(feature_i in FeaturesToGet){
+  
+  OsmData <-
+    opq(bb_box) |>
+    add_osm_feature(feature_i) |>
+    osmdata_sf() |>
+    keep_feature_value(feature_i)
+  
+  saveRDS(OsmData, 
+          here(sprintf("output/cache-data/feature_%s.rds", feature_i)), 
+          compress = "xz")
+  
+  print(feature_i)
+  print(format(object.size(OsmData), units = "auto", standard = "IEC"))
+}
+```
+
+```{r}
+tidy_osm_data <- function(osm_sf, crs = NULL) {
+  
+  shape_list =
+    c("osm_points",
+      "osm_lines",
+      "osm_polygons",
+      "osm_multilines",
+      "osm_multipolygons")
+  
+  for(shape_i in shape_list) {
+    
+    osm_sf[[shape_i]] =
+      osm_sf[[shape_i]] |>
+      dplyr::select(-osm_id) |>
+      tidyr::pivot_longer(!c("name", "geometry"),
+                          names_to = "feature",
+                          values_drop_na = TRUE)
+    
+    if(!is.null(crs)){
+      osm_sf[[shape_i]] = st_transform(osm_sf[[shape_i]], crs = crs)
+    }
+    
+  }
+  
+  return(osm_sf)
+  
+}
+
+OsmDataComplete <-
+  FeaturesToGet |>
+  sapply(FUN = \(x) here(sprintf("output/cache-data/feature_%s.rds", x))) |>
+  lapply(FUN = readRDS) |>
+  do.call(what = "c") |>
+  tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
+
+saveRDS(OsmDataComplete, 
+        here("output/cache-data/OsmDataComplete.rds"), 
+        compress = "xz")
+
+OsmDataComplete
+```
+
+
+
+```{r}
+#| echo: FALSE
+
+if(!exists("LandUseData")) {
+  LandUseData <- readRDS(here("output/cache-data/LandUseData.rds"))
+}
+```
+
+```{r}
+tm_shape(LandUseData$osm_lines) +
+  tm_lines()  +
+  tm_basemap("CartoDB.Positron")
+
+for(geom_i in seq_along(LandUseData$osm_multilines$geometry)){
+  print(plot(LandUseData$osm_multilines$geometry[geom_i]))
+}
+
+plot(LandUseData$osm_multilines$geometry[1])
+plot(LandUseData$osm_multilines$geometry[2])
+plot(LandUseData$osm_multilines$geometry[3])
+
+LandUseData$osm_lines <- st_centroid(LandUseData$osm_lines, of_largest_polygon = TRUE)
+LandUseData$osm_multilines <- st_centroid(LandUseData$osm_multilines, of_largest_polygon = TRUE)
+
+sf::sf_use_s2(FALSE)
+tm_shape(LandUseData$osm_lines) +
+  tm_symbols() +
+  tm_basemap("CartoDB.Positron")
+
+tm_shape(LandUseData$osm_multilines) +
+  tm_symbols() +
+  tm_basemap("CartoDB.Positron")
+sf::sf_use_s2(TRUE)
+
+plot(LandUseData$osm_multilines$geometry)
+  
+project.nyc.taxi::plot_box(bb_box) +
+  
+  tm_shape(do.call("rbind", LandUseData[4:8])) +
+  tm_symbols(fill = "landuse",
+             fill.scale = tm_scale_categorical(n.max = 50))+
+  tm_polygons(fill = "landuse",
+              fill.scale = tm_scale_categorical(n.max = 50))
+```
+
+### Adding features
+
+``` r
+ZoneCodeRef <-
+  here("output/cache-data/ZoneCodesRef.fst") |>
+  read_fst(as.data.table = TRUE)
+
+TrainingSampleZones <-
+  
+  ZoneCodeRef[TrainingSample,
+              on = c("LocationID" = "PULocationID"),
+              nomatch = NULL
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
+    
+  ][, ZoneCodeRef[.SD,
+                  on = c("LocationID" = "DOLocationID"),
+                  nomatch = NULL]
+  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
+```
+
+``` r
+# timeDate::listHolidays("US") |>
+#   (\(x) paste0("`Days to ", x, "` = ", 
+#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
+#                " |> as.integer()") )() |>
+#   paste0(collapse = ",\n") |>
+#   cat()
+
+TimeRecipe <-
+  recipe(~ ., data = TrainingSampleZones) |>
+  
+  # Daily cycle
+  step_harmonic(request_datetime, 
+                frequency = 1,
+                cycle_size = 3600*24, 
+                keep_original_cols = TRUE) |>
+  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
+              request_datetime_cos_daily = request_datetime_cos_1) |>
+  
+  # Weekly cycle
+  step_harmonic(request_datetime, 
+                frequency = 1, 
+                cycle_size = 3600*24*7, 
+                keep_original_cols = TRUE) %>%
+  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
+              request_datetime_cos_weekly = request_datetime_cos_1) |>
+  
+  # Extracting additional information
+  step_date(request_datetime,
+            features = c("year",
+                         "doy",
+                         "week",
+                         "decimal",
+                         "semester", 
+                         "quarter",
+                         "dow", 
+                         "month")) |>
+  step_holiday(request_datetime,
+               holidays = c('USChristmasDay',
+                            'USColumbusDay',
+                            'USCPulaskisBirthday',
+                            'USDecorationMemorialDay',
+                            'USElectionDay',
+                            'USGoodFriday',
+                            'USInaugurationDay',
+                            'USIndependenceDay',
+                            'USJuneteenthNationalIndependenceDay',
+                            'USLaborDay',
+                            'USLincolnsBirthday',
+                            'USMemorialDay',
+                            'USMLKingsBirthday',
+                            'USNewYearsDay',
+                            'USPresidentsDay',
+                            'USThanksgivingDay',
+                            'USVeteransDay',
+                            'USWashingtonsBirthday')) |>
+  step_mutate(request_datetime_am = am(request_datetime),
+              request_datetime_pm = pm(request_datetime),
+              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
+
+
+TrainingSampleZonesTime <-
+  prep(TimeRecipe) |>
+  bake(new_data = NULL)
+
+glimpse(TrainingSampleZonesTime)
+```

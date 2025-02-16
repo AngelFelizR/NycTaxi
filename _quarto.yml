@@ -1,0 +1,42 @@
+project:
+  type: website
+  output-dir: docs
+  resources: 
+    - "figures"
+
+website:
+  title: "NycTaxi"
+  navbar:
+    logo: figures/nyc-taxi-navbar-logo.png
+    logo-alt: "Project logo."
+    title: false
+    collapse-below: lg
+    left:
+      - text: Home
+        href: index.qmd
+      - text: "Project Phases"
+        menu: 
+          - text: "01 - Defining Development Environment"
+            href: investigation-phases/01-defining-environment.qmd
+          - text: "02 - Data Collection Process"
+            href: investigation-phases/02-data-collection-process.qmd         
+          - text: "03 - Business Understanding"
+            href: investigation-phases/03-business-understanding.qmd   
+          - text: "04 - Data Sampling"
+            href: investigation-phases/04-data-sampling.qmd
+          - text: "05 - Data Understanding"
+            href: investigation-phases/05-data-understanding.qmd 
+    right:
+      - text: "About Angel Feliz"
+        href: about.qmd
+      - icon: github
+        href: https://github.com/AngelFelizR/
+      - icon: linkedin
+        href: https://do.linkedin.com/in/angel-esteban-feliz-ferreras
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+
+editor: source

@@ -1,0 +1,88 @@
+---
+title: "Defining Development Environment"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:
+
+1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I used [this article](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-debian-10) as a guide to complete the task on **debian 12**.
+
+2. Install [git](https://git-scm.com/downloads).
+
+```bash
+sudo apt install git
+```
+
+3. Download the image related with this project.
+
+```bash
+docker pull angelfelizr/nyctaxi:4.4.1
+```
+
+4. Go the parent directory under you want to clone the project.
+
+5. Create a directory to cache installed packages.
+
+```bash
+mkdir pkg_cache_r_4.4
+```
+
+6. Download the repo by running.
+
+```bash
+git clone https://github.com/AngelFelizR/NycTaxi
+```
+
+7. Update the `docker-compose.yml` file with your parent directory path.
+
+```
+services:
+  taxi_project:
+    image: angelfelizr/nyctaxi:4.4.1
+    container_name: Rstudio
+    environment:
+      - DISABLE_AUTH=true
+      - RENV_PATHS_CACHE=/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - [your parent directory]:/home/rstudio
+      - [your parent directory]/pkg_cache_r_4.4:/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
+```
+
+8. After creating both folders we can run our container by running the next command based on your working directory.
+
+```bash
+docker compose up -d
+```
+
+9. Then you can go to your favorite browser and go to [localhost:8787](http://localhost:8787/). This address is used to access the RStudio Server interface running in the Docker container.
+
+10. Click over `~/NycTaxi/NycTaxi.Rproj` to open the project.
+
+11. Open a R console and restore all packages listed on the `renv.lock` file.
+
+```r
+# Using Posit Public Package Manager for installing packages faster using pak
+options(repos = c(
+  CRAN = "https://p3m.dev/cran/__linux__/bookworm/latest",
+))
+
+renv::restore()
+```
+
+If later you want to stop Rstudio and the R session you can run.
+
+```bash
+docker container stop Rstudio
+```
+
+Note: Make sure to save your work before stopping the container.

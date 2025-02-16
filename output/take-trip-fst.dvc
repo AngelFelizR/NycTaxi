@@ -1,0 +1,6 @@
+outs:
+- md5: ed0e088690c19f4fe8b96f5d445d1a22.dir
+  size: 54609957
+  nfiles: 24
+  hash: md5
+  path: take-trip-fst
