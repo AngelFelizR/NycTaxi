@@ -10,35 +10,32 @@ Our target variable varies across zones. Merely providing an ID offers limited c
 
 ## Strategy
 
-1. **Define Spatial Extent**
-   - Retrieve borough boundaries for Queens, Brooklyn, and Manhattan using `osmdata::getbb()` with polygon output.
+1. Importing the taxi zone shapefile.
 
-2. **Extract OSM Features by Geometry Type**
-   - **Points (e.g., amenity, shop, office, tourism, public_transport, aeroway, emergency, sport):**
-     - Count occurrences within each zone.
-   - **Lines (e.g., highway):**
-     - Compute total road length per zone.
-   - **Polygons (e.g., landuse):**
-     - Calculate area using `st_area(geometry)`.
-   - Use `add_osm_feature` for batch extraction to improve efficiency.
+2. Retrieving borough boundaries for Queens, Brooklyn, and Manhattan using `osmdata::getbb()`.
 
-3. **Spatial Join with Taxi Zones**
-   - Import the Taxi Zone Shapefile.
-   - Join the OSM features to each zone based on spatial overlap.
+3. Extract from OSM tags liked to below features:
+   - `amenity`
+   - `shop`
+   - `office`
+   - `tourism`
+   - `public_transport`
+   - `aeroway`
+   - `emergency`
+   - `sport`
+   - `highway`
+   - `landuse`
+   
+4. Join OSM features to each zone based on spatial overlap.
 
-4. **Feature Engineering**
-   - Normalize raw counts/measurements by zone area to create density metrics (e.g., `amenity_density = n_amenities / zone_area_km2`).
-   - Derive additional metrics:
-     - Compute distances from zone centroids to key landmarks (e.g., airports, subway stations).
-     - Determine the dominant landuse within each zone.
+5. Count the number of places per region.
 
-5. **Exploratory Data Analysis and Data Quality Checks**
-   - Evaluate distributions and correlations of the new OSM features.
-   - Identify and address missing values and outliers.
-   - Confirm relationships between engineered features and the target variable.
+6. Get the length of roads per region.
 
-6. **Modeling Preparation**
-   - Merge the enriched OSM features with the training and testing datasets.
+7. Define the proportion `landuse` by tag of each region.
+
+8. Normalize created feature.
+
 
 ## Coding
 
@@ -46,8 +43,7 @@ Our target variable varies across zones. Merely providing an ID offers limited c
 
 ```{r}
 library(here)
-library(dplyr)
-library(tidyr)
+library(data.table)
 library(sf)
 library(tmap)
 library(osmdata)
@@ -106,9 +102,9 @@ project.nyc.taxi::plot_box(bb_box) +
               fill_alpha = 0.6)
 ```
 
-#### Getting data from OpenStreetMap
+### Getting data from OpenStreetMap
 
-```{r}
+```r
 keep_feature_value <- function(osm_list, key) {
   
   shape_list =
@@ -140,9 +136,8 @@ keep_feature_value <- function(osm_list, key) {
   
   return(osm_list)
 }
-```
 
-```r
+
 for(feature_i in FeaturesToGet){
   
   OsmData <-
@@ -154,11 +149,10 @@ for(feature_i in FeaturesToGet){
   saveRDS(OsmData, 
           here(sprintf("output/cache-data/feature_%s.rds", feature_i)), 
           compress = "xz")
-  
-  print(feature_i)
-  print(format(object.size(OsmData), units = "auto", standard = "IEC"))
 }
 ```
+
+### Consolidating data
 
 ```r
 tidy_osm_data <- function(osm_sf, crs = NULL) {
@@ -196,18 +190,62 @@ OsmDataComplete <-
   do.call(what = "c") |>
   tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
 
-saveRDS(OsmDataComplete, 
-        here("output/cache-data/OsmDataComplete.rds"), 
-        compress = "xz")
+qs2::qs_save(OsmDataComplete, 
+             here("output/cache-data/OsmDataComplete.rds"))
 ```
 
 ```{r}
 #| echo: FALSE
 
 if(!exists("OsmDataComplete")) {
-  OsmDataComplete <- readRDS(here("output/cache-data/OsmDataComplete.rds"))
+  OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
 }
 
-OsmDataComplete$osm_points
+OsmDataComplete
 ```
+
+### Jonning data
+
+```{r}
+PointsWithinZones <-
+  st_join(OsmDataComplete$osm_points,
+          ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+
+LinesWithinZones <-
+  OsmDataComplete$osm_lines |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+LinesInSeveralZones <-
+  OsmDataComplete$osm_lines |>
+  st_join(y = ZonesShapes,
+          join = st_crosses,
+          left = FALSE,
+          largest = TRUE)
+
+```
+
+```{r}
+qs2::qs_save(OsmDataComplete, here("output/cache-data/OsmDataComplete.qs"))
+qs2::qs_save(PointsWithinZones, "output/cache-data/PointsWithinZones.qs")
+qs2::qs_save(LinesWithinZones, "output/cache-data/LinesWithinZones.qs")
+qs2::qs_save(LinesInSeveralZones, "output/cache-data/LinesInSeveralZones.qs")
+```
+
+
+
+```{r}
+data.table::setDT(temp)
+
+temp[, .N,
+     c("LocationID", "feature", "value")] |>
+data.table::dcast(formula = LocationID ~ feature + value,
+                  value.var = "N",
+                  fill = 0L)
+```
+
 
