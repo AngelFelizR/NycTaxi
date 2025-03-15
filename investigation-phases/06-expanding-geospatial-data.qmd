@@ -78,7 +78,7 @@ FeaturesToGet <- c(
 ```{r}
 ZonesShapes <-
   read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
-  filter(borough %in% BoroughSelected)
+  subset(borough %in% BoroughSelected)
 ```
 
 ### Defining bounding box
@@ -191,22 +191,22 @@ OsmDataComplete <-
   tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
 
 qs2::qs_save(OsmDataComplete, 
-             here("output/cache-data/OsmDataComplete.rds"))
+             here("output/cache-data/OsmDataComplete.qs"))
 ```
 
 ```{r}
 #| echo: FALSE
 
-if(!exists("OsmDataComplete")) {
-  OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
-}
+OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
 
 OsmDataComplete
 ```
 
 ### Jonning data
 
-```{r}
+1. Joining elements **contained** by each zone.
+
+```r
 PointsWithinZones <-
   st_join(OsmDataComplete$osm_points,
           ZonesShapes,
@@ -220,32 +220,226 @@ LinesWithinZones <-
           join = st_within,
           left = FALSE)
 
+MultiLinesWithinZones <-
+  OsmDataComplete$osm_multilines |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+          
+PolygonWithinZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+MultiPolygonWithinZones <-
+  st_make_valid(OsmDataComplete$osm_multipolygons) |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+```
+
+Now we can save the save the results.
+
+```r
+qs2::qs_save(PointsWithinZones, 
+             here("output/cache-data/PointsWithinZones.qs"))
+
+qs2::qs_save(LinesWithinZones, 
+             here("output/cache-data/LinesWithinZones.qs"))
+
+qs2::qs_save(MultiLinesWithinZones, 
+             here("output/cache-data/MultiLinesWithinZones.qs"))
+
+qs2::qs_save(PolygonWithinZones, 
+             here("output/cache-data/PolygonWithinZones.qs"))
+
+qs2::qs_save(MultiPolygonWithinZones, 
+             here("output/cache-data/MultiPolygonWithinZones.qs"))
+```
+
+```{r}
+#| echo: false
+
+PointsWithinZones <-
+  qs2::qs_read(here("output/cache-data/PointsWithinZones.qs"))
+
+LinesWithinZones <-
+  qs2::qs_read(here("output/cache-data/LinesWithinZones.qs"))
+
+MultiLinesWithinZones <-
+  qs2::qs_read(here("output/cache-data/MultiLinesWithinZones.qs"))
+
+PolygonWithinZones <-
+  qs2::qs_read(here("output/cache-data/PolygonWithinZones.qs"))
+
+MultiPolygonWithinZones <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonWithinZones.qs"))
+```
+
+2. Joining lines that are **partially contained** for each zone. 
+
+```r
 LinesInSeveralZones <-
   OsmDataComplete$osm_lines |>
   st_join(y = ZonesShapes,
           join = st_crosses,
-          left = FALSE,
-          largest = TRUE)
+          left = FALSE)
 
+MultiLinesInSeveralZones <-
+  OsmDataComplete$osm_multilines |>
+  st_join(y = ZonesShapes,
+          join = st_crosses,
+          left = FALSE)
+
+PolygonInSeveralZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+
+MultiPolygonInSeveralZones <-
+  st_make_valid(OsmDataComplete$osm_multipolygons) |>
+  st_join(y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+```
+
+
+All making all that operations we need to save the data for future use.
+
+```r
+qs2::qs_save(LinesInSeveralZones, 
+             here("output/cache-data/LinesInSeveralZones.qs"))
+
+qs2::qs_save(MultiLinesInSeveralZones, 
+             here("output/cache-data/MultiLinesInSeveralZones.qs"))
+             
+qs2::qs_save(PolygonInSeveralZones, 
+             here("output/cache-data/PolygonInSeveralZones.qs"))
+
+qs2::qs_save(MultiPolygonInSeveralZones, 
+             here("output/cache-data/MultiPolygonInSeveralZones.qs"))
 ```
 
 ```{r}
-qs2::qs_save(OsmDataComplete, here("output/cache-data/OsmDataComplete.qs"))
-qs2::qs_save(PointsWithinZones, "output/cache-data/PointsWithinZones.qs")
-qs2::qs_save(LinesWithinZones, "output/cache-data/LinesWithinZones.qs")
-qs2::qs_save(LinesInSeveralZones, "output/cache-data/LinesInSeveralZones.qs")
+#| echo: false
+
+LinesInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/LinesInSeveralZones.qs"))
+
+MultiLinesInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZones.qs"))
+
+PolygonInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/PolygonInSeveralZones.qs"))
+
+MultiPolygonInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZones.qs"))
 ```
 
+#### Confirming results
+
+Let's start checking feature fully contained on each location.
+
+```{r}
+ZoneToChech <- 191L
+
+ZonesShapesToCheck <- subset(ZonesShapes, LocationID == ZoneToChech)
+LinesWithinZonesToCheck  <- subset(LinesWithinZones, LocationID == ZoneToChech)
+PolygonWithinZonesToCheck <- subset(PolygonWithinZones, LocationID == ZoneToChech)
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesWithinZonesToCheck) +
+  tm_lines(col = "feature") +
+  tm_shape(PolygonWithinZonesToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+
+Now we can confirm the cases that aren't fully contained.
+
+```{r}
+LinesInSeveralZonesToCheck  <- subset(LinesInSeveralZones, LocationID == ZoneToChech)
+PolygonInSeveralZonesToCheck <- subset(PolygonInSeveralZones, LocationID == ZoneToChech)
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesInSeveralZonesToCheck) +
+  tm_lines(col = "blue") +
+  tm_shape(PolygonInSeveralZonesToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+
+### Changing the
+
+```{r}
+apply_intersection_by_id <- function(features,
+                                     shapes){
+  
+  intersection_by_id = function(id, features, shapes) {
+    
+    features_sub = subset(features, LocationID == id)
+    shapes_sub_geo = subset(shapes, LocationID == id) |> st_geometry()
+    
+    new_df = st_intersection(features_sub, shapes_sub_geo)
+    
+    return(new_df)
+  }
+  
+  new_df =
+    lapply(unique(features$LocationID),
+           FUN = intersection_by_id,
+           features = features,
+           shapes = shapes) |>
+    do.call(what = "rbind")
+  
+  return(new_df)
+  
+}
+
+LinesInSeveralZonesCropped <- apply_intersection_by_id(LinesInSeveralZones, ZonesShapes)
+PolygonInSeveralZonesCropped <- apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
+```
+
+
+#### Confiming crop application
 
 
 ```{r}
-data.table::setDT(temp)
+LinesInSeveralZonesCroppedToCheck  <- subset(LinesInSeveralZonesCropped, LocationID == ZoneToChech)
+PolygonInSeveralZonesCroppedToCheck <- subset(PolygonInSeveralZonesCropped, LocationID == ZoneToChech)
 
-temp[, .N,
-     c("LocationID", "feature", "value")] |>
-data.table::dcast(formula = LocationID ~ feature + value,
-                  value.var = "N",
-                  fill = 0L)
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesInSeveralZonesCroppedToCheck) +
+  tm_lines(col = "blue") +
+  tm_shape(PolygonInSeveralZonesCroppedToCheck) +
+  tm_polygons(fill = "feature")
 ```
 
+```r
+temp = tidycensus::load_variables(2021, "acs5")
+
+setDT(temp)
+
+temp[c("MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
+       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
+       
+       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
+     on = "concept",
+     j = !c("concept")
+][label != "Estimate!!Total:"]
+
+# Geographical Mobility - B07203_008
+temp[name %like% "^[A-Z]\\d+_"] |> View()
+
+temp[name %like% "^B08124_"
+     & label %ilike% ".+:.+:$", View(.SD)]
+```
 
