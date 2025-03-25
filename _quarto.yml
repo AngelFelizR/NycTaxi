@@ -26,6 +26,8 @@ website:
             href: investigation-phases/04-data-sampling.qmd
           - text: "05 - Data Understanding"
             href: investigation-phases/05-data-understanding.qmd 
+          - text: "06 - Expanding Geospatial Information"
+            href: investigation-phases/06-expanding-geospatial-data.qmd
     right:
       - text: "About Angel Feliz"
         href: about.qmd
