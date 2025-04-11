@@ -52,11 +52,19 @@ portfolio web site.
 
 3.  **Data Preparation**
 
+    - *(Pending)*
+
 4.  **Modeling**
+
+    - *(Pending)*
 
 5.  **Evaluation**
 
+    - *(Pending)*
+
 6.  **Deployment**
+
+    - *(Pending)*
 
 ## Data to use
 
@@ -66,6 +74,59 @@ Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from
 2022 to 2023 for **High Volume For-Hire Vehicle** with the columns
 described in its [data
 dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
+
+## Results highlight
+
+*(Pending)*
+
+## Tech stack
+
+**Core Language:** R
+
+**Key Ecosystems & Frameworks:**
+
+- **Tidyverse:** Heavily utilized, including core packages like:
+  - `dplyr` (Data Manipulation)
+  - `ggplot2` (Data Visualization)
+  - `tidyr` (Data Tidying)
+  - `readr` (Data Import)
+  - `purrr` (Functional Programming)
+  - `stringr` (String Manipulation)
+  - `lubridate` (Dates/Times)
+  - `forcats` (Factor Handling)
+  - `tibble` (Modern Data Frames)
+- **Geospatial Analysis:** Extensive use of spatial packages:
+  - `sf` (Simple Features - Modern standard for spatial data)
+  - `leaflet` & `tmap` (Interactive and static thematic mapping)
+  - `terra` & `raster` (Raster data processing)
+  - `osmdata` (OpenStreetMap data access)
+  - Supporting spatial packages (`sp`, `lwgeom`, `s2`, `units`, `proj4`,
+    `wk`, etc.)
+- **Modeling & Preprocessing:**
+  - `recipes` (Data preprocessing pipelines for modeling)
+  - `rpart` (Decision Trees)
+  - Potentially others depending on usage (`MASS`, `nnet`, `e1071`,
+    `ipred`, `correlationfunnel`)
+  - `broom` (Tidying model outputs)
+  - `infer` (Statistical inference)
+- **Data Handling & Access:**
+  - `data.table` (High-performance data manipulation)
+  - `DBI` & `duckdb` (Database connectivity and in-process analytics
+    database)
+  - `httr`, `httr2`, `curl`, `rvest` (Web data access and scraping)
+  - `fst`, `qs2` (Fast data serialization)
+  - `vroom`, `readxl` (Data import)
+- **Reporting, Visualization & Apps:**
+  - `rmarkdown` & `knitr` (Report generation)
+  - `shiny` (Interactive web applications)
+  - `plotly` (Interactive plots)
+  - Various HTML widget-based visualization packages (`DiagrammeR`,
+    `networkD3`, `visNetwork`, `ggiraph`)
+- **Workflow & Parallel Processing:**
+  - `renv` (Project environment management)
+  - `here` (Project path management)
+  - `future`, `future.apply`, `parallelly` (Parallel and asynchronous
+    processing)
 
 ## Disclaimer
 
