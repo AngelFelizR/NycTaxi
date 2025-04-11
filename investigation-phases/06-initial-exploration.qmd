@@ -1,5 +1,5 @@
 ---
-title: "Data Understanding"
+title: "Initial Exploration"
 editor_options: 
   chunk_output_type: console
 ---

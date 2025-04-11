@@ -15,19 +15,21 @@ website:
       - text: Home
         href: index.qmd
       - text: "Project Phases"
-        menu: 
-          - text: "01 - Defining Development Environment"
-            href: investigation-phases/01-defining-environment.qmd
-          - text: "02 - Data Collection Process"
-            href: investigation-phases/02-data-collection-process.qmd         
-          - text: "03 - Business Understanding"
-            href: investigation-phases/03-business-understanding.qmd   
-          - text: "04 - Data Sampling"
-            href: investigation-phases/04-data-sampling.qmd
-          - text: "05 - Data Understanding"
-            href: investigation-phases/05-data-understanding.qmd 
-          - text: "06 - Expanding Geospatial Information"
-            href: investigation-phases/06-expanding-geospatial-data.qmd
+        menu:
+          - text: "01 - Business Understanding Overview"
+            href: investigation-phases/01-business-understanding.qmd   
+          - text: "02 - Defining Development Environment"
+            href: investigation-phases/02-defining-environment.qmd
+          - text: "03 - Data Collection Process"
+            href: investigation-phases/03-data-collection-process.qmd         
+          - text: "04 - Defining Base Line"
+            href: investigation-phases/04-base-line.qmd   
+          - text: "05 - Data Sampling"
+            href: investigation-phases/05-data-sampling.qmd
+          - text: "06 - Initial Exploration"
+            href: investigation-phases/06-initial-exploration.qmd 
+          - text: "07 - Expanding Geospatial Information"
+            href: investigation-phases/07-expanding-geospatial-data.qmd
     right:
       - text: "About Angel Feliz"
         href: about.qmd
