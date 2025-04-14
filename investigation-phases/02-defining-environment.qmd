@@ -24,10 +24,14 @@ sudo apt install git
 3. Download the image related with this project.
 
 ```bash
-docker pull angelfelizr/nyctaxi:4.4.1
+docker pull rocker/geospatial:4.4.2
 ```
 
 4. Go the parent directory under you want to clone the project.
+
+```bash
+cd <parent-dir-path>
+```
 
 5. Create a directory to cache installed packages.
 
@@ -41,48 +45,29 @@ mkdir pkg_cache_r_4.4
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
-7. Update the `docker-compose.yml` file with your parent directory path.
-
-```
-services:
-  taxi_project:
-    image: angelfelizr/nyctaxi:4.4.1
-    container_name: Rstudio
-    environment:
-      - DISABLE_AUTH=true
-      - RENV_PATHS_CACHE=/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
-    ports:
-      - "127.0.0.1:8787:8787"
-    volumes:
-      - [your parent directory]:/home/rstudio
-      - [your parent directory]/pkg_cache_r_4.4:/home/rstudio/.cache/R/renv/library/project.nyc.taxi-dd1eca8a/linux-ubuntu-jammy/R-4.4/x86_64-pc-linux-gnu
-```
-
-8. After creating both folders we can run our container by running the next command based on your working directory.
+7. The run the next command to run Rstudio Server from a new container.
 
 ```bash
-docker compose up -d
+docker run --rm -tid --name rstudio \
+  -e DISABLE_AUTH=true \
+  -p 8787:8787 \
+  -v <parent-dir-path>:/home/rstudio \
+  -v <parent-dir-path>/pkg_cache_r_4.4:/opt/r-cache \
+  rocker/geospatial:4.4.2
 ```
 
-9. Then you can go to your favorite browser and go to [localhost:8787](http://localhost:8787/). This address is used to access the RStudio Server interface running in the Docker container.
+8. Then you can go to your favorite browser and go to [localhost:8787](http://localhost:8787/). This address is used to access the RStudio Server interface running in the Docker container.
 
-10. Click over `~/NycTaxi/NycTaxi.Rproj` to open the project.
+9. Then open the **NycTaxi** project from Rstudio.
 
-11. Open a R console and restore all packages listed on the `renv.lock` file.
+10. Go to the R console and restore all packages listed on the `renv.lock` file.
 
 ```r
-# Using Posit Public Package Manager for installing packages faster using pak
-options(repos = c(
-  CRAN = "https://p3m.dev/cran/__linux__/bookworm/latest",
-))
-
 renv::restore()
 ```
 
-If later you want to stop Rstudio and the R session you can run.
+11. After creating both folders we can run our container by running the next command based on your working directory.
 
 ```bash
-docker container stop Rstudio
+docker stop rstudio
 ```
-
-Note: Make sure to save your work before stopping the container.

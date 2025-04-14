@@ -68,49 +68,6 @@ In this project, we will use a subset of the data available in the [TLC Trip Rec
 
 _(Pending)_
 
-## Tech stack
-
-**Core Language:** R
-
-**Key Ecosystems & Frameworks:**
-
-* **Tidyverse:** Heavily utilized, including core packages like:
-    * `dplyr` (Data Manipulation)
-    * `ggplot2` (Data Visualization)
-    * `tidyr` (Data Tidying)
-    * `readr` (Data Import)
-    * `purrr` (Functional Programming)
-    * `stringr` (String Manipulation)
-    * `lubridate` (Dates/Times)
-    * `forcats` (Factor Handling)
-    * `tibble` (Modern Data Frames)
-* **Geospatial Analysis:** Extensive use of spatial packages:
-    * `sf` (Simple Features - Modern standard for spatial data)
-    * `leaflet` & `tmap` (Interactive and static thematic mapping)
-    * `terra` & `raster` (Raster data processing)
-    * `osmdata` (OpenStreetMap data access)
-    * Supporting spatial packages (`sp`, `lwgeom`, `s2`, `units`, `proj4`, `wk`, etc.)
-* **Modeling & Preprocessing:**
-    * `recipes` (Data preprocessing pipelines for modeling)
-    * `rpart` (Decision Trees)
-    * Potentially others depending on usage (`MASS`, `nnet`, `e1071`, `ipred`, `correlationfunnel`)
-    * `broom` (Tidying model outputs)
-    * `infer` (Statistical inference)
-* **Data Handling & Access:**
-    * `data.table` (High-performance data manipulation)
-    * `DBI` & `duckdb` (Database connectivity and in-process analytics database)
-    * `httr`, `httr2`, `curl`, `rvest` (Web data access and scraping)
-    * `fst`, `qs2` (Fast data serialization)
-    * `vroom`, `readxl` (Data import)
-* **Reporting, Visualization & Apps:**
-    * `rmarkdown` & `knitr` (Report generation)
-    * `shiny` (Interactive web applications)
-    * `plotly` (Interactive plots)
-    * Various HTML widget-based visualization packages (`DiagrammeR`, `networkD3`, `visNetwork`, `ggiraph`)
-* **Workflow & Parallel Processing:**
-    * `renv` (Project environment management)
-    * `here` (Project path management)
-    * `future`, `future.apply`, `parallelly` (Parallel and asynchronous processing)
 
 ## Disclaimer 
 
