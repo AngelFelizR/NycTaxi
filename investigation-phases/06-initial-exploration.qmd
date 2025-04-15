@@ -180,6 +180,127 @@ plot_bar <- function(dt,
                  plot.title = ggplot2::element_text(face = "bold", size = 15))
   
 }
+
+#' Plot Numerical Distribution
+#'
+#' @description
+#' Creates a comprehensive visualization of a numerical variable's distribution with three plots:
+#' 1. A standard histogram
+#' 2. A logarithmic histogram (excluding zeros)
+#' 3. An empirical cumulative distribution function (ECDF) curve
+#'
+#' @param dt A data.table containing the data
+#' @param x Unquoted column name of the numeric variable to plot
+#' @param title Character string. Optional title for the combined plots. Default is empty string.
+#' @param title_size Numeric. Font size for the title. Default is 15.
+#' @param hist_binwidth Numeric. Bin width for the standard histogram. If NULL, ggplot2 chooses automatically.
+#' @param hist_n_break Numeric. Number of breaks for x-axis in histograms. If NULL, ggplot2 chooses automatically.
+#' @param log_trans Character. Transformation to apply to the logarithmic histogram. Default is "log2".
+#'                  Set to NULL for no transformation.
+#' @param log_binwidth Numeric. Bin width for the logarithmic histogram. If NULL, ggplot2 chooses automatically.
+#' @param curve_important_points Numeric vector. Values to highlight on the ECDF curve with points and percentage labels.
+#'                              Default is NULL (no points highlighted).
+#' @param curve_nudge_y Numeric. Amount to nudge labels on the ECDF curve in the y direction. Default is 0.
+#' @param curve_breaks_x Numeric vector. Custom breaks for x-axis on the ECDF curve. If NULL, ggplot2 chooses automatically.
+#' @param curve_limits Numeric vector of length 2 or ggplot2::waiver(). Limits for x-axis on the ECDF curve.
+#'                     Default is ggplot2::waiver() (automatic limits).
+#'
+#' @return A patchwork object combining the three plots vertically
+#'
+#' @details
+#' The function creates a three-panel visualization arranged vertically:
+#' - Top panel: Standard histogram of the variable
+#' - Middle panel: Logarithmically transformed histogram (zeros are excluded)
+#' - Bottom panel: ECDF curve showing the cumulative proportion
+#'
+#' For the ECDF curve, important points can be highlighted with percentile labels.
+#'
+plot_num_distribution <- function(dt,
+                                  x,
+                                  title = "",
+                                  title_size = 15,
+                                  hist_binwidth = NULL,
+                                  hist_n_break = NULL,
+                                  log_trans = "log2",
+                                  log_binwidth = NULL,
+                                  curve_important_points = NULL,
+                                  curve_nudge_y = 0,
+                                  curve_breaks_x = NULL,
+                                  curve_limits = ggplot2::waiver()){
+  
+  # Lazy evaluation
+  x = rlang::enquo(x)
+  x_str <- rlang::quo_name(x)
+  
+  # Confirming correct format
+  stopifnot("dt must be data.table" = data.table::is.data.table(dt))
+  
+  # Histogram 1 ----------------------------------------------------------------
+  
+  simple_hist =
+    ggplot2::ggplot(dt, ggplot2::aes({{x}})) +
+    ggplot2::geom_histogram(binwidth = hist_binwidth) +
+    ggplot2::scale_x_continuous(n.breaks = hist_n_break) +
+    ggplot2::scale_y_continuous(labels = comma_format()) +
+    ggplot2::labs(x = "",
+                  y = "Count") +
+    ggplot2::theme_minimal()
+  
+  
+  # Log Histogram --------------------------------------------------------------
+  
+  log_hist =
+    ggplot2::ggplot(dt[var != 0, env = list(var = x_str)], ggplot2::aes({{x}})) +
+    ggplot2::geom_histogram(binwidth = log_binwidth) +
+    ggplot2::scale_y_continuous(labels = scales::comma_format()) +
+    ggplot2::scale_x_continuous(n.breaks = hist_n_break,
+                                transform = if(is.null(log_trans)) "identity" else log_trans,
+                                labels = \(x) round(x, 2)) +
+    ggplot2::labs(x = "",
+                  y = "Count") +
+    ggplot2::theme_minimal()
+  
+  
+  # ECDF Curve ----------------------------------------------------------------
+  
+  get_prop = stats::ecdf(dt[[x_str]])
+  
+  ecdf_plot =
+    ggplot2::ggplot(dt, ggplot2::aes({{x}}, get_prop({{x}}))) +
+    ggplot2::geom_step()
+  
+  if(!is.null(curve_important_points)){
+    important_df = data.frame(x = curve_important_points)
+    names(important_df) = x_str
+    
+    ecdf_plot =
+      ecdf_plot +
+      ggplot2::geom_point(data = important_df) +
+      ggplot2::geom_text(data = important_df,
+                         ggplot2::aes(label = scales::percent(get_prop(!!x), accuracy = 1)),
+                         nudge_y = curve_nudge_y)
+  }
+  
+  ecdf_plot =
+    ecdf_plot +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(),
+                                breaks = seq(0, 1, by = 0.25)) +
+    ggplot2::scale_x_continuous(labels = scales::comma_format(),
+                                breaks = if(is.null(curve_breaks_x)) ggplot2::waiver() else curve_breaks_x,
+                                limits = if(is.null(curve_limits)) ggplot2::waiver() else curve_limits) +
+    ggplot2::labs(y = "Prop of trips",
+                  x = "") +
+    ggplot2::theme_minimal()
+  
+  
+  # Consolidating plots using patchwork
+
+  (simple_hist / log_hist / ecdf_plot) +
+  patchwork::plot_annotation(title = title) & 
+  ggplot2::theme(plot.title = element_text(face = "bold", size = title_size))
+  
+}
+
 ```
 
 ```{r}
@@ -545,6 +666,8 @@ plot_bar(TrainingSampleZones["Queens"],
 
 Based on the below graphs, we can say that:
 
+1. `trip_miles`
+
 1.  **Short trips dominate:** Most trips are short in distance and time, and result in lower prices.
 
 2.  **Skewed distributions:** The variables are heavily skewed, highlighting the use of log-transformations to visualize the data better.
@@ -571,31 +694,18 @@ Based on the below graphs, we can say that:
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TripMilesPlot <-
-  ggplot(TrainingSample) + 
-  geom_histogram(aes(trip_miles),
-                 binwidth = 5) +
-  scale_y_continuous(labels = comma_format()) +
-  scale_x_continuous(n.breaks = 12) +
-  labs(x = "",
-       y = "Count") +
-  theme_minimal()
+plot_num_distribution(TrainingSample,
+                      trip_miles,
+                      title = "trip_miles",
+                      hist_binwidth = 5,
+                      hist_n_break = 12,
+                      log_trans = "log2",
+                      log_binwidth = 0.3,
+                      curve_important_points = c(1, 6, 24),
+                      curve_limits = c(0, 25),
+                      curve_nudge_y = 0.08,
+                      curve_breaks_x = breaks_width(3))
 
-TripMilesLogPlot <-
-  ggplot(TrainingSample[trip_miles != 0]) + 
-  geom_histogram(aes(trip_miles),
-                 binwidth = 0.3) +
-  scale_y_continuous(labels = comma_format()) +
-  scale_x_continuous(n.breaks = 12,
-                     trans = "log2",
-                     labels = \(x) round(x, 2)) +
-  labs(x = "Tip Distance (miles)",
-       y = "Count") +
-  theme_minimal()
-
-(TripMilesPlot / TripMilesLogPlot) +
-  plot_annotation(title = 'Distribution of trip distance') & 
-  theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
 #### Trip time
