@@ -221,12 +221,19 @@ plot_num_distribution <- function(dt,
                                   title_size = 15,
                                   hist_binwidth = NULL,
                                   hist_n_break = NULL,
-                                  log_trans = "log2",
+                                  log_trans =   scales::new_transform("signed_log2",
+                                                                      transform = function(x) sign(x) * log2(1 + abs(x)),
+                                                                      inverse = function(x) sign(x) * (2^(abs(x)) - 1),
+                                                                      d_transform = function(x) 1 / ((1 + abs(x)) * log(2)),
+                                                                      d_inverse = function(x) 2^(abs(x)) * log(2),
+                                                                      breaks = scales::pretty_breaks(),
+                                                                      domain = c(-Inf, Inf)),
                                   log_binwidth = NULL,
+                                  log_breaks = \(x) sign(x) * 2^(-1:10),
                                   curve_important_points = NULL,
                                   curve_nudge_y = 0,
                                   curve_breaks_x = NULL,
-                                  curve_limits = ggplot2::waiver()){
+                                  curve_limits = NULL){
   
   # Lazy evaluation
   x = rlang::enquo(x)
@@ -250,11 +257,12 @@ plot_num_distribution <- function(dt,
   # Log Histogram --------------------------------------------------------------
   
   log_hist =
-    ggplot2::ggplot(dt[var != 0, env = list(var = x_str)], ggplot2::aes({{x}})) +
+    ggplot2::ggplot(dt, ggplot2::aes({{x}})) +
     ggplot2::geom_histogram(binwidth = log_binwidth) +
     ggplot2::scale_y_continuous(labels = scales::comma_format()) +
     ggplot2::scale_x_continuous(n.breaks = hist_n_break,
-                                transform = if(is.null(log_trans)) "identity" else log_trans,
+                                transform = log_trans,
+                                breaks = log_breaks,
                                 labels = \(x) round(x, 2)) +
     ggplot2::labs(x = "",
                   y = "Count") +
@@ -287,7 +295,7 @@ plot_num_distribution <- function(dt,
                                 breaks = seq(0, 1, by = 0.25)) +
     ggplot2::scale_x_continuous(labels = scales::comma_format(),
                                 breaks = if(is.null(curve_breaks_x)) ggplot2::waiver() else curve_breaks_x,
-                                limits = if(is.null(curve_limits)) ggplot2::waiver() else curve_limits) +
+                                limits = curve_limits) +
     ggplot2::labs(y = "Prop of trips",
                   x = "") +
     ggplot2::theme_minimal()
@@ -330,15 +338,58 @@ TrainingSample <-
   head(12L) |>
   lapply(FUN = read_fst, as.data.table = TRUE) |>
   rbindlist()
+```
+
+### Importing geospatial information
+
+```{r}
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        select = c("LocationID" = "character",
+                   "Borough" = "character",
+                   "service_zone" = "character"))
+```
 
 
-TrainingSample[,`:=`(hvfhs_license_num = NULL,
-                     company = fcase(hvfhs_license_num == "HV0002", "Juno",
+
+### Adding features for exploration
+
+```{r}
+TrainingSample[,`:=`(company = fcase(hvfhs_license_num == "HV0002", "Juno",
                                      hvfhs_license_num == "HV0003", "Uber",
                                      hvfhs_license_num == "HV0004", "Via",
                                      hvfhs_license_num == "HV0005", "Lyft"),
-                     take_current_trip = fifelse(take_current_trip == 1, "Y", "N"))]
+                     take_current_trip = fifelse(take_current_trip == 1, "Y", "N"),
+                     
+                     weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
+                     month = month(request_datetime, label = TRUE, abbr = FALSE),
+                     hour = hour(request_datetime),
+                     
+                     trip_time_min = trip_time / 60,
+                     
+                     trip_value = tips + base_passenger_fare,
+                     
+                     PULocationID = as.character(PULocationID),
+                     DOLocationID = as.character(DOLocationID))]
+
+# To explore the distribution provided by the `PULocationID` (Pick Up Zone ID) 
+# and `DOLocationID` (Drop Off Zone ID), we need to add extra information.
+# If we check the taxi zone look up table, we can find the `Borough` and
+# `service_zone` of each table.
+
+TrainingSample[ZoneCodesRef,
+               on = c("PULocationID" = "LocationID"),
+               `:=`(PULocationID = as.character(PULocationID),
+                    PUBorough = Borough,
+                    PUServiceZone = service_zone)]
+
+TrainingSample[ZoneCodesRef,
+               on = c("DOLocationID" = "LocationID"),
+               `:=`(DOLocationID = as.character(DOLocationID),
+                    DOBorough = Borough,
+                    DOServiceZone = service_zone)]
 ```
+
 
 ## Exploring individual distributions
 
@@ -476,21 +527,7 @@ plot_heap_map(TrainingSample,
 
 ### Datetime variables
 
-As `request_datetime` is the only variable we will use for predicting, we need to extract some features from it to confirm if they can be useful.
-
-```{r}
-RequestTimeDetails <- TrainingSample[
-  j = .(request_datetime,
-        request_date = as_date(request_datetime),
-        weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
-        month = month(request_datetime, label = TRUE, abbr = FALSE),
-        hour = hour(request_datetime),
-        performance_per_hour,
-        take_current_trip)
-]
-```
-
-Based on the reports, we can confirm that we have a good number of example from each `month`, `weekday` and `hour`. The only exception is December from which only have `r RequestTimeDetails["December", on = "month", nomatch = NULL, comma(.N)]` of the total sample of  `r RequestTimeDetails[, comma(.N)]`.
+Based on the reports, we can confirm that we have a good number of example from each `month`, `weekday` and `hour`. The only exception is December from which only have `r TrainingSample["December", on = "month", nomatch = NULL, comma(.N)]` of the total sample of  `r TrainingSample[, comma(.N)]`.
 
 ::: panel-tabset
 #### Month
@@ -499,7 +536,7 @@ Based on the reports, we can confirm that we have a good number of example from 
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(RequestTimeDetails,
+plot_bar(TrainingSample,
          "month",
          color_highlight = ColorHighlight,
          color_gray = ColorGray)
@@ -511,7 +548,7 @@ plot_bar(RequestTimeDetails,
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(RequestTimeDetails,
+plot_bar(TrainingSample,
          "weekday",
          color_highlight = ColorHighlight,
          color_gray = ColorGray,
@@ -524,7 +561,7 @@ plot_bar(RequestTimeDetails,
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(RequestTimeDetails,
+plot_bar(TrainingSample,
          "hour",
          color_highlight = ColorHighlight,
          color_gray = ColorGray)
@@ -532,31 +569,6 @@ plot_bar(RequestTimeDetails,
 :::
 
 ### Geospatial data
-
-To explore the distribution provided by the `PULocationID` (Pick Up Zone ID) and `DOLocationID` (Drop Off Zone ID), we need to add extra information. If we check the taxi zone look up table, we can find the `Borough` and `service_zone` of each table.
-
-```{r}
-ZoneCodesRef <-
-  fread(here("raw-data/taxi_zone_lookup.csv"),
-        select = c("LocationID" = "integer",
-                   "Borough" = "character",
-                   "service_zone" = "character"))
-
-TrainingSampleZones <-
-  TrainingSample[
-    j = ZoneCodesRef[j = .(DOLocationID = LocationID,
-                           DOBorough = Borough,
-                           DOServiceZone = service_zone)
-    ][.SD, on = "DOLocationID"]
-  ][
-    j = ZoneCodesRef[j = .(PULocationID = LocationID,
-                           PUBorough = Borough,
-                           PUServiceZone = service_zone)
-    ][.SD, on = "PULocationID"]
-  ]
-
-str(TrainingSampleZones[, 1:6, with = FALSE])
-```
 
 Based on the next results, we can conclude that:
 
@@ -575,13 +587,13 @@ Based on the next results, we can conclude that:
 #| code-summary: "Show the code"
 
 PlotPUBorough <-
-  plot_bar(TrainingSampleZones,
+  plot_bar(TrainingSample,
            var_name = "PUBorough",
            n_top = 1L) +
   labs(title = "PUBorough")
 
 PlotDOBorough <-
-  plot_bar(TrainingSampleZones,
+  plot_bar(TrainingSample,
            var_name = "DOBorough",
            n_top = 1L) +
   labs(title = "DOBorough")
@@ -596,13 +608,13 @@ PlotPUBorough / PlotDOBorough
 #| code-summary: "Show the code"
 
 PlotPUServiceZone <-
-  plot_heap_map(TrainingSampleZones,
+  plot_heap_map(TrainingSample,
                 cat_vars = c("PUBorough", "PUServiceZone"),
                 sep = "\n") +
   labs(title = "PUBorough vs PUServiceZone")
 
 PlotDOServiceZone <-
-  plot_heap_map(TrainingSampleZones,
+  plot_heap_map(TrainingSample,
                 cat_vars = c("DOBorough", "DOServiceZone"),
                 sep = "\n") +
   labs(title = "DOBorough vs DOServiceZone")
@@ -615,25 +627,31 @@ PlotPUServiceZone / PlotDOServiceZone
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 15
 
-LocationIdTextSize <- 5
+LocationIdTextSize <- 7
 
-setkeyv(TrainingSampleZones, "PUBorough")
+setkeyv(TrainingSample, "PUBorough")
 
-plot_bar(TrainingSampleZones["Manhattan"],
-         var_name = "PULocationID") +
+PlotPuLocations1 <-
+  plot_bar(TrainingSample["Manhattan"],
+           var_name = "PULocationID") +
   labs(subtitle = "Manhattan") +
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
-plot_bar(TrainingSampleZones["Brooklyn"],
-         var_name = "PULocationID") +
+PlotPuLocations2 <-
+  plot_bar(TrainingSample["Brooklyn"],
+           var_name = "PULocationID") +
   labs(subtitle = "Brooklyn")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
-plot_bar(TrainingSampleZones["Queens"],
-         var_name = "PULocationID") +
+PlotPuLocations3 <-
+  plot_bar(TrainingSample["Queens"],
+           var_name = "PULocationID") +
   labs(subtitle = "Queens")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
+
+PlotPuLocations1 / PlotPuLocations2 / PlotPuLocations3
 ```
 
 #### DO Locations
@@ -641,23 +659,29 @@ plot_bar(TrainingSampleZones["Queens"],
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 15
 
-setkeyv(TrainingSampleZones, "DOBorough")
+setkeyv(TrainingSample, "DOBorough")
 
-plot_bar(TrainingSampleZones["Manhattan"],
-         var_name = "DOLocationID") +
-  labs(subtitle = "Manhattan")+
+PlotDoLocations1 <-
+  plot_bar(TrainingSample["Manhattan"],
+           var_name = "DOLocationID") +
+  labs(subtitle = "Manhattan") +
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
-plot_bar(TrainingSampleZones["Brooklyn"],
-         var_name = "DOLocationID") +
+PlotDoLocations2 <-
+  plot_bar(TrainingSample["Brooklyn"],
+           var_name = "DOLocationID") +
   labs(subtitle = "Brooklyn")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
-plot_bar(TrainingSampleZones["Queens"],
-         var_name = "DOLocationID") +
+PlotDoLocations3 <-
+  plot_bar(TrainingSample["Queens"],
+           var_name = "DOLocationID") +
   labs(subtitle = "Queens")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
+
+PlotDoLocations1 / PlotDoLocations2 / PlotDoLocations3
 ```
 
 :::
@@ -668,24 +692,6 @@ Based on the below graphs, we can say that:
 
 1. `trip_miles`
 
-1.  **Short trips dominate:** Most trips are short in distance and time, and result in lower prices.
-
-2.  **Skewed distributions:** The variables are heavily skewed, highlighting the use of log-transformations to visualize the data better.
-
-3.  **The following filters were needed:**
-
-    -   **Minimum Trip Time (5 minutes)**
-
-        -   ***Eliminates trivial trips:*** Very short trips (e.g., under 5 minutes) are less indicative of regular driving. They might be data artifacts (e.g., a ride request that was canceled immediately) or a different kind of trip (e.g., a minimal hop that doesn't truly represent the work of a driver). They also will dramatically reduce the overall average performance, skewing the performance numbers.
-
-        -   ***Helps to focus on driving activity:*** By removing very short trips, the analysis focuses more on periods of actual driving. This provides a better representation of "meaningful" driving work and related performance.
-
-    -   **Positive Base Passenger Fare**
-
-        -   ***Excludes Free Trips:*** Trips with a zero or negative base fare might be test rides or special circumstances where the passenger did not pay. The inclusion of these may artificially skew the data and introduce noise that is not related to performance.
-
-        -   ***Focus on Revenue-Generating Trips:*** This filter ensures the analysis looks only at trips where the driver actually earned money, not trips done without payment. This way the performance per hour metric captures the revenue part of performance.
-
 ::: panel-tabset
 
 #### Trip miles
@@ -693,14 +699,14 @@ Based on the below graphs, we can say that:
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 10
 
 plot_num_distribution(TrainingSample,
                       trip_miles,
                       title = "trip_miles",
                       hist_binwidth = 5,
                       hist_n_break = 12,
-                      log_trans = "log2",
-                      log_binwidth = 0.3,
+                      log_binwidth = 0.5,
                       curve_important_points = c(1, 6, 24),
                       curve_limits = c(0, 25),
                       curve_nudge_y = 0.08,
@@ -713,33 +719,19 @@ plot_num_distribution(TrainingSample,
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 10
 
-TripTimePlot <-
-  ggplot(TrainingSample) + 
-  geom_histogram(aes(trip_time/60),
-                 binwidth = 1) +
-  scale_y_continuous(labels = comma_format()) +
-  scale_x_continuous(n.breaks = 15,
-                     labels = comma_format()) +
-  labs(x = "",
-       y = "Count") +
-  theme_minimal()
+plot_num_distribution(TrainingSample,
+                      trip_time_min,
+                      title = "trip_time_min",
+                      hist_binwidth = 5,
+                      hist_n_break = 15,
+                      log_binwidth = 0.5,
+                      curve_important_points = c(4, 25, 60),
+                      curve_nudge_y = 0.1,
+                      curve_breaks_x = scales::breaks_width(10),
+                      curve_limits = c(0, 70))
 
-TripTimeLogPlot <-
-  ggplot(TrainingSample[trip_time != 0]) + 
-  geom_histogram(aes(trip_time/60),
-                 binwidth = 1) +
-  scale_y_continuous(labels = comma_format()) +
-  scale_x_continuous(n.breaks = 16,
-                     trans = "log2",
-                     labels = comma_format(accuracy = 1)) +
-  labs(x = "Trip Time (minutes)",
-       y = "Count") +
-  theme_minimal()
-
-(TripTimePlot / TripTimeLogPlot) +
-  plot_annotation(title = 'Distribution of trip time') & 
-  theme(plot.title = element_text(face = "bold", size = 15))
 ```
 
 #### tips + base_passenger_fare
@@ -748,31 +740,11 @@ TripTimeLogPlot <-
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TripPricePlot <-
-  ggplot(TrainingSample) + 
-  geom_histogram(aes(tips + base_passenger_fare),
-                 bins = 50) +
-  scale_y_continuous(labels = comma_format()) +
-  scale_x_continuous(n.breaks = 12) +
-  labs(x = "",
-       y = "Count") +
-  theme_minimal()
-
-TripPriceLogPlot <-
-  ggplot(TrainingSample[(tips + base_passenger_fare) > 0]) + 
-  geom_histogram(aes(tips + base_passenger_fare),
-                 bins = 50) +
-  scale_y_continuous(labels = comma_format())  +
-  scale_x_continuous(n.breaks = 12,
-                     trans = "log2",
-                     labels = \(x) round(x, 2)) +
-  labs(x = "Trip Price",
-       y = "Count") +
-  theme_minimal()
-
-(TripPricePlot / TripPriceLogPlot) +
-  plot_annotation(title = 'Distribution of trip price') & 
-  theme(plot.title = element_text(face = "bold", size = 15))
+plot_num_distribution(TrainingSample,
+                      trip_value,
+                      title = "trip_value",
+                      hist_n_break = 12,
+                      curve_limits = c(0, 100))
 ```
 
 #### performance_per_hour
@@ -872,7 +844,7 @@ In the case of `trip_miles`, both groups present similar distributions, but we c
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
+#| eval: false
 
 DataExplorer::plot_bar(TrainingSampleToExplore,
                        by = "take_current_trip",
