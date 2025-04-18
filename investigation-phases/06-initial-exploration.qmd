@@ -224,12 +224,9 @@ plot_num_distribution <- function(dt,
                                   log_trans =   scales::new_transform("signed_log2",
                                                                       transform = function(x) sign(x) * log2(1 + abs(x)),
                                                                       inverse = function(x) sign(x) * (2^(abs(x)) - 1),
-                                                                      d_transform = function(x) 1 / ((1 + abs(x)) * log(2)),
-                                                                      d_inverse = function(x) 2^(abs(x)) * log(2),
-                                                                      breaks = scales::pretty_breaks(),
-                                                                      domain = c(-Inf, Inf)),
+                                                                      breaks = scales::pretty_breaks()),
                                   log_binwidth = NULL,
-                                  log_breaks = \(x) sign(x) * 2^(-1:10),
+                                  log_breaks = c(-2^(0:10), 0, 2^(0:10)),
                                   curve_important_points = NULL,
                                   curve_nudge_y = 0,
                                   curve_breaks_x = NULL,
@@ -690,7 +687,15 @@ PlotDoLocations1 / PlotDoLocations2 / PlotDoLocations3
 
 Based on the below graphs, we can say that:
 
-1. `trip_miles`
+1. `trip_miles` is **right skewed** with very few trips close to 100 miles, so logarithmic transformation of based 2 makes easier to see that 75% of trips take from 1 to 8 miles and based on the ECDF plot we can also see that really few trips take more than 24 miles, but 10% takes less than 1 mile.
+
+2. `trip_time_min` is **right skewed** with very few trips close to 400 min, so logarithmic transformation of based 2 makes easier to see that 89% of trips take from 2 to 35 min and based on the ECDF plot we can also see that really few trips take more than 70 min or less than 2 min.
+
+3. `trip_value` is **right skewed** with very few trips close to 700 dollars, so logarithmic transformation of based 2 makes easier to see that 87% of trips cost from 7 to 40 dollars and based on the ECDF plot we can also see that really few trips cost more than 80 dollars or less than 7 dollars.
+
+4. `performance_per_hour` present some over inflated values of around 30K dollars per hour, which make no sense based on what we saw in when defining the based line to improve of 50 dollars per hour. After applying a logarithmic scale of base 2, we can see the real distribution, we can find that some of the trips have a negative performance, but thanks to the ECDF Plot we know that only 5% of the points present less than 40 dollars per hour, 7% of the trips present values greater than 100 dollars per hour and only 1% of the example present a performance grater than 160 dollars per hour.
+
+5. `performance_per_hour` after removing trips with less 2 min, we can see a huge difference. Now the max performance it's around 900 dollars per hour but the general distribution was not affected.
 
 ::: panel-tabset
 
@@ -707,7 +712,7 @@ plot_num_distribution(TrainingSample,
                       hist_binwidth = 5,
                       hist_n_break = 12,
                       log_binwidth = 0.5,
-                      curve_important_points = c(1, 6, 24),
+                      curve_important_points = c(1, 8, 24),
                       curve_limits = c(0, 25),
                       curve_nudge_y = 0.08,
                       curve_breaks_x = breaks_width(3))
@@ -725,12 +730,12 @@ plot_num_distribution(TrainingSample,
                       trip_time_min,
                       title = "trip_time_min",
                       hist_binwidth = 5,
-                      hist_n_break = 15,
+                      hist_n_break = 12,
                       log_binwidth = 0.5,
-                      curve_important_points = c(4, 25, 60),
+                      curve_important_points = c(2, 35, 70),
                       curve_nudge_y = 0.1,
                       curve_breaks_x = scales::breaks_width(10),
-                      curve_limits = c(0, 70))
+                      curve_limits = c(0, 90))
 
 ```
 
@@ -739,12 +744,18 @@ plot_num_distribution(TrainingSample,
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 10
 
 plot_num_distribution(TrainingSample,
                       trip_value,
                       title = "trip_value",
                       hist_n_break = 12,
-                      curve_limits = c(0, 100))
+                      hist_binwidth = 10,
+                      log_binwidth = 0.2,
+                      curve_important_points = c(7, 40, 80),
+                      curve_nudge_y = 0.1,
+                      curve_breaks_x = scales::breaks_width(10),
+                      curve_limits = c(-50, 100))
 ```
 
 #### performance_per_hour
@@ -752,90 +763,46 @@ plot_num_distribution(TrainingSample,
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| fig-height: 10
 
-TripPerformancePlot <-
-  ggplot(TrainingSample) +
-  stat_ecdf(aes(performance_per_hour)) +
-  scale_y_continuous(labels = percent_format()) +
-  scale_x_continuous(labels = comma_format(),
-                     breaks = breaks_width(3000)) +
-  labs(subtitle = "All points of training set",
-       x = "") +
-  theme_minimal()
-
-
-TripPerformanceRangePlot <-
-  ggplot(TrainingSample[trip_time >= 60*5 & base_passenger_fare > 0]) +
-  stat_ecdf(aes(performance_per_hour)) +
-  scale_x_continuous(labels = comma_format(),
-                     n.breaks = 12) +
-  scale_y_continuous(labels = percent_format(),
-                     n.breaks = 5) +
-  labs(subtitle = "Trips with 5 min and positive base fare",
-       x = "") +
-  theme_minimal()
-
-(TripPerformancePlot / TripPerformanceRangePlot) +
-  plot_annotation(title = 'Cumulative distribution of trip performance') & 
-  theme(panel.grid.minor = element_blank(),
-        plot.title = element_text(face = "bold", size = 15),
-        plot.subtitle = element_text(size = 13, face = "italic"))
-
+plot_num_distribution(TrainingSample,
+                      performance_per_hour,
+                      title = "performance_per_hour",
+                      hist_n_break = 12,
+                      hist_binwidth = 10,
+                      log_binwidth = 0.2,
+                      log_breaks = c(-2^(0:10), 0, 2^(0:20)),
+                      curve_important_points = c(0,40, 70, 100, 160),
+                      curve_nudge_y = 0.1,
+                      curve_breaks_x = scales::breaks_width(10),
+                      curve_limits = c(-30, 200))
 ```
-:::
 
-
-### Conclusions
-
-After all that exploration, we need to apply the following changes to keep exploring:
-
-- We don't want to focus on trips that took less than 4 minutes to avoid the __small denominator distortion__ in the `performance_per_hour` metric.
-- The `base_passenger_fare` and the `performance_per_hour` must be positive.
-- Based on the prior exploration, we now that we cannot use the `access_a_ride_flag`, `originating_base_num`, and `dispatching_base_num` for modeling.
-- To help the model differentiate between location IDs, let's count the number of trips we see in the training set.
-- As `PULocationID` and `DOLocationID` have many levels, we only need the top 29 for visualization. The remaining levels will be shown as "Other".
-- To understand better the relations between the target variables and the `request_datetime`, we are going to break it down by month, every other week, weekday, and hour.
+#### performance_per_hour if trip_time_min >= 2
 
 ```{r}
-TrainingSampleToExplore <-
-  TrainingSampleZones[trip_time >= 60*4 & 
-                        base_passenger_fare > 0 &
-                        performance_per_hour > 0, 
-                      .SD, 
-                      .SDcols = patterns("^(PU|DO)|license|shared|wav|request_datetime|trip_miles|performance_per_hour|take_current_trip")
-  ][, PULocation_annual_trips := .N,
-    by = "PULocationID"
-  ][, DOLocation_annual_trips := .N,
-    by = "DOLocationID"
-  ][, `:=`(PULocationID = forcats::fct_lump_n(as.character(PULocationID), 29),
-           DOLocationID = forcats::fct_lump_n(as.character(DOLocationID), 29),
-           request_datetime = NULL,
-           month = month(request_datetime, label = TRUE, abbr = FALSE),
-           bi_week = floor((week(request_datetime) + 1) / 2) |> (\(x) factor(x, sort(unique(x))) )(),
-           weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
-           hour = hour(request_datetime) |> (\(x) factor(x, sort(unique(x))) )())]
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 10
+
+plot_num_distribution(TrainingSample[trip_time_min >= 2],
+                      performance_per_hour,
+                      title = "performance_per_hour",
+                      hist_n_break = 12,
+                      hist_binwidth = 10,
+                      log_binwidth = 0.2,
+                      log_breaks = c(-2^(0:10), 0, 2^(0:20)),
+                      curve_important_points = c(0,40, 70, 100, 160),
+                      curve_nudge_y = 0.1,
+                      curve_breaks_x = scales::breaks_width(10),
+                      curve_limits = c(-30, 200))
+
 ```
 
+:::
 
 ## Predictors vs `take_current_trip`
 
-As we can see below, the proportion of trips to take changes for the next features:
-
-- Location ID
-- Borough
-- Service zone
-- shared_request_flag
-- shared_match_flag
-- wav_request_flag
-- wav_match_flag
-
-But we cannot see important fluctuations for:
-
-- weekday
-- month
-- hour
-
-In the case of `trip_miles`, both groups present similar distributions, but we can see that if the trip has more than 50 miles it's always a good choice to take it.
 
 ::: panel-tabset
 
@@ -844,14 +811,26 @@ In the case of `trip_miles`, both groups present similar distributions, but we c
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-#| eval: false
+#| fig-height: 25
 
-DataExplorer::plot_bar(TrainingSampleToExplore,
-                       by = "take_current_trip",
-                       nrow = 2,
-                       ggtheme = theme_minimal(),
-                       theme_config = list(legend.position = "top",
-                                           panel.grid = element_blank()))
+
+TrainingSample[trip_time_min >= 2,
+               c(.SD, list("trip_id" = trip_id)),
+               .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)
+][, melt(.SD,
+         id.vars = c("trip_id", "take_current_trip"),
+         variable.factor = FALSE),
+  .SDcols = !c("hvfhs_license_num")] |>
+  ggplot(aes(value, fill= take_current_trip)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values = c("Y" = ColorGray, "N" = ColorHighlight))+
+  scale_y_continuous(labels = percent_format(accuracy = 1)) + 
+  facet_wrap(vars(variable),
+             scale = "free",
+             ncol = 3) +
+  coord_flip()+
+  theme_minimal() +
+  theme(legend.position = "top")
 ```
 
 ### Numerical
@@ -861,6 +840,7 @@ DataExplorer::plot_bar(TrainingSampleToExplore,
 #| code-summary: "Show the code"
 #| fig-height: 10
 #| fig-width: 8
+#| eval: false
 
 TrainingSampleNumericLong <-
   TrainingSampleToExplore[j = melt(.SD, id.vars = c("performance_per_hour", "take_current_trip")), 
@@ -902,6 +882,7 @@ It would be really interesting if the model could identify which trips have a `p
 #| code-summary: "Show the code"
 #| fig-height: 23
 #| fig-width: 10
+#| eval: false
 
 TrainingSampleToExplore[j = melt(.SD, id.vars = "performance_per_hour"), 
                         .SDcols = !patterns("annual_trips|trip_miles")] |>
@@ -924,6 +905,7 @@ TrainingSampleToExplore[j = melt(.SD, id.vars = "performance_per_hour"),
 #| code-summary: "Show the code"
 #| fig-height: 10
 #| fig-width: 8
+#| eval: false
 
 ggplot(TrainingSampleNumericLong,
        aes(value, performance_per_hour))+
@@ -952,6 +934,7 @@ High-value trips are typically associated with __short distances__ and locations
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| eval: false
 
 copy(TrainingSampleToExplore)[, high_value_trip := fifelse(performance_per_hour >= 100, "Y", "N") ]|>
   DataExplorer::plot_bar(by = "high_value_trip",
@@ -968,6 +951,7 @@ copy(TrainingSampleToExplore)[, high_value_trip := fifelse(performance_per_hour 
 #| code-summary: "Show the code"
 #| fig-height: 10
 #| fig-width: 8
+#| eval: false
 
 TrainingSampleNumericLong |>
   ggplot(aes(fifelse(performance_per_hour >= 100, "Y", "N"), value)) +
@@ -992,6 +976,7 @@ Location-based features like PULocationID â†” PUBorough (83%) and DOLocationID â
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
+#| eval: false
 
 copy(TrainingSampleToExplore)[, trip_miles := cut_interval(trip_miles, 8)] |>
   corrcat::cramerV_df(unique = FALSE)|>
@@ -1020,6 +1005,8 @@ Based on the below correlation funnels, we can confirm that no predictor has a s
 ### take_current_trip
 
 ```{r}
+#| eval: false
+
 TrainingSampleToExplore[, -c("performance_per_hour")] |>
   correlationfunnel::binarize()  |>
   correlationfunnel::correlate(take_current_trip__Y) |>
@@ -1029,6 +1016,8 @@ TrainingSampleToExplore[, -c("performance_per_hour")] |>
 ### performance_per_hour >= 100
 
 ```{r}
+#| eval: false
+
 copy(TrainingSampleToExplore)[, `:=`(take_current_trip = NULL,
                                      performance_per_hour = NULL,
                                      high_value_trip = performance_per_hour >= 100)] |>
