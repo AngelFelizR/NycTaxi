@@ -307,53 +307,44 @@ plot_num_distribution <- function(dt,
   
   # ECDF Curve ----------------------------------------------------------------
   
-  get_prop = stats::ecdf(dt[[x_str]])
-  dt[, .value_prop := get_prop(.value), env = list(.value = x_str)]
-
-  ecdf_plot =
-    ggplot2::ggplot(dt, ggplot2::aes({{x}}, .value_prop)) 
-  
-
-  if(fill_str != "NULL") {
-
-    dt[, j = {
-      ecdf_fun = stats::ecdf(.value)
-      new_dt = copy(.SD)[, .value_prop := ecdf_fun(.value)]
-      new_dt
-    },
-    by = fill_str,
-    env = list(.value = x_str)
-    ]
+  if(fill_str == "NULL") {
+    
+    get_prop = stats::ecdf(dt[[x_str]])
     
     ecdf_plot =
-      ggplot2::ggplot(dt, ggplot2::aes({{x}}, .value_prop, color = {{fill}}))
+      ggplot2::ggplot(dt, ggplot2::aes({{x}}, get_prop({{x}}))) +
+      ggplot2::geom_step(show.legend = FALSE)
+    
+    
+    if(!is.null(curve_important_points)){
+      
+      important_df = data.table(x = curve_important_points)
+      setnames(important_df, "x", x_str)
+      
+      
+      ecdf_plot =
+        ecdf_plot +
+        ggplot2::geom_point(data = important_df) +
+        ggplot2::geom_text(data = important_df,
+                           ggplot2::aes(label = scales::percent(get_prop(!!x), accuracy = 1)),
+                           nudge_y = curve_nudge_y)
+    }
+    
+  }else{
+    
+    ecdf_plot =
+      ggplot2::ggplot(dt, ggplot2::aes({{x}},
+                                       color = {{fill}},
+                                       group = {{fill}})) +
+      ggplot2::stat_ecdf(show.legend = FALSE)
+    
   }
   
   ecdf_plot =
     ecdf_plot +
-    ggplot2::geom_step(show.legend = FALSE)
-  
-  if(fill_str == "NULL" && !is.null(curve_important_points)){
-    
-    important_df = data.table(x = curve_important_points,
-                              .value_prop = get_prop(curve_important_points))
-    
-    setnames(important_df, "x", x_str)
-    
-    
-    ecdf_plot =
-      ecdf_plot +
-      ggplot2::geom_point(data = important_df) +
-      ggplot2::geom_text(data = important_df,
-                         ggplot2::aes(label = scales::percent(.value_prop, accuracy = 1)),
-                         nudge_y = curve_nudge_y)
-  }
-  
-  ecdf_plot =
-    ecdf_plot +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(),
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1),
                                 breaks = seq(0, 1, by = 0.25)) +
-    ggplot2::scale_x_continuous(labels = scales::comma_format(),
+    ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1),
                                 breaks = if(is.null(curve_breaks_x)) ggplot2::waiver() else curve_breaks_x,
                                 limits = curve_limits) +
     ggplot2::labs(y = "Prop of trips",
@@ -877,26 +868,27 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
 
 ## Predictors vs `take_current_trip`
 
-After exploring the distribution of the individual variables we know that we are going to train our model based on trips with more than 2 minutes of trip, so we are going to exclude those cases for this analysis.
+After exploring the distribution of the individual variables we know that we are going to train our model based on trips with **more than 2 minutes of trip**, so we are going to **exclude those cases** for this analysis.
 
-We also know that many of the levels of the variables are present in less than 1% of the trips, so we are going to exclude those cases from the chart to avoid showing patterns that won't improve the model performance. If after making that exclusion there's only one level available, we are also excluding that variable from the chart to only play attention to important patterns.
+For **categorical variables** we only need to focus on variables with *at least __2 levels__ that present more than __1% of the trips__*. 
 
-After applying those filter we can say that:
+1. `dispatching_base_num`, `originating_base_num`, and `access_a_ride_flag` were not included as represent the same information that the `company`.
+2. `PULocationID` and `DOLocationID` present a **strong** variation.
+3. `wav_match_flag`present a **moderate** variation.
+4. `company` present a **moderate** variation.
+5. `weekday` present **low** variation.
+6. `month` present a **moderate** variation.
+7. `hour` present a **strong** variation.
+8. `PUBorough` present a **strong** variation.
+9. `PUServiceZone` present a **strong** variation.
+10. `DOBorough` present a **strong** variation.
+11. `DOServiceZone` present a **strong** variation.
 
-1. `dispatching_base_num`
-2. `originating_base_num`
-3. `PULocationID`
-4. `DOLocationID`
-5. `access_a_ride_flag`
-6. `wav_match_flag`
-7. `company`
-8. `weekday`
-9. `month`
-10. `hour`
-11. `PUBorough`
-12. `PUServiceZone`
-13. `DOBorough`
-14. `DOServiceZone`
+For **numerical variables**:
+
+1. `trip_miles` alone is not highly effective in predicting whether a trip will be taken as but classes present *overlapping distributions* and *similar cumulative distributions*, which make it a **low** predictor.
+
+2. `trip_time_min` alone is not highly effective in predicting whether a trip will be taken as both classes present *overlapping distributions* and *similar cumulative distributions*, which make it a **low** predictor.
 
 ::: panel-tabset
 
@@ -908,22 +900,27 @@ After applying those filter we can say that:
 #| fig-height: 7.5
 #| fig-width: 8
 
+TrainingSampleValidCat <-
+  TrainingSample[trip_time_min >= 2,
+                 c(.SD, list("trip_id" = trip_id)) |> lapply(as.character),
+                 .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)
+  ][, melt(.SD,
+           id.vars = c("trip_id", "take_current_trip")),
+    .SDcols = !c("hvfhs_license_num",
+                 "dispatching_base_num",
+                 "originating_base_num",
+                 "access_a_ride_flag")
+  ][, value_count := .N,
+    by = c("variable", "value")
+  ][, value_prop := value_count / .N,
+    by = "variable"
+  ][value_prop >= 0.01
+  ][, n_unique_values := uniqueN(value),
+    by = "variable"
+  ][n_unique_values > 1L] 
 
-TrainingSample[trip_time_min >= 2,
-               c(.SD, list("trip_id" = trip_id)) |> lapply(as.character),
-               .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)
-][, melt(.SD,
-         id.vars = c("trip_id", "take_current_trip")),
-  .SDcols = !c("hvfhs_license_num")
-][, value_count := .N,
-  by = c("variable", "value")
-][, value_prop := value_count / .N,
-  by = "variable"
-][value_prop >= 0.01
-][, n_unique_values := uniqueN(value),
-  by = "variable"
-][n_unique_values > 1L] |>
-  ggplot(aes(value, fill = factor(take_current_trip, levels = c("Y", "N")))) +
+ggplot(TrainingSampleValidCat,
+       aes(value, fill = factor(take_current_trip, levels = c("Y", "N")))) +
   geom_bar(width = 0.7,
            position = "fill") +
   scale_fill_manual(values = c("N" = ColorHighlight ,"Y" = ColorGray))+
@@ -979,45 +976,6 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
 
 ```
 
-### tips + base_passenger_fare
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-
-plot_num_distribution(TrainingSample[trip_time_min >= 2],
-                      trip_value,
-                      take_current_trip,
-                      manual_fill_values = c("N" = ColorHighlight, "Y" = ColorGray),
-                      title = "trip_value",
-                      hist_n_break = 12,
-                      hist_binwidth = 10,
-                      log_binwidth = 0.2,
-                      curve_breaks_x = scales::breaks_width(10),
-                      curve_limits = c(-50, 100))
-```
-
-### performance_per_hour
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-
-plot_num_distribution(TrainingSample[trip_time_min >= 2],
-                      performance_per_hour,
-                      take_current_trip,
-                      manual_fill_values = c("N" = ColorHighlight, "Y" = ColorGray),
-                      title = "performance_per_hour",
-                      hist_n_break = 12,
-                      hist_binwidth = 10,
-                      log_binwidth = 0.2,
-                      log_breaks = c(-2^(0:10), 0, 2^(0:20)),
-                      curve_breaks_x = scales::breaks_width(10),
-                      curve_limits = c(-30, 200))
-
-```
 :::
 
 
