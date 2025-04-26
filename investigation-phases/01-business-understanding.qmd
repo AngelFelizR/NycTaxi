@@ -84,11 +84,11 @@ digraph SIPOC {
 | **request_datetime** | Date/time when passenger requested to be picked up |
 | **PULocationID** | TLC Taxi Zone in which the trip began |
 | **DOLocationID** | TLC Taxi Zone in which the trip ended |
-| **airport_fee** | \$2.50 for both drop off and pick up at LaGuardia, Newark, and John F. Kennedy airports |
-| **base_passenger_fare** | Base passenger fare before tolls, tips, taxes, and fees |
-| **trip_miles** | Total miles for passenger trip |
 | **shared_request_flag** | Did the passenger agree to a shared/pooled ride, regardless of whether they were matched? (Y/N) |
 | **shared_match_flag** | Did the passenger share the vehicle with another passenger who booked separately at any point during the trip? (Y/N) |
+| **trip_miles** | Total miles for passenger trip |
+| **tolls** | Total amount of all tolls paid in trip |
+| **airport_fee** | \$2.50 for both drop off and pick up at LaGuardia, Newark, and John F. Kennedy airports |
 
 1. Available **after arriving** ending the trip, so can be used to estimate the **outcome** to predict.
 

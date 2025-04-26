@@ -428,7 +428,7 @@ TrainingSample[,`:=`(company = fcase(hvfhs_license_num == "HV0002", "Juno",
                      
                      trip_time_min = trip_time / 60,
                      
-                     trip_value = tips + base_passenger_fare,
+                     trip_value = tips + driver_pay,
                      
                      PULocationID = as.character(PULocationID),
                      DOLocationID = as.character(DOLocationID))]
@@ -755,7 +755,9 @@ Based on the below graphs, we can say that:
 
 2. `trip_time_min` is **right skewed** with very few trips close to 400 min, so logarithmic transformation of based 2 makes easier to see that 89% of trips take from 2 to 35 min and based on the ECDF plot we can also see that really few trips take more than 70 min or less than 2 min.
 
-3. `trip_value` is **right skewed** with very few trips close to 700 dollars, so logarithmic transformation of based 2 makes easier to see that 87% of trips cost from 7 to 40 dollars and based on the ECDF plot we can also see that really few trips cost more than 80 dollars or less than 7 dollars.
+1. `tips` is **strongly right-skewed**, as approximately **79% of trips recorded no tip**. Among the remaining 21% of trips, about 10% have tips in the range `(0, 4]` dollars and approximately 9% fall within `(4, 10]` dollars. It is uncommon to observe trips with tips exceeding 10 dollars, and trips with tips greater than 20 dollars are exceedingly rare.
+
+3. `driver_pay` is **right skewed** __pending__ to explain.
 
 4. `performance_per_hour` present some over inflated values of around 30K dollars per hour, which make no sense based on what we saw in when defining the based line to improve of 50 dollars per hour. After applying a logarithmic scale of base 2, we can see the real distribution, we can find that some of the trips have a negative performance, but thanks to the ECDF Plot we know that only 5% of the points present less than 40 dollars per hour, 7% of the trips present values greater than 100 dollars per hour and only 1% of the example present a performance grater than 160 dollars per hour.
 
@@ -803,7 +805,7 @@ plot_num_distribution(TrainingSample,
 
 ```
 
-#### tips + base_passenger_fare
+#### tips
 
 ```{r}
 #| code-fold: true
@@ -811,8 +813,27 @@ plot_num_distribution(TrainingSample,
 #| fig-height: 7.5
 
 plot_num_distribution(TrainingSample,
-                      trip_value,
-                      title = "trip_value",
+                      tips,
+                      title = "tips",
+                      hist_n_break = 12,
+                      hist_binwidth = 2,
+                      log_binwidth = 0.2,
+                      curve_important_points = c(0, 4, 10, 20),
+                      curve_nudge_y = 0.02,
+                      curve_breaks_x = scales::breaks_width(2),
+                      curve_limits = c(0, 20))
+```
+
+#### driver_pay
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+plot_num_distribution(TrainingSample,
+                      driver_pay,
+                      title = "driver_pay",
                       hist_n_break = 12,
                       hist_binwidth = 10,
                       log_binwidth = 0.2,
