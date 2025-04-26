@@ -98,6 +98,12 @@ digraph SIPOC {
 | **driver_pay** | Total driver pay (not including tolls or tips and net of commission, surcharges, or taxes) |
 | **tips** | Total amount of tips received from passenger |
 
+
+::: {.callout-note}
+**trip_time** and **driver_pay** can also be used as predictors, as taxi apps usually provide very good predictions of these two variables. They can be used to predict the output where the only variable that we don't have any clue about is the trip **tip**.
+:::
+
+
 ## Stakeholders
 
 -   Taxi drivers
