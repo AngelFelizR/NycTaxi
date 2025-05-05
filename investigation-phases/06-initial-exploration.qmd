@@ -999,80 +999,19 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
 
 :::
 
-
-##  Predictors vs `performance_per_hour`
-
-As we can see in the below charts, __categorical predictors don't seem to provide a very impactful variable__ for modeling at a first glance, as the distribution of `performance_per_hour` is very similar in multiple categories.
-
-If we focus on the `trip_miles` predictor, we can see how:
-
-- Trips with less than 30 miles present high variation, with very high-paid trips and very low-value trips, but most of the trips present low value.
-- There is not a linear relationship between the `trip_miles` variable and `performance_per_hour`.
-- On average, the `performance_per_hour` increases with miles, especially for trips with more than 30 miles.
-- We don't see any clear relation between `performance_per_hour` and the number of trips for each zone.
-
-It would be really interesting if the model could identify which trips have a `performance_per_hour >= 100`; **that would be more useful to model**.
-
-::: panel-tabset
-
-### Categorical
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 25
-#| fig-width: 10
-#| eval: false
-
-TrainingSampleToExplore[j = melt(.SD, id.vars = "performance_per_hour"), 
-                        .SDcols = !patterns("annual_trips|trip_miles")] |>
-  ggplot(aes(value, performance_per_hour)) +
-  geom_violin() +
-  scale_y_continuous(transform = "log2",
-                     n.breaks = 5) +
-  facet_wrap(vars(variable),
-             scales = "free",
-             ncol = 2) +
-  theme_minimal() +
-  theme(legend.position = "top",
-        panel.grid.major.x = element_blank())
-```
-
-### Numerical
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-#| fig-width: 8
-#| eval: false
-
-ggplot(TrainingSampleNumericLong,
-       aes(value, performance_per_hour))+
-  geom_point(alpha = 0.1) +
-  geom_smooth(method = "lm") +
-  scale_x_continuous(n.breaks = 15) +
-  scale_y_continuous(n.breaks = 10) +
-  facet_wrap(vars(variable),
-             ncol = 1L,
-             scales = "free") +
-  theme_minimal()
-```
-
-:::
-
 ## Exploring correlations between predictors
 
-`month` and `bi_week` show a 94% correlation, suggesting significant overlap (e.g., biweekly periods may map directly to months). Including both in a model could introduce multicollinearity.
+There is not a surprise that `trip_time_min` and `trip_miles` present a __`r cor(TrainingSample$trip_miles, TrainingSample$trip_time_min) |> percent()`__ of correlation.
 
-Location-based features like PULocationID ↔ PUBorough (83%) and DOLocationID ↔ DOServiceZone (84%) are strongly associated, as location IDs inherently determine boroughs/zones.
+But on the other hand, by checking the Cramer's V correlation between categorical predictors we can see that there is low correlation between predictors, with the exception of features linked to locations.
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-#| eval: false
 
-copy(TrainingSampleToExplore)[, trip_miles := cut_interval(trip_miles, 8)] |>
+TrainingSample[trip_time_min >= 2,
+               .SD,
+               .SDcols = levels(TrainingSampleValidCat$variable)] |>
   corrcat::cramerV_df(unique = FALSE)|>
   ggplot(aes(V1, V2, fill = `Cramer.V`))+
   geom_tile()+
@@ -1089,39 +1028,5 @@ copy(TrainingSampleToExplore)[, trip_miles := cut_interval(trip_miles, 8)] |>
         axis.text.x = element_text(angle = 90),
         axis.title = element_blank())
 ```
-
-## Exploring correlation funnel
-
-Based on the below correlation funnels, we can confirm that no predictor has a strong correlation with the target variables, so we know that linear models won't perform well with this data.
-
-::: panel-tabset
-
-### take_current_trip
-
-```{r}
-#| eval: false
-
-TrainingSampleToExplore[, -c("performance_per_hour")] |>
-  correlationfunnel::binarize()  |>
-  correlationfunnel::correlate(take_current_trip__Y) |>
-  correlationfunnel::plot_correlation_funnel()
-```
-
-### performance_per_hour >= 100
-
-```{r}
-#| eval: false
-
-copy(TrainingSampleToExplore)[, `:=`(take_current_trip = NULL,
-                                     performance_per_hour = NULL,
-                                     high_value_trip = performance_per_hour >= 100)] |>
-  correlationfunnel::binarize()  |>
-  correlationfunnel::correlate(high_value_trip__1) |>
-  correlationfunnel::plot_correlation_funnel()
-```
-
-:::
-
-## Final conclusion
 
 
