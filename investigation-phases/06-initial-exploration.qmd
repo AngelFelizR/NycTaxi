@@ -11,7 +11,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-After completing the [business understanding](https://angelfelizr.github.io/NycTaxi/phases/02-business-understanding.html) phase, we are ready to perform the **data understanding** phase by performing an EDA with the following steps:
+After completing the **business understanding** phase, we are ready to perform the **data understanding** phase by performing an EDA with the following steps:
 
 1.  Exploring the individual distribution of variables.
 2.  Exploring correlations between predictors and the target variable.
