@@ -7,17 +7,13 @@ execute:
   warning: false
 ---
 
-## Problem description
+As we saw in the **initial exploration**, `take_current_trip` varies across zones but we know that only providing IDs offers limited context for the models to differentiate between zones. Thus, we enrich the data with **geospatial features** derived from **OpenStreetMap (OSM)** to provide deeper insights into each zone.
 
-Our target variable, `take_current_trip`, varies across zones. Merely providing an ID offers limited context for the models to differentiate between zones. Thus, we enrich the data with geospatial features derived from OpenStreetMap (OSM) to provide deeper insights into each zone.
+To make that possible, we need to:
 
-## Strategy
+1. Import the **taxi zone shapefile** related to each zone ID.
 
-1. Importing the **taxi zone shapefile** to provide the base geographical units for our analysis.
-
-2. Retrieving borough boundaries for Queens, Brooklyn, and Manhattan using `osmdata::getbb()` to define the geographical extent for our OSM data extraction.
-
-3. Extract from OSM tags liked to below features as they are likely to influence our target variable by representing different aspects of the urban environment:
+2. Get the information for Queens, Brooklyn, and Manhattan from OSM linked to the below tags:
    - `amenity`
    - `shop`
    - `office`
@@ -29,39 +25,19 @@ Our target variable, `take_current_trip`, varies across zones. Merely providing 
    - `highway`
    - `landuse`
    
-   
-4. Join OSM features to each zone **based on spatial overlap** to associate the extracted OSM features with our taxi zones.
+3. Join the OSM features to each zone **based on spatial overlap** to associate the extracted OSM features with each taxi zone.
 
-5. Count the **number of places per region** to give us a density measure of different types of points of interest within each zone.
+4. Consolidate the information for each zone by:
 
-6. Get the **length of roads per region** to provide information about the transportation infrastructure within each zone.
+    - Counting the **number of places per region**.
+    - Getting the **length of roads per region**
+    - Defining the **proportion of land-use** by tag for each region.
+    
+## Setting up the environment
 
-7. Define the proportion `landuse` by tag of each region to understand the composition of different land types within each zone.
-
-8. **Normalize** created feature to ensures that features with different scales do not disproportionately influence our models.
-
-
-## Coding
-
-### Importing libraries
-
-In this phase we are going to use the next open libraries:
-
-- `here`: For managing relative file paths.
-- `data.table`: For efficient data manipulation.
-- `sf`: For working with spatial data.
-- `tmap`: For creating maps.
-- `osmdata`: For downloading OpenStreetMap data.
+### Define colors to use
 
 ```{r}
-library(here)
-library(data.table)
-library(sf)
-library(tmap)
-library(osmdata)
-
-tmap_mode("view")
-
 BoroughColors <- c(
   'Manhattan' = '#e41a1c',
   'Queens' = '#377eb8',
@@ -69,7 +45,11 @@ BoroughColors <- c(
 )
 
 BoroughSelected <- names(BoroughColors)
+```
 
+### Define feature to import
+
+```{r}
 FeaturesToGet <- c(
    "amenity",
    "shop",
@@ -82,18 +62,40 @@ FeaturesToGet <- c(
    "highway",
    "landuse"
 )
-
 ```
 
-### Importing shapes
+### Loading packages
 
-The details behind how obtained this data can be found the "Data Collection Process".
+```{r}
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+
+## To work with spatial data
+library(sf)
+
+## To create maps
+library(tmap)
+
+## To download OpenStreetMap data
+library(osmdata)
+
+tmap_mode("view")
+```
+
+## Importing shapes
+
+Details on how this data was obtained can be found in the **Data Collection Process**.
 
 ```{r}
 ZonesShapes <-
   read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
   subset(borough %in% BoroughSelected)
 ```
+
+## Getting the information from OSM
 
 ### Defining bounding box
 
@@ -108,8 +110,6 @@ bb_box <-
               max = apply(x, 1, max)))()
 ```
 
-### Plotting resutls
-
 This plot shows the selected boroughs and the taxi zones within them, giving us a visual overview of our geographical units of analysis. The blue rectangle represents the bounding box we defined earlier, encompassing Manhattan (red), Queens (blue), and Brooklyn (green). Each of these boroughs is further divided into smaller taxi zones, which are the **primary geographical units for our analysis**. The different colors assigned to each borough (defined in the `BoroughColors` vector) help to visually distinguish them. This initial map confirms that we have correctly loaded the taxi zone shapefile and subsetted it to include only the boroughs of interest for our study.
 
 
@@ -121,11 +121,14 @@ project.nyc.taxi::plot_box(bb_box) +
               fill_alpha = 0.6)
 ```
 
-### Getting data from OpenStreetMap
+### Getting data from API
 
-This section retrieves geospatial data from OpenStreetMap (OSM) for the features listed in `FeaturesToGet`. For each feature type (amenity, shop, highway, etc.).
+This section retrieves geospatial data from OpenStreetMap (OSM) for the features listed in `FeaturesToGet` and save it in RDS files in the `output/cache-data/ directory` to **speed up the development process** of this portfolio.
 
-The downloaded and cleaned OSM data for each feature is saved to a separate RDS file in the `output/cache-data/ directory` to **speed up the development process** of this portfolio. By caching the results of computationally intensive operations, we can avoid re-running the entire workflow every time I update the page or make changes.
+:::{.callout-note}
+By caching the results of computationally intensive operations, we can avoid re-running the entire workflow every time the page is updated or changes are made.
+:::
+
 
 ```r
 keep_feature_value <- function(osm_list, key) {
@@ -179,8 +182,6 @@ for(feature_i in FeaturesToGet){
 
 This function takes the list of OSM features, selects relevant columns, pivots the data to a longer format, and transforms it to the correct coordinate reference system.
 
-I opted to use the `qs2` package for saving and reading R objects throughout this project instead of the base R functions like `saveRDS` and `readRDS`. This decision was based on benchmarks I encountered while learning about the `targets` R package, which indicated that `qs2` offers **significantly faster serialization and de-serialization times**, particularly for larger datasets like the geospatial data we are working with. This speed advantage helps to reduce the overall execution time of the workflow, which is beneficial for the development and presentation of this portfolio.
-
 ```r
 tidy_osm_data <- function(osm_sf, crs = NULL) {
   
@@ -216,10 +217,17 @@ OsmDataComplete <-
   lapply(FUN = readRDS) |>
   do.call(what = "c") |>
   tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
+```
 
+### Saving the data
+
+I opted to use the `qs2` package for saving and reading R objects throughout this project instead of the base R functions like `saveRDS` and `readRDS`. This decision was based on benchmarks I encountered while learning about the `targets` R package, which indicated that `qs2` offers **significantly faster serialization and de-serialization times**, particularly for larger datasets like the geospatial data we are working with. This speed advantage helps to reduce the overall execution time of the workflow, which is beneficial for the development and presentation of this portfolio.
+
+```r
 qs2::qs_save(OsmDataComplete, 
              here("output/cache-data/OsmDataComplete.qs"))
 ```
+
 
 ```{r}
 #| echo: FALSE
@@ -229,13 +237,13 @@ OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
 OsmDataComplete
 ```
 
-### Jonning data
+## Joining data
 
 We perform two main types of spatial joins to associate the OpenStreetMap features with our taxi zones: first, to identify features entirely within each zone, and second, to identify features that intersect or overlap with the zone boundaries.
 
-1. Joining elements **contained** by each zone.
+### Joining elements **contained** by each zone.
 
-This section uses the `st_within` function to identify OSM features (points, lines, multilinestrings, polygons, and multipolygons) that fall completely within the boundaries of each taxi zone. We treat multilinestrings and multipolygons similarly to their single-part counterparts because even if they consist of multiple connected geometries, we are interested in whether the entire set of those geometries is located within a given taxi zone.
+Using the `st_within` function, this section identifies OpenStreetMap features—such as points, lines, polygons, multilinestrings, and multipolygons—that are **fully contained** within each taxi zone's boundaries. `st_within` considers multilinestrings and multipolygons to be within a zone only if all their constituent parts are inside.
 
 ```r
 PointsWithinZones <-
@@ -270,25 +278,6 @@ MultiPolygonWithinZones <-
           left = FALSE)
 ```
 
-Now we can save the save the results.
-
-```r
-qs2::qs_save(PointsWithinZones, 
-             here("output/cache-data/PointsWithinZones.qs"))
-
-qs2::qs_save(LinesWithinZones, 
-             here("output/cache-data/LinesWithinZones.qs"))
-
-qs2::qs_save(MultiLinesWithinZones, 
-             here("output/cache-data/MultiLinesWithinZones.qs"))
-
-qs2::qs_save(PolygonWithinZones, 
-             here("output/cache-data/PolygonWithinZones.qs"))
-
-qs2::qs_save(MultiPolygonWithinZones, 
-             here("output/cache-data/MultiPolygonWithinZones.qs"))
-```
-
 ```{r}
 #| echo: false
 
@@ -308,7 +297,49 @@ MultiPolygonWithinZones <-
   qs2::qs_read(here("output/cache-data/MultiPolygonWithinZones.qs"))
 ```
 
-2. Joining lines that are **partially contained** for each zone. 
+To ensure the accuracy of our spatial joins, we first want to visually inspect the features that were identified as being *fully contained* within a specific taxi zone. We'll start by examining zone with `LocationID` 191.
+
+By examining this map, we can visually confirm that the **lines and polygons displayed are indeed located entirely within the boundaries** of the chosen taxi zone. This helps us to verify the correctness of our `st_within` spatial join operation before proceeding with further analysis on these fully contained features.
+
+```{r}
+ZoneToCheck <- 191L
+
+ZonesShapesToCheck <- subset(ZonesShapes, LocationID == ZoneToCheck)
+LinesWithinZonesToCheck  <- subset(LinesWithinZones, LocationID == ZoneToCheck)
+PolygonWithinZonesToCheck <- subset(PolygonWithinZones, LocationID == ZoneToCheck)
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesWithinZonesToCheck) +
+  tm_lines(col = "feature") +
+  tm_shape(PolygonWithinZonesToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+<br>
+
+Now we can save the save the results.
+
+```r
+qs2::qs_save(PointsWithinZones, 
+             here("output/cache-data/PointsWithinZones.qs"))
+
+qs2::qs_save(LinesWithinZones, 
+             here("output/cache-data/LinesWithinZones.qs"))
+
+qs2::qs_save(MultiLinesWithinZones, 
+             here("output/cache-data/MultiLinesWithinZones.qs"))
+
+qs2::qs_save(PolygonWithinZones, 
+             here("output/cache-data/PolygonWithinZones.qs"))
+
+qs2::qs_save(MultiPolygonWithinZones, 
+             here("output/cache-data/MultiPolygonWithinZones.qs"))
+```
+
+
+
+### Joining lines that are **partially contained** for each zone. 
 
 In this section, we identify OSM features that are not entirely within a taxi zone but do intersect or overlap with its boundary. For lines and multilinestrings, we use `st_crosses`, which identifies features that intersect the interior of a zone but are not completely contained within it. For polygons and multipolygons, we use `st_overlaps`, which identifies features that have some area in common with a zone but are not identical to or completely contained within it.
 
@@ -338,23 +369,6 @@ MultiPolygonInSeveralZones <-
           left = FALSE)
 ```
 
-
-All making all that operations we need to save the data for future use.
-
-```r
-qs2::qs_save(LinesInSeveralZones, 
-             here("output/cache-data/LinesInSeveralZones.qs"))
-
-qs2::qs_save(MultiLinesInSeveralZones, 
-             here("output/cache-data/MultiLinesInSeveralZones.qs"))
-             
-qs2::qs_save(PolygonInSeveralZones, 
-             here("output/cache-data/PolygonInSeveralZones.qs"))
-
-qs2::qs_save(MultiPolygonInSeveralZones, 
-             here("output/cache-data/MultiPolygonInSeveralZones.qs"))
-```
-
 ```{r}
 #| echo: false
 
@@ -371,32 +385,6 @@ MultiPolygonInSeveralZones <-
   qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZones.qs"))
 ```
 
-#### Confirming results: Fully contained features
-
-
-To ensure the accuracy of our spatial joins, we first want to visually inspect the features that were identified as being *fully contained* within a specific taxi zone. We'll start by examining zone with `LocationID` 191.
-
-By examining this map, we can visually confirm that the **lines and polygons displayed are indeed located entirely within the boundaries** of the chosen taxi zone. This helps us to verify the correctness of our `st_within` spatial join operation before proceeding with further analysis on these fully contained features.
-
-```{r}
-ZoneToCheck <- 191L
-
-ZonesShapesToCheck <- subset(ZonesShapes, LocationID == ZoneToCheck)
-LinesWithinZonesToCheck  <- subset(LinesWithinZones, LocationID == ZoneToCheck)
-PolygonWithinZonesToCheck <- subset(PolygonWithinZones, LocationID == ZoneToCheck)
-
-tm_shape(ZonesShapesToCheck)+
-  tm_polygons(fill = "grey") +
-  tm_shape(LinesWithinZonesToCheck) +
-  tm_lines(col = "feature") +
-  tm_shape(PolygonWithinZonesToCheck) +
-  tm_polygons(fill = "feature")
-```
-
-<br>
-
-Now we can confirm the cases that aren't fully contained.
-
 By visualizing these features, we can confirm that our `st_crosses` and `st_overlaps` operations **correctly identified the lines and polygons that only partially interact** with the selected taxi zone. This is a crucial step before we proceed with the cropping process in the subsequent section, ensuring we only apply the cropping to the features that actually extend beyond the zone boundaries.
 
 ```{r}
@@ -411,8 +399,25 @@ tm_shape(ZonesShapesToCheck)+
   tm_polygons(fill = "feature")
 ```
 
+<br>
 
-### Cropping features overlapping multiple zones
+Let's save the data for future use.
+
+```r
+qs2::qs_save(LinesInSeveralZones, 
+             here("output/cache-data/LinesInSeveralZones.qs"))
+
+qs2::qs_save(MultiLinesInSeveralZones, 
+             here("output/cache-data/MultiLinesInSeveralZones.qs"))
+             
+qs2::qs_save(PolygonInSeveralZones, 
+             here("output/cache-data/PolygonInSeveralZones.qs"))
+
+qs2::qs_save(MultiPolygonInSeveralZones, 
+             here("output/cache-data/MultiPolygonInSeveralZones.qs"))
+```
+
+#### Cropping features overlapping multiple zones
 
 This section focuses on refining the geospatial data of lines and polygons that were identified as overlapping multiple taxi zones. The goal is to accurately attribute these features to the specific zone they intersect with.
 
@@ -450,17 +455,6 @@ LinesInSeveralZonesCropped <- apply_intersection_by_id(LinesInSeveralZones, Zone
 PolygonInSeveralZonesCropped <- apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
 ```
 
-
-All making all that operations we need to save the data for future use.
-
-```r
-qs2::qs_save(LinesInSeveralZonesCropped, 
-             here("output/cache-data/LinesInSeveralZonesCropped.qs"))
-
-qs2::qs_save(PolygonInSeveralZonesCropped, 
-             here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
-```
-
 ```{r}
 #| echo: false
 
@@ -471,9 +465,6 @@ PolygonInSeveralZonesCropped <-
   qs2::qs_read(here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
 ```
 
-#### Confiming crop application
-
-This section visualizes the geospatial features (lines and polygons) that were initially identified as overlapping multiple taxi zones *after* the cropping process. Comparing this visualization with the maps in the "Confirming results" section, we can observe the effect of the cropping operation.
 
 The resulting map shows the blue lines and colored polygons neatly contained within the grey boundary of zone `r ZoneToCheck`. This ensures that when we calculate features like road length or land use area for zone `r ZoneToCheck`, we only consider the portions of these features that actually lie within its boundaries, leading to more accurate analysis.
 
@@ -489,26 +480,14 @@ tm_shape(ZonesShapesToCheck)+
   tm_polygons(fill = "feature")
 ```
 
+<br>
+
+After performing those operations, we can save the data for future use.
+
 ```r
-temp = tidycensus::load_variables(2021, "acs5")
+qs2::qs_save(LinesInSeveralZonesCropped, 
+             here("output/cache-data/LinesInSeveralZonesCropped.qs"))
 
-setDT(temp)
-
-temp[c("MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
-       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
-       
-       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
-     on = "concept",
-     j = !c("concept")
-][label != "Estimate!!Total:"]
-
-# Geographical Mobility - B07203_008
-temp[name %like% "^[A-Z]\\d+_"] |> View()
-
-temp[name %like% "^B08124_"
-     & label %ilike% ".+:.+:$", View(.SD)]
+qs2::qs_save(PolygonInSeveralZonesCropped, 
+             here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
 ```
-
