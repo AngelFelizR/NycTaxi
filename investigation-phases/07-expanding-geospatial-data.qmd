@@ -85,6 +85,10 @@ library(osmdata)
 tmap_mode("view")
 ```
 
+:::{.callout-note title="Computational Performance"}
+The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
+:::
+
 ## Importing shapes
 
 Details on how this data was obtained can be found in the **Data Collection Process**.
