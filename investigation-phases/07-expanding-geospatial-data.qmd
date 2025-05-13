@@ -99,6 +99,21 @@ ZonesShapes <-
   subset(borough %in% BoroughSelected)
 ```
 
+## Importing training sample
+
+```{r}
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst, as.data.table = TRUE) |>
+  rbindlist()
+```
+
 ## Getting the information from OSM
 
 ### Defining bounding box
@@ -456,7 +471,9 @@ apply_intersection_by_id <- function(features,
 }
 
 LinesInSeveralZonesCropped <- apply_intersection_by_id(LinesInSeveralZones, ZonesShapes)
+MultiLinesInSeveralZonesCropped <- apply_intersection_by_id(MultiLinesInSeveralZones, ZonesShapes)
 PolygonInSeveralZonesCropped <- apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
+MultiPolygonInSeveralZonesCropped <- apply_intersection_by_id(MultiPolygonInSeveralZones, ZonesShapes)
 ```
 
 ```{r}
@@ -465,8 +482,14 @@ PolygonInSeveralZonesCropped <- apply_intersection_by_id(PolygonInSeveralZones, 
 LinesInSeveralZonesCropped <-
   qs2::qs_read(here("output/cache-data/LinesInSeveralZonesCropped.qs"))
 
+MultiLinesInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+
 PolygonInSeveralZonesCropped <-
   qs2::qs_read(here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+
+MultiPolygonInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
 ```
 
 
@@ -492,6 +515,102 @@ After performing those operations, we can save the data for future use.
 qs2::qs_save(LinesInSeveralZonesCropped, 
              here("output/cache-data/LinesInSeveralZonesCropped.qs"))
 
+qs2::qs_save(MultiLinesInSeveralZonesCropped, 
+             here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+
 qs2::qs_save(PolygonInSeveralZonesCropped, 
              here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+
+qs2::qs_save(MultiPolygonInSeveralZonesCropped, 
+             here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
 ```
+
+
+## Exploring the information
+
+
+```r
+#ZonesShapes
+
+
+PointsWithinZones
+LinesWithinZones
+MultiLinesWithinZones
+PolygonWithinZones
+MultiPolygonWithinZones
+
+
+LinesInSeveralZonesCropped
+MultiLinesInSeveralZonesCropped
+PolygonInSeveralZonesCropped
+MultiPolygonInSeveralZonesCropped
+```
+
+```{r}
+library(ggplot2)
+library(units)
+
+LinesWithinZonesDT  <- as.data.table(LinesWithinZones)
+
+LinesWithinZonesDT[, .(N = .N,
+                       line_length = median(st_length(geometry)) |> units::set_units(m)), 
+                   .(feature, 
+                     value)
+][,value := reorder(value, line_length, FUN = sum)] |>
+ggplot()+
+  geom_col(aes(line_length, value,
+               fill = N),
+           position = position_dodge())+
+  scale_x_units(transform = "log2",
+                breaks = c(0, 2^(0:11)))+
+  scale_fill_gradient(low = "skyblue", 
+                      high = "red",
+                      breaks = c(0, 2^seq(0, 24, by = 2)),
+                      transform = "log2",
+                      label = scales::label_comma()) + 
+  theme_minimal()
+```
+
+
+
+## Consolidating information to week
+
+
+
+### Counting the **number of places per region**
+
+```{r}
+PointsWithinZonesDT <- as.data.table(PointsWithinZones)
+
+
+CountPlacesRegion <-
+  PointsWithinZonesDT[, .N, 
+                      .(LocationID = OBJECTID, 
+                        feature, 
+                        value)
+  ][, dcast(.SD, 
+            formula = LocationID ~ feature + value, 
+            value.var = "N",
+            fill = 0L)]
+
+
+CountCorrelation <-
+  CountPlacesRegion[TrainingSample[, .(trip_id,
+                                       LocationID = PULocationID,
+                                       take_current_trip,
+                                       performance_per_hour)],
+                    on = "LocationID"
+  ][, cor(.SD),
+    .SDcols = !c("LocationID")]
+
+CountCorrelation[, "take_current_trip"] |> abs() |> sort(decreasing = TRUE) |> head()
+
+CountCorrelation[, "performance_per_hour"] |> abs() |> sort(decreasing = TRUE) |> head()
+```
+
+### Getting the **length of roads per region**
+### Defining the **proportion of land-use** by tag for each region.
+
+
+
+
