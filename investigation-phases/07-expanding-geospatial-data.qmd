@@ -9,29 +9,53 @@ execute:
 
 As we saw in the **initial exploration**, `take_current_trip` varies across zones but we know that only providing IDs offers limited context for the models to differentiate between zones. Thus, we enrich the data with **geospatial features** derived from **OpenStreetMap (OSM)** to provide deeper insights into each zone.
 
-To make that possible, we need to:
+Here are the steps to follow:
 
-1. Import the **taxi zone shapefile** related to each zone ID.
+1. **Import data**:  
 
-2. Get the information for Queens, Brooklyn, and Manhattan from OSM linked to the below tags:
-   - `amenity`
-   - `shop`
-   - `office`
-   - `tourism`
-   - `public_transport`
-   - `aeroway`
-   - `emergency`
-   - `sport`
-   - `highway`
-   - `landuse`
+   - Load NYC taxi zone shapefiles (from TLC, EPSG:2263) and training data.  
+
+2. **Extract OSM data**:  
+
+   - Fetch OSM data for Queens, Brooklyn, and Manhattan using key tags.
    
-3. Join the OSM features to each zone **based on spatial overlap** to associate the extracted OSM features with each taxi zone.
+     - `amenity`
+     - `shop`
+     - `office`
+     - `tourism`
+     - `public_transport`
+     - `aeroway`
+     - `emergency`
+     - `sport`
+     - `highway`
+     - `landuse`
+     
+   - Reproject OSM data to EPSG:2263 to match taxi zone CRS.  
 
-4. Consolidate the information for each zone by:
+3. **Spatial joins**:  
 
-    - Counting the **number of places per region**.
-    - Getting the **length of roads per region**
-    - Defining the **proportion of land-use** by tag for each region.
+   - Link OSM features to taxi zones:  
+   
+     - Points: Include if within zone.  
+     - Lines: Include if features are fully contained in zones and for partially intersecting lines, clip the feature to the zone boundary and retain only the overlapping portion.
+     - Polygons: Include if features are fully contained in zones and for partially intersecting polygons, clip the feature to the zone boundary and retain only the overlapping portion.
+
+4. **Extract new features**:  
+
+  - For each zone and tag:  
+   
+     - Number of OSM points per $ft^2$.  
+     - Total length ($ft$) of OSM lines per $ft^2$.  
+     - Total area ($ft^2$) of OSM polygons per $ft^2$.  
+
+5. **Integration**:  
+
+   - Merge features with training data on zone ID.  
+
+6. **Validation**:  
+
+   - Plot feature distributions vs. `take_current_trip`.
+   - Correlation of new predictos and target variable
     
 ## Setting up the environment
 
@@ -45,6 +69,9 @@ BoroughColors <- c(
 )
 
 BoroughSelected <- names(BoroughColors)
+
+ColorHighlight <- "lightslateblue"
+ColorGray <- "gray80"
 ```
 
 ### Define feature to import
@@ -76,32 +103,34 @@ library(data.table)
 ## To work with spatial data
 library(sf)
 
-## To create maps
+## To create interactive maps
 library(tmap)
+tmap_mode("view")
 
 ## To download OpenStreetMap data
 library(osmdata)
 
-tmap_mode("view")
+## Transforming distance units
+library(units)
+
+## To create general plots
+library(ggplot2)
 ```
 
 :::{.callout-note title="Computational Performance"}
 The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
 :::
 
-## Importing shapes
+## Import data
 
 Details on how this data was obtained can be found in the **Data Collection Process**.
 
 ```{r}
 ZonesShapes <-
   read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
-  subset(borough %in% BoroughSelected)
-```
+  subset(borough %in% BoroughSelected) |>
+  transform(Shape_Area = st_area(geometry))
 
-## Importing training sample
-
-```{r}
 TrainingSample <-
   here("output/take-trip-fst") |>
   list.files(full.names = TRUE) |>
@@ -114,7 +143,7 @@ TrainingSample <-
   rbindlist()
 ```
 
-## Getting the information from OSM
+## Extract OSM data
 
 ### Defining bounding box
 
@@ -256,11 +285,11 @@ OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
 OsmDataComplete
 ```
 
-## Joining data
+## Spatial joins
 
 We perform two main types of spatial joins to associate the OpenStreetMap features with our taxi zones: first, to identify features entirely within each zone, and second, to identify features that intersect or overlap with the zone boundaries.
 
-### Joining elements **contained** by each zone.
+### Joining elements **contained** by each zone
 
 Using the `st_within` function, this section identifies OpenStreetMap features—such as points, lines, polygons, multilinestrings, and multipolygons—that are **fully contained** within each taxi zone's boundaries. `st_within` considers multilinestrings and multipolygons to be within a zone only if all their constituent parts are inside.
 
@@ -270,7 +299,6 @@ PointsWithinZones <-
           ZonesShapes,
           join = st_within,
           left = FALSE)
-
 
 LinesWithinZones <-
   OsmDataComplete$osm_lines |>
@@ -470,10 +498,17 @@ apply_intersection_by_id <- function(features,
   
 }
 
-LinesInSeveralZonesCropped <- apply_intersection_by_id(LinesInSeveralZones, ZonesShapes)
-MultiLinesInSeveralZonesCropped <- apply_intersection_by_id(MultiLinesInSeveralZones, ZonesShapes)
-PolygonInSeveralZonesCropped <- apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
-MultiPolygonInSeveralZonesCropped <- apply_intersection_by_id(MultiPolygonInSeveralZones, ZonesShapes)
+LinesInSeveralZonesCropped <- 
+  apply_intersection_by_id(LinesInSeveralZones, ZonesShapes)
+  
+MultiLinesInSeveralZonesCropped <-
+  apply_intersection_by_id(MultiLinesInSeveralZones, ZonesShapes)
+  
+PolygonInSeveralZonesCropped <-
+  apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
+  
+MultiPolygonInSeveralZonesCropped <-
+  apply_intersection_by_id(MultiPolygonInSeveralZones, ZonesShapes)
 ```
 
 ```{r}
@@ -496,8 +531,12 @@ MultiPolygonInSeveralZonesCropped <-
 The resulting map shows the blue lines and colored polygons neatly contained within the grey boundary of zone `r ZoneToCheck`. This ensures that when we calculate features like road length or land use area for zone `r ZoneToCheck`, we only consider the portions of these features that actually lie within its boundaries, leading to more accurate analysis.
 
 ```{r}
-LinesInSeveralZonesCroppedToCheck  <- subset(LinesInSeveralZonesCropped, LocationID == ZoneToCheck)
-PolygonInSeveralZonesCroppedToCheck <- subset(PolygonInSeveralZonesCropped, LocationID == ZoneToCheck)
+LinesInSeveralZonesCroppedToCheck  <- 
+  subset(LinesInSeveralZonesCropped, LocationID == ZoneToCheck)
+
+PolygonInSeveralZonesCroppedToCheck <-
+  subset(PolygonInSeveralZonesCropped, LocationID == ZoneToCheck)
+
 
 tm_shape(ZonesShapesToCheck)+
   tm_polygons(fill = "grey") +
@@ -526,91 +565,187 @@ qs2::qs_save(MultiPolygonInSeveralZonesCropped,
 ```
 
 
-## Exploring the information
+### Joining objects based on geometry types
+
+After making those changes can consolidate all the data to use into 3 **geometry types**:
+
+- `POINT`
+- `MULTILINESTRING`
+- `MULTIPOLYGON`
+
+```{r}
+#| echo: false
+
+AllPointsZones <-
+  qs2::qs_read(here("output/cache-data/AllPointsZones.qs"))
+
+AllLinesZones <-
+  qs2::qs_read(here("output/cache-data/AllLinesZones.qs"))
+
+AllPolygonZones <-
+  qs2::qs_read(here("output/cache-data/AllPolygonZones.qs"))
+```
 
 
-```r
-#ZonesShapes
+```{r}
+#| eval: false
 
+AllPointsZones <- as.data.table(PointsWithinZones)
 
-PointsWithinZones
-LinesWithinZones
-MultiLinesWithinZones
-PolygonWithinZones
-MultiPolygonWithinZones
+AllLinesZones <-
+  list(LinesWithinZones,
+       MultiLinesInSeveralZones,
+       MultiLinesWithinZones,
+       MultiLinesInSeveralZonesCropped) |>
+  lapply(FUN = \(df) as.data.table(st_cast(df, to = "MULTILINESTRING"))) |>
+  rbindlist(use.names = TRUE)
 
-
-LinesInSeveralZonesCropped
-MultiLinesInSeveralZonesCropped
-PolygonInSeveralZonesCropped
-MultiPolygonInSeveralZonesCropped
+AllPolygonZones <-
+  list(PolygonWithinZones,
+       PolygonInSeveralZonesCropped,
+       MultiPolygonWithinZones,
+       MultiPolygonInSeveralZonesCropped) |>
+  lapply(FUN = \(df) as.data.table(st_cast(df, to = "MULTIPOLYGON"))) |>
+  rbindlist(use.names = TRUE)
 ```
 
 ```{r}
-library(ggplot2)
-library(units)
+#| eval: false
+#| echo: false
 
-LinesWithinZonesDT  <- as.data.table(LinesWithinZones)
+qs2::qs_save(AllPointsZones, 
+             here("output/cache-data/AllPointsZones.qs"))
 
-LinesWithinZonesDT[, .(N = .N,
-                       line_length = median(st_length(geometry)) |> units::set_units(m)), 
-                   .(feature, 
-                     value)
-][,value := reorder(value, line_length, FUN = sum)] |>
-ggplot()+
-  geom_col(aes(line_length, value,
+qs2::qs_save(AllLinesZones, 
+             here("output/cache-data/AllLinesZones.qs"))
+
+qs2::qs_save(AllPolygonZones, 
+             here("output/cache-data/AllPolygonZones.qs"))
+```
+
+## Extract new features
+
+- **Counting the number of places per region**
+
+```{r}
+CountPlacesRegion <-
+  AllPointsZones[, .N, 
+                 .(LocationID = OBJECTID, 
+                   variable = paste0(toupper(feature),"-", value))
+  ][, dcast(.SD, LocationID ~ variable, value.var = "N")]
+```
+
+
+## Integration
+
+
+## Validation
+
+::: panel-tabset
+
+### Points
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 8
+#| fig-width: 8
+
+AllPointsZones[, .(N = .N), 
+                  by = .(value = paste0(toupper(feature)," ", value))
+][order(-N)
+][1:50
+][, value := reorder(value, N, FUN = sum)] |>
+  ggplot()+
+  geom_col(aes(N, value,
                fill = N),
-           position = position_dodge())+
-  scale_x_units(transform = "log2",
-                breaks = c(0, 2^(0:11)))+
-  scale_fill_gradient(low = "skyblue", 
-                      high = "red",
+           position = position_dodge(),
+           show.legend = FALSE)+
+  scale_x_continuous(transform = "log2",
+                     breaks = c(0, 2^seq(0, 24, by = 2)),
+                     label = scales::label_comma(accuracy = 1))+
+  scale_fill_gradient(high = ColorHighlight,
+                      low = ColorGray,
                       breaks = c(0, 2^seq(0, 24, by = 2)),
                       transform = "log2",
                       label = scales::label_comma()) + 
-  theme_minimal()
+  labs(y = "",
+       x = "Number of elements") +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank(),
+        legend.position = "none")
 ```
 
-
-
-## Consolidating information to week
-
-
-
-### Counting the **number of places per region**
+### Lines
 
 ```{r}
-PointsWithinZonesDT <- as.data.table(PointsWithinZones)
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 8
+#| fig-width: 8
 
-
-CountPlacesRegion <-
-  PointsWithinZonesDT[, .N, 
-                      .(LocationID = OBJECTID, 
-                        feature, 
-                        value)
-  ][, dcast(.SD, 
-            formula = LocationID ~ feature + value, 
-            value.var = "N",
-            fill = 0L)]
-
-
-CountCorrelation <-
-  CountPlacesRegion[TrainingSample[, .(trip_id,
-                                       LocationID = PULocationID,
-                                       take_current_trip,
-                                       performance_per_hour)],
-                    on = "LocationID"
-  ][, cor(.SD),
-    .SDcols = !c("LocationID")]
-
-CountCorrelation[, "take_current_trip"] |> abs() |> sort(decreasing = TRUE) |> head()
-
-CountCorrelation[, "performance_per_hour"] |> abs() |> sort(decreasing = TRUE) |> head()
+AllLinesZones[, .(N = .N,
+                  total_length = sum(st_length(geometry)) |> units::set_units(m)), 
+              by = .(value = paste0(toupper(feature),": ", value))
+][, value := reorder(value, N, FUN = sum)] |>
+  ggplot()+
+  geom_col(aes(total_length, value,
+               fill = N),
+           position = position_dodge())+
+  scale_x_units(transform = "log2",
+                breaks = c(0, 2^seq(0, 24, by = 2)),
+                label = scales::label_comma(scale = 1/1000,
+                                            accuracy = 1,
+                                            suffix = "k"))+
+  scale_fill_gradient(high = ColorHighlight,
+                      low = ColorGray,
+                      breaks = c(0, 2^seq(0, 24, by = 2)),
+                      transform = "log2",
+                      label = scales::label_comma()) + 
+  labs(y = "",
+       fill = "Number of elements") +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
 ```
 
-### Getting the **length of roads per region**
-### Defining the **proportion of land-use** by tag for each region.
+### Polygons
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 8
+#| fig-width: 8
 
 
+AllPolygonZones[, .(N = .N,
+                    total_area = sum(st_area(geometry)) |> set_units(m^2)), 
+              by = .(value = paste0(toupper(feature),": ", value))
+][order(-total_area)
+][1:50
+][,value := reorder(value, N, FUN = sum)] |>
+  ggplot()+
+  geom_col(aes(total_area, value,
+               fill = N),
+           position = position_dodge())+
+  scale_x_units(transform = "log2",
+                breaks = c(0, 2^seq(0, 24, by = 2)),
+                label = scales::label_comma(scale = 1/1000,
+                                            accuracy = 1,
+                                            suffix = "k"))+
+  scale_fill_gradient(high = ColorHighlight,
+                      low = ColorGray,,
+                      breaks = c(0, 2^seq(0, 12, by = 1)),
+                      transform = "log2",
+                      label = scales::label_comma()) + 
+  labs(y = "",
+       fill = "Number of elements") +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
+```
+
+:::
 
 
