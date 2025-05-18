@@ -7,7 +7,7 @@ execute:
   warning: false
 ---
 
-As we saw in the **initial exploration**, `take_current_trip` varies across zones but we know that only providing IDs offers limited context for the models to differentiate between zones. Thus, we enrich the data with **geospatial features** derived from **OpenStreetMap (OSM)** to provide deeper insights into each zone.
+As we saw in the **initial exploration**, `take_current_trip` varies across zones, but we know that only providing IDs offers limited context for the models to differentiate between zones. Thus, we enrich the data with **geospatial features** derived from **OpenStreetMap (OSM)** to provide deeper insights into each zone.
 
 Here are the steps to follow:
 
@@ -44,18 +44,14 @@ Here are the steps to follow:
 
   - For each zone and tag:  
    
-     - Number of OSM points per $ft^2$.  
-     - Total length ($ft$) of OSM lines per $ft^2$.  
-     - Total area ($ft^2$) of OSM polygons per $ft^2$.  
+     - Number of OSM points per $mi^2$.  
+     - Total length ($mi$) of OSM lines per $mi^2$.  
+     - Total area ($mi^2$) of OSM polygons per $mi^2$.  
 
-5. **Integration**:  
+5. **Validation**:  
 
-   - Merge features with training data on zone ID.  
-
-6. **Validation**:  
-
-   - Plot feature distributions vs. `take_current_trip`.
-   - Correlation of new predictos and target variable
+   - Integrate new features and training data
+   - Define the correlation between new predictors and `take_current_trip`
     
 ## Setting up the environment
 
@@ -74,7 +70,7 @@ ColorHighlight <- "lightslateblue"
 ColorGray <- "gray80"
 ```
 
-### Define feature to import
+### Define features to import
 
 ```{r}
 FeaturesToGet <- c(
@@ -139,7 +135,9 @@ TrainingSample <-
                    name = basename(x)))() |>
   (\(dt) dt[order(n_char, name), full_path])() |>
   head(12L) |>
-  lapply(FUN = fst::read_fst, as.data.table = TRUE) |>
+  lapply(FUN = fst::read_fst,
+         columns = c("trip_id","PULocationID", "DOLocationID", "take_current_trip"),
+         as.data.table = TRUE) |>
   rbindlist()
 ```
 
@@ -567,7 +565,7 @@ qs2::qs_save(MultiPolygonInSeveralZonesCropped,
 
 ### Joining objects based on geometry types
 
-After making those changes can consolidate all the data to use into 3 **geometry types**:
+After making those changes, we can consolidate all the data to use into 3 **geometry types**:
 
 - `POINT`
 - `MULTILINESTRING`
@@ -587,9 +585,7 @@ AllPolygonZones <-
 ```
 
 
-```{r}
-#| eval: false
-
+```r
 AllPointsZones <- as.data.table(PointsWithinZones)
 
 AllLinesZones <-
@@ -625,127 +621,164 @@ qs2::qs_save(AllPolygonZones,
 
 ## Extract new features
 
-- **Counting the number of places per region**
-
 ```{r}
-CountPlacesRegion <-
-  AllPointsZones[, .N, 
-                 .(LocationID = OBJECTID, 
-                   variable = paste0(toupper(feature),"-", value))
-  ][, dcast(.SD, LocationID ~ variable, value.var = "N")]
+#| echo: false
+
+PointDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/PointDensityFeatures.qs"))
+
+LineDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/LineDensityFeatures.qs"))
+
+PolygonDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/PolygonDensityFeatures.qs"))
 ```
 
 
-## Integration
+- **Number of OSM points per $mi^2$**
+
+```{r}
+#| eval: false
+
+PointDensityFeatures <-
+  AllPointsZones[, .N, 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value, "_per_mi2"))
+  ][, n_per_mi2 := N / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "n_per_mi2", fill = 0L)]
+```
+
+
+- **Total length ($mi$) of OSM lines per $mi^2$**
+
+```{r}
+#| eval: false
+
+LineDensityFeatures <-
+  AllLinesZones[, .(total_length = sum(st_length(geometry)) |> set_units(value = mi)) , 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value, "_per_mi"))
+  ][, distance_per_mi2 := as.double(total_length) / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "distance_per_mi2", fill = 0L)]
+```
+
+- **Total area ($mi^2$) of OSM polygons per $mi^2$**
+
+```{r}
+#| eval: false
+
+PolygonDensityFeatures <-
+  AllPolygonZones[, .(total_area = sum(st_area(geometry)) |> set_units(value = mi^2)) , 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value))
+  ][, area_prop := as.double(total_area) / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "area_prop", fill = 0L)]
+```
+
+```{r}
+#| eval: false
+#| echo: false
+
+qs2::qs_save(PointDensityFeatures, 
+             here("output/cache-data/PointDensityFeatures.qs"))
+
+qs2::qs_save(LineDensityFeatures, 
+             here("output/cache-data/LineDensityFeatures.qs"))
+
+qs2::qs_save(PolygonDensityFeatures, 
+             here("output/cache-data/PolygonDensityFeatures.qs"))
+```
 
 
 ## Validation
 
-::: panel-tabset
-
-### Points
+Now we just need to consolidate and save all features in a single table and join to the training data.
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 8
-#| fig-width: 8
+OmsDensityFeatures <-
+  list(PointDensityFeatures,
+       LineDensityFeatures,
+       PolygonDensityFeatures) |>
+  Reduce(f = \(x,y) x[y, on = "LocationID"])
 
-AllPointsZones[, .(N = .N), 
-                  by = .(value = paste0(toupper(feature)," ", value))
-][order(-N)
-][1:50
-][, value := reorder(value, N, FUN = sum)] |>
-  ggplot()+
-  geom_col(aes(N, value,
-               fill = N),
-           position = position_dodge(),
-           show.legend = FALSE)+
-  scale_x_continuous(transform = "log2",
-                     breaks = c(0, 2^seq(0, 24, by = 2)),
-                     label = scales::label_comma(accuracy = 1))+
-  scale_fill_gradient(high = ColorHighlight,
-                      low = ColorGray,
-                      breaks = c(0, 2^seq(0, 24, by = 2)),
-                      transform = "log2",
-                      label = scales::label_comma()) + 
-  labs(y = "",
-       x = "Number of elements") +
-  theme_minimal()+
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank(),
-        legend.position = "none")
+PuOmsDensityFeatures <-
+  setnames(copy(OmsDensityFeatures), 
+           c("PULocationID", paste0("PU_", names(OmsDensityFeatures)[-1L])))
+
+DoOmsDensityFeatures <-
+  setnames(copy(OmsDensityFeatures), 
+           c("DOLocationID", paste0("DO_", names(OmsDensityFeatures)[-1L])))
+
+TrainingSampleOmsDensityFeatures <-
+  PuOmsDensityFeatures[TrainingSample, on = "PULocationID"
+  ][, DoOmsDensityFeatures[.SD, on = "DOLocationID"]]
+
+dim(TrainingSampleOmsDensityFeatures) |> scales::comma()
 ```
-
-### Lines
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 8
-#| fig-width: 8
+#| echo: false
+#| output: false
 
-AllLinesZones[, .(N = .N,
-                  total_length = sum(st_length(geometry)) |> units::set_units(m)), 
-              by = .(value = paste0(toupper(feature),": ", value))
-][, value := reorder(value, N, FUN = sum)] |>
-  ggplot()+
-  geom_col(aes(total_length, value,
-               fill = N),
-           position = position_dodge())+
-  scale_x_units(transform = "log2",
-                breaks = c(0, 2^seq(0, 24, by = 2)),
-                label = scales::label_comma(scale = 1/1000,
-                                            accuracy = 1,
-                                            suffix = "k"))+
-  scale_fill_gradient(high = ColorHighlight,
-                      low = ColorGray,
-                      breaks = c(0, 2^seq(0, 24, by = 2)),
-                      transform = "log2",
-                      label = scales::label_comma()) + 
-  labs(y = "",
-       fill = "Number of elements") +
-  theme_minimal()+
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank())
+rm(list = grep("OmsDensityFeatures|TrainingSample|Color", ls(), invert = TRUE, value = TRUE))
+gc()
 ```
 
-### Polygons
+Now we can safe the transformed data for future use.
+
+```r
+fst::write_fst(TrainingSampleOmsDensityFeatures, 
+               path = here("output/TrainingSampleOmsDensityFeatures.fst"))
+```
+
+Let's explore the correlated features.
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 8
-#| fig-width: 8
+#| echo: false
 
-
-AllPolygonZones[, .(N = .N,
-                    total_area = sum(st_area(geometry)) |> set_units(m^2)), 
-              by = .(value = paste0(toupper(feature),": ", value))
-][order(-total_area)
-][1:50
-][,value := reorder(value, N, FUN = sum)] |>
-  ggplot()+
-  geom_col(aes(total_area, value,
-               fill = N),
-           position = position_dodge())+
-  scale_x_units(transform = "log2",
-                breaks = c(0, 2^seq(0, 24, by = 2)),
-                label = scales::label_comma(scale = 1/1000,
-                                            accuracy = 1,
-                                            suffix = "k"))+
-  scale_fill_gradient(high = ColorHighlight,
-                      low = ColorGray,,
-                      breaks = c(0, 2^seq(0, 12, by = 1)),
-                      transform = "log2",
-                      label = scales::label_comma()) + 
-  labs(y = "",
-       fill = "Number of elements") +
-  theme_minimal()+
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank())
+CorMatrix = qs2::qs_read(here("output/cache-data/CorMatrix.qs"))
 ```
 
-:::
 
+```{r}
+#| eval: false
+
+CorMatrix <- cor(TrainingSampleOmsDensityFeatures[, !c("trip_id")])
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(CorMatrix, 
+             here("output/cache-data/CorMatrix.qs"))
+```
+
+As we can see, the variables **don't show a strong correlation** (<10% for the top cases) with the variable to predict, so we will need to go deeper on feature engineering before using these variables for modeling.
+
+```{r}
+as.data.table(CorMatrix, 
+              keep.rownames = "variable"
+)[order(-abs(take_current_trip)), 
+  .(variable, 
+    abs_cor = abs(take_current_trip),
+    greater_than_0 = take_current_trip > 0)
+][2:31
+][,variable := reorder(variable, abs_cor, sum)] |>
+  ggplot()+
+  geom_col(aes(abs_cor, variable, fill = greater_than_0),
+           color = "black",
+           linewidth = 0.2)+
+  scale_fill_manual(values = c("TRUE" = ColorHighlight,
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(labels = scales::label_percent())+
+  labs(y = "",
+       x = "Absolute Correlation",
+       fill = "Positive Correlation") +
+  theme_minimal()+
+  theme(legend.position = "top")
+```
 
