@@ -730,8 +730,8 @@ gc()
 Now we can safe the transformed data for future use.
 
 ```r
-fst::write_fst(TrainingSampleOmsDensityFeatures, 
-               path = here("output/TrainingSampleOmsDensityFeatures.fst"))
+fst::write_fst(OmsDensityFeatures, 
+               path = here("output/OmsDensityFeatures.fst"))
 ```
 
 Let's explore the correlated features.
@@ -757,24 +757,47 @@ qs2::qs_save(CorMatrix,
              here("output/cache-data/CorMatrix.qs"))
 ```
 
-As we can see, the variables **don't show a strong correlation** (<10% for the top cases) with the variable to predict, so we will need to go deeper on feature engineering before using these variables for modeling.
+As we can see, the variables **don't show a strong correlation** (<11% for the top cases) with the variable to predict, so we will need to go deeper on feature engineering before using these variables for modeling.
 
 ```{r}
-as.data.table(CorMatrix, 
-              keep.rownames = "variable"
-)[order(-abs(take_current_trip)), 
-  .(variable, 
-    abs_cor = abs(take_current_trip),
-    greater_than_0 = take_current_trip > 0)
-][2:31
-][,variable := reorder(variable, abs_cor, sum)] |>
-  ggplot()+
+#| echo: false
+
+TopOsmCorrelations = qs2::qs_read(here("output/cache-data/TopOsmCorrelations.qs"))
+```
+
+```r
+TopOsmCorrelations <-
+  as.data.table(CorMatrix, 
+                keep.rownames = "variable"
+  )[order(-abs(take_current_trip)), 
+    .(variable, 
+      abs_cor = abs(take_current_trip),
+      greater_than_0 = take_current_trip > 0)
+  ][2:16
+  ][,variable := reorder(variable, abs_cor, sum)]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(TopOsmCorrelations, 
+             here("output/cache-data/TopOsmCorrelations.qs"))
+```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(TopOsmCorrelations)+
   geom_col(aes(abs_cor, variable, fill = greater_than_0),
            color = "black",
-           linewidth = 0.2)+
+           linewidth = 0.4)+
   scale_fill_manual(values = c("TRUE" = ColorHighlight,
                                "FALSE" = ColorGray))+
-  scale_x_continuous(labels = scales::label_percent())+
+  scale_x_continuous(breaks = scales::breaks_width(0.01),
+                     labels = scales::label_percent(accuracy = 1))+
   labs(y = "",
        x = "Absolute Correlation",
        fill = "Positive Correlation") +
@@ -782,3 +805,126 @@ as.data.table(CorMatrix,
   theme(legend.position = "top")
 ```
 
+On the other hand, we can also explore in the target variable is correlated with a different median of the new features. As all the variable present different dimensions we are going to scale the variables before calculating the mean and then taking the difference of means.
+
+```{r}
+#| echo: false
+#| output: false
+
+rm(list = setdiff(ls(), c("TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+gc()
+
+OsmMedianDiff = qs2::qs_read(here("output/cache-data/OsmMedianDiff.qs"))
+```
+
+```{r}
+OsmMedianDiff <-
+  TrainingSampleOmsDensityFeatures[, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else median(scale(x, center = FALSE))),
+                                   .SDcols = !c("trip_id", "PULocationID", "DOLocationID"),
+                                   by = "take_current_trip"
+  ][, melt(.SD,
+           id.vars = "take_current_trip")
+  ][, .(not_take_vs_take = diff(value)),
+    by = .(variable = as.character(variable))
+  ][order(-abs(not_take_vs_take))]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(OsmMedianDiff, 
+             here("output/cache-data/OsmMedianDiff.qs"))
+```
+
+In the below chart we can see that for majority of the variables the difference of medians is 0, probably because the feature are **near zero variance** as doesn't show very often in many zones, but on the other hand we can see that some features present some $|\text{med}(x)| > 0.1$ that would be important to see in more detail.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(OsmMedianDiff) +
+  geom_histogram(aes(not_take_vs_take)) +
+  scale_y_continuous(transform = scales::new_transform("signed_log10",
+                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
+                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+                                                       breaks = scales::pretty_breaks()),
+                     breaks = c(0, 10^(1:4))) +
+  labs(y = "count on log10 scale")+
+  theme_minimal()
+```
+
+```{r}
+#| echo: false
+#| output: false
+
+rm(list = setdiff(ls(), c("OsmMedianDiff", "TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+gc()
+
+TopOsmMedianDiff = qs2::qs_read(here("output/cache-data/TopOsmMedianDiff.qs"))
+```
+
+After selecting the to variables to explore, we just need to see
+
+```{r}
+TopOsmMedianDiffFeatures <- OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
+
+TopOsmMedianDiff <-
+  TrainingSampleOmsDensityFeatures[, melt(.SD,
+                                          id.vars = c("trip_id", "take_current_trip")),
+                                   .SDcols = c("trip_id",
+                                               "take_current_trip",
+                                               TopOsmMedianDiffFeatures)
+  ][, `:=`(variable = factor(variable, levels = rev(TopOsmMedianDiffFeatures)),
+           take_current_trip = take_current_trip == 1L)
+  ][, value := scale(value, center = FALSE),
+    by = "variable"]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(TopOsmMedianDiff, 
+             here("output/cache-data/TopOsmMedianDiff.qs"))
+```
+
+Based on the next chart, we can see that the median change based on different factors like:
+
+| Variable                            | Influence of `take_current_trip` (TRUE vs FALSE) on Median        |
+|-------------------------------------|-------------------------------------------------------------------|
+| PU_SPORT-american_handball          | Median **higher** when `take_current_trip` is `TRUE`. |
+| DO_AMENITY-bicycle_rental_per_mi2   | Median  **lower**  when `take_current_trip` is `TRUE`.|
+| PU_AMENITY-school                   | Median **higher**  when `take_current_trip` is `TRUE`. |
+| DO_AMENITY-bicycle_parking_per_mi2  | Median **lower** when `take_current_trip` is `TRUE`.|
+| PU_AMENITY-restaurant_per_mi2       | Median **lower** when `take_current_trip` is `TRUE`.|
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+
+ggplot(TopOsmMedianDiff) +
+  geom_boxplot(aes(x = value,
+                   y  = variable,
+                   fill = take_current_trip)) +
+  scale_fill_manual(values = c("TRUE" = ColorHighlight,
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(transform = scales::new_transform("signed_log10",
+                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
+                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+                                                       breaks = scales::pretty_breaks()),
+                     labels = scales::label_comma(accuracy = 0.1),
+                     breaks = c(0, 10^seq(-1,4, by = 0.25))) +
+  labs(x = "",
+       y = "") +
+  theme_minimal()
+```
+
+
+## Conclusion
+
+We know that this features will be useful for modeling specially we can fine correlation with weekdays and hour.
+
+It's important to take in consideration that the data is **right skewed** and present some **high-leverage points** that will need to be solved depending on the model to select.
