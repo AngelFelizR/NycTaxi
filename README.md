@@ -44,11 +44,12 @@ portfolio web site.
 
 2.  **Data Understanding**
 
-    2.  Defining Development Environment
-    3.  Data Collection Process
-    4.  Data Sampling
-    5.  Initial Exploration
-    6.  Expanding Geospatial Information
+    3.  Defining Development Environment
+    4.  Data Collection Process
+    5.  Data Sampling
+    6.  Initial Exploration
+    7.  Expanding Geospatial Information
+    8.  Exploring Transportation and Socioeconomic Patterns
 
 3.  **Data Preparation**
 

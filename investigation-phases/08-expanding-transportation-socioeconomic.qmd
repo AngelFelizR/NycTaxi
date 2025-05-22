@@ -1,0 +1,183 @@
+---
+title: "Exploring Transportation and Socioeconomic Patterns"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
+
+Expanding on the previous post's geospatial feature extraction, this article will delve into enriching our understanding of NYC taxi zones with socioeconomic and transportation-related data from the **American Community Survey (ACS)**. This new layer of information will provide crucial context for analyzing `take_current_trip` by revealing underlying community characteristics and commuting behaviors within each zone.
+
+Here are the steps to follow:
+
+1.  **Import ACS data**:
+    * Identify relevant ACS variables for:
+        * Means of transportation to work.
+        * Travel time to work.
+        * Household income.
+        * Geographical mobility.
+    * Download ACS data for NYC census tracts.
+
+2.  **Spatially join ACS data to taxi zones**:
+    * Perform spatial joins to aggregate census tract data to the taxi zone level.
+    * Address overlapping and partially contained tracts.
+
+3.  **Extract new features**:
+    * Calculate proportions, averages, and densities of the ACS variables for each taxi zone.
+
+4.  **Validation**:
+    * Integrate new features with existing data and `take_current_trip`.
+    * Define the correlation between new predictors and `take_current_trip`.
+    
+    
+## Setting up the environment
+
+### Define colors to use
+
+```{r}
+BoroughColors <- c(
+  'Manhattan' = '#e41a1c',
+  'Queens' = '#377eb8',
+  'Brooklyn'= '#4daf4a'
+)
+
+BoroughSelected <- names(BoroughColors)
+
+ColorHighlight <- "lightslateblue"
+ColorGray <- "gray80"
+```
+
+### Define features to import
+
+
+
+### Loading packages
+
+```{r}
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+
+## To work with spatial data
+library(sf)
+
+## To create interactive maps
+library(tmap)
+tmap_mode("view")
+
+## To download OpenStreetMap data
+library(osmdata)
+
+## Transforming distance units
+library(units)
+
+## To create general plots
+library(ggplot2)
+```
+
+:::{.callout-note title="Computational Performance"}
+The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
+:::
+
+## Import data
+
+Details on how this data was obtained can be found in the **Data Collection Process**.
+
+```{r}
+ZonesShapes <-
+  read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
+  subset(borough %in% BoroughSelected) |>
+  transform(Shape_Area = st_area(geometry))
+
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst,
+         columns = c("trip_id","PULocationID", "DOLocationID", "take_current_trip"),
+         as.data.table = TRUE) |>
+  rbindlist()
+```
+
+## Extract OSM data
+
+### Getting data from API
+
+### Saving the data
+
+```r
+qs2::qs_save(OsmDataComplete, 
+             here("output/cache-data/OsmDataComplete.qs"))
+```
+
+
+## Spatial joins
+
+We perform two main types of spatial joins to associate the OpenStreetMap features with our taxi zones: first, to identify features entirely within each zone, and second, to identify features that intersect or overlap with the zone boundaries.
+
+### Joining elements **contained** by each zone
+
+Using the `st_within` function, this section identifies OpenStreetMap features—such as points, lines, polygons, multilinestrings, and multipolygons—that are **fully contained** within each taxi zone's boundaries. `st_within` considers multilinestrings and multipolygons to be within a zone only if all their constituent parts are inside.
+
+```r
+PolygonWithinZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+```
+
+
+### Joining lines that are **partially contained** for each zone. 
+
+In this section, we identify OSM features that are not entirely within a taxi zone but do intersect or overlap with its boundary. For lines and multilinestrings, we use `st_crosses`, which identifies features that intersect the interior of a zone but are not completely contained within it. For polygons and multipolygons, we use `st_overlaps`, which identifies features that have some area in common with a zone but are not identical to or completely contained within it.
+
+```r
+PolygonInSeveralZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+```
+
+#### Cropping features overlapping multiple zones
+
+
+## Validation
+
+
+## Conclusion
+
+
+```r
+temp = tidycensus::load_variables(2021, "acs5")
+
+setDT(temp)
+
+temp[c("MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
+       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
+       
+       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
+     on = "concept",
+     j = !c("concept")
+][label != "Estimate!!Total:"]
+
+# Geographical Mobility - B07203_008
+temp[name %like% "^[A-Z]\\d+_"] |> View()
+
+temp[name %like% "^B08124_"
+     & label %ilike% ".+:.+:$", View(.SD)]
+```
+
+
+

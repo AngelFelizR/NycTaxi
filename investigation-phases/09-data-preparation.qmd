@@ -1,59 +1,12 @@
-```{r}
-tm_shape(LandUseData$osm_lines) +
-  tm_lines()  +
-  tm_basemap("CartoDB.Positron")
+---
+title: "Exploring Transportation and Socioeconomic Patterns"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
 
-for(geom_i in seq_along(LandUseData$osm_multilines$geometry)){
-  print(plot(LandUseData$osm_multilines$geometry[geom_i]))
-}
-
-plot(LandUseData$osm_multilines$geometry[1])
-plot(LandUseData$osm_multilines$geometry[2])
-plot(LandUseData$osm_multilines$geometry[3])
-
-LandUseData$osm_lines <- st_centroid(LandUseData$osm_lines, of_largest_polygon = TRUE)
-LandUseData$osm_multilines <- st_centroid(LandUseData$osm_multilines, of_largest_polygon = TRUE)
-
-sf::sf_use_s2(FALSE)
-tm_shape(LandUseData$osm_lines) +
-  tm_symbols() +
-  tm_basemap("CartoDB.Positron")
-
-tm_shape(LandUseData$osm_multilines) +
-  tm_symbols() +
-  tm_basemap("CartoDB.Positron")
-sf::sf_use_s2(TRUE)
-
-plot(LandUseData$osm_multilines$geometry)
-  
-project.nyc.taxi::plot_box(bb_box) +
-  
-  tm_shape(do.call("rbind", LandUseData[4:8])) +
-  tm_symbols(fill = "landuse",
-             fill.scale = tm_scale_categorical(n.max = 50))+
-  tm_polygons(fill = "landuse",
-              fill.scale = tm_scale_categorical(n.max = 50))
-```
-
-### Adding features
-
-``` r
-ZoneCodeRef <-
-  here("output/cache-data/ZoneCodesRef.fst") |>
-  read_fst(as.data.table = TRUE)
-
-TrainingSampleZones <-
-  
-  ZoneCodeRef[TrainingSample,
-              on = c("LocationID" = "PULocationID"),
-              nomatch = NULL
-  ][, setnames(.SD, names(ZoneCodeRef), paste0("PU_",names(ZoneCodeRef)))
-    
-  ][, ZoneCodeRef[.SD,
-                  on = c("LocationID" = "DOLocationID"),
-                  nomatch = NULL]
-  ][, setnames(.SD, names(ZoneCodeRef), paste0("DO_",names(ZoneCodeRef)))]
-```
 
 ``` r
 # timeDate::listHolidays("US") |>

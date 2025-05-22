@@ -727,13 +727,6 @@ rm(list = grep("OmsDensityFeatures|TrainingSample|Color", ls(), invert = TRUE, v
 gc()
 ```
 
-Now we can safe the transformed data for future use.
-
-```r
-fst::write_fst(OmsDensityFeatures, 
-               path = here("output/OmsDensityFeatures.fst"))
-```
-
 Let's explore the correlated features.
 
 ```{r}
@@ -817,7 +810,7 @@ gc()
 OsmMedianDiff = qs2::qs_read(here("output/cache-data/OsmMedianDiff.qs"))
 ```
 
-```{r}
+```r
 OsmMedianDiff <-
   TrainingSampleOmsDensityFeatures[, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else median(scale(x, center = FALSE))),
                                    .SDcols = !c("trip_id", "PULocationID", "DOLocationID"),
@@ -866,7 +859,7 @@ TopOsmMedianDiff = qs2::qs_read(here("output/cache-data/TopOsmMedianDiff.qs"))
 
 After selecting the to variables to explore, we just need to see
 
-```{r}
+```r
 TopOsmMedianDiffFeatures <- OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
 
 TopOsmMedianDiff <-
@@ -922,9 +915,18 @@ ggplot(TopOsmMedianDiff) +
   theme_minimal()
 ```
 
+After confirming these promising results we can save the most import features for future use.
+
+```r
+FeaturesToKeep <- sub("(PU|DO)_","", TopOsmMedianDiffFeatures)
+
+fst::write_fst(OmsDensityFeatures[, ..FeaturesToKeep], 
+               path = here("output/OmsDensityFeatures.fst"))
+```
+
 
 ## Conclusion
 
-We know that this features will be useful for modeling specially we can fine correlation with weekdays and hour.
+We know that these features will be useful for modeling, especially for finding correlations with weekdays and hours.
 
 It's important to take in consideration that the data is **right skewed** and present some **high-leverage points** that will need to be solved depending on the model to select.
