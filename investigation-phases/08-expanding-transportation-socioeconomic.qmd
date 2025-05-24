@@ -60,6 +60,7 @@ library(here)
 
 ## To transform data that fits in RAM
 library(data.table)
+library(tidytext)
 
 ## To work with spatial data
 library(sf)
@@ -68,14 +69,12 @@ library(sf)
 library(tmap)
 tmap_mode("view")
 
-## To download OpenStreetMap data
-library(osmdata)
-
-## Transforming distance units
-library(units)
+# Access to US Census Bureau datasets
+library(tidycensus)
 
 ## To create general plots
 library(ggplot2)
+library(scales)
 ```
 
 :::{.callout-note title="Computational Performance"}
@@ -106,7 +105,237 @@ TrainingSample <-
   rbindlist()
 ```
 
-## Extract OSM data
+## Exploring census variables
+
+
+```{r}
+#| echo: false
+#| output: false
+
+ValidTablesLastYear <- 
+  fst::read_fst(here("output/cache-data/ValidTablesLastYear.fst"),
+                as.data.table = TRUE)
+```
+
+```r
+CensusTables <-
+  rvest::read_html("https://api.census.gov/data.html") |>
+  rvest::html_table() |>
+  (\(x) x[[1L]])() |>
+  as.data.table() |>
+  subset(!is.na(`API Base URL`)
+         & Vintage != "N/A",
+         select = c("Title",
+                    "Description",
+                    "Vintage",
+                    "Dataset Type",
+                    "Dataset Name",
+                    "API Base URL"))
+
+CensusTables[,`:=`(Vintage = as.integer(Vintage),
+                   `Dataset Name` = gsub("› ", "/", `Dataset Name`))]
+
+CensusTables[, `:=`(survey = fcase(`Dataset Name` %like% "^dec",
+                                   "dec",
+                                   `Dataset Name` %like% "^acs",
+                                   "acs"),
+                    `Dataset Name` = gsub("(dec|acs)/", "", `Dataset Name`))]
+
+setorder(CensusTables, -Vintage)
+
+ValidTables = c(
+  "sf1", "sf2", "sf3", "sf4", "pl", "dhc", "dp", 
+  "ddhca", "ddhcb", "sdhc", "as", "gu", "mp", 
+  "vi", "acsse", "dpas", "dpgu", "dpmp", "dpvi",
+  "dhcvi", "dhcgu", "dhcvi", "dhcas", "acs1", 
+  "acs3", "acs5", "acs1/profile", "acs3/profile",
+  "acs5/profile", "acs1/subject", "acs3/subject",
+  "acs5/subject", "acs1/cprofile", "acs5/cprofile",
+  "sf2profile", "sf3profile", "sf4profile", "aian",
+  "aianprofile", "cd110h", "cd110s", "cd110hprofile",
+  "cd110sprofile", "sldh", "slds", "sldhprofile",
+  "sldsprofile", "cqr", "cd113", "cd113profile",
+  "cd115", "cd115profile", "cd116", "plnat", "cd118"
+)
+
+ValidTablesYears <-
+  CensusTables[
+    Vintage <= 2022
+  ][ValidTables,
+    on = "Dataset Name",
+    nomatch = NULL,
+    unique(.SD, by = "Dataset Name"),
+    .SDcols = c("Vintage", "Dataset Name", "survey")]
+
+get_all_data = function(x, ref_df){
+  
+  imported_data =
+    load_variables(ref_df$Vintage[x],
+                   ref_df$`Dataset Name`[x])
+  
+  setDT(imported_data)
+  
+  imported_data[, `:=`(year = ref_df$Vintage[x],
+                       dataset = ref_df$`Dataset Name`[x],
+                       survey = ref_df$survey[x])]
+  
+  return(imported_data)
+  
+} 
+  
+ValidTablesLastYear <-
+  lapply(seq_along(ValidTablesYears$`Dataset Name`), 
+         get_all_data,
+         ref_df = ValidTablesYears)|>
+  rbindlist(use.names = TRUE, fill = TRUE)
+
+dim(ValidTablesLastYear)
+```
+
+```{r}
+#| echo: false
+
+dim(ValidTablesLastYear)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+
+fst::write_fst(ValidTablesLastYear, here("output/cache-data/ValidTablesLastYear.fst"))
+```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+YearBreaks <- unique(ValidTablesLastYear$year) |> sort(decreasing = TRUE)
+
+VariablesPerDataset <-
+  ValidTablesLastYear[, .N, 
+                      .(year = factor(year), 
+                        dataset,
+                        survey)
+  ][, dataset := reorder(dataset, N, FUN = sum)] 
+
+ggplot(VariablesPerDataset) +
+  geom_col(aes(N, dataset, fill = year)) +
+  scale_fill_brewer(palette = "Purples",
+                    breaks = YearBreaks) +
+  scale_x_continuous(labels = scales::label_comma(scale = 1/1000, suffix = "k"),
+                     breaks = scales::breaks_width(5e3))+
+  labs(x = "Number of variables",
+       fill = "Update year")+
+  facet_wrap(vars(survey), scale = "free") +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
+```
+
+The statistic **tf-idf** is intended to measure how important a word is to a document in a collection (or corpus) of documents
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+CustomStopWords <- c(
+  stop_words$word,
+  "estimate",
+  "estimates",
+  "percent",
+  NA_character_,
+  "months",
+  "past",
+  "detailed",
+  "type",
+  "types",
+  "current",
+  "adjusted",
+  "united",
+  "round"
+)
+
+MostImportWordsPerDataset <-
+  ValidTablesLastYear[, .(dataset,
+                          name,
+                          label = tolower(concept))
+  ][, unnest_tokens(.SD, word, label)
+  ][!word %chin% CustomStopWords
+    & !word %like% "^\\d+$",
+    .N,
+    by = c("dataset", "word")
+  ][, dataset_total := sum(N), 
+    by = "dataset"
+  ][, bind_tf_idf(.SD, word, dataset, N)]
+
+setorder(MostImportWordsPerDataset, -tf_idf)
+
+TopDataset <- levels(VariablesPerDataset$dataset) |> rev()
+
+MostImportWordsPerDataset[dataset %chin% TopDataset[1], 
+                          head(.SD, 30L),
+                          by = "dataset"] |>
+  ggplot(aes(tf_idf,
+             reorder(word, tf_idf, FUN = sum))) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           linewidth = 0.2) +
+  scale_x_continuous(labels = percent_format()) +
+  labs(title = TopDataset[1],
+       x = "tf-idf",
+       y = NULL) +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+MostImportWordsPerDataset[dataset %chin% TopDataset[2], 
+                          head(.SD, 30L),
+                          by = "dataset"] |>
+  ggplot(aes(tf_idf,
+             reorder(word, tf_idf, FUN = sum))) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           linewidth = 0.2) +
+  scale_x_continuous(labels = percent_format()) +
+  labs(title = TopDataset[2],
+       x = "tf-idf",
+       y = NULL) +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
+```
+
+
+### Listing variables to select
+
+```r
+temp[c("MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
+       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
+       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
+       
+       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
+     on = "concept",
+     j = !c("concept")
+][label != "Estimate!!Total:"]
+
+# Geographical Mobility - B07203_008
+temp[name %like% "^[A-Z]\\d+_"] |> View()
+
+temp[name %like% "^B08124_"
+     & label %ilike% ".+:.+:$", View(.SD)]
+```
+
 
 ### Getting data from API
 
@@ -154,30 +383,4 @@ PolygonInSeveralZones <-
 
 
 ## Conclusion
-
-
-```r
-temp = tidycensus::load_variables(2021, "acs5")
-
-setDT(temp)
-
-temp[c("MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
-       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
-       
-       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
-     on = "concept",
-     j = !c("concept")
-][label != "Estimate!!Total:"]
-
-# Geographical Mobility - B07203_008
-temp[name %like% "^[A-Z]\\d+_"] |> View()
-
-temp[name %like% "^B08124_"
-     & label %ilike% ".+:.+:$", View(.SD)]
-```
-
-
 
