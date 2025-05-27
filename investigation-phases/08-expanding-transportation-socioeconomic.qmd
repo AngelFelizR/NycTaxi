@@ -61,6 +61,7 @@ library(here)
 ## To transform data that fits in RAM
 library(data.table)
 library(tidytext)
+library(stringdist)
 
 ## To work with spatial data
 library(sf)
@@ -107,6 +108,12 @@ TrainingSample <-
 
 ## Exploring census variables
 
+Based on the `tidycensus` documentation we have 55 tables available for exploration. That's sounds great but a don't have any idea which variables I want use in this project.
+
+To solve this initial problem we are going to scrap the official web site table to confirm:
+
+- The corresponding survey for each dataset.
+- Select the last year update of each dataset in 2022 or prior (our trainingset comes from 2022).
 
 ```{r}
 #| echo: false
@@ -189,22 +196,30 @@ ValidTablesLastYear <-
          ref_df = ValidTablesYears)|>
   rbindlist(use.names = TRUE, fill = TRUE)
 
-dim(ValidTablesLastYear)
+nrow(ValidTablesLastYear) |> comma()
 ```
 
 ```{r}
 #| echo: false
 
-dim(ValidTablesLastYear)
+nrow(ValidTablesLastYear) |> comma()
 ```
+
+After making that exploration we can see that we have more 340K variables to explore.
 
 ```{r}
 #| eval: false
 #| echo: false
+#| output: false
 
 fst::write_fst(ValidTablesLastYear, here("output/cache-data/ValidTablesLastYear.fst"))
 ```
 
+### Selecting dataset to use
+
+To understand have we have let's plot the number of variables by dataset and survey for each year.
+
+Based on the below chart we can see that `acs1` was updated in 2022 and have more than 35k variables.
 
 ```{r}
 #| code-fold: true
@@ -227,14 +242,23 @@ ggplot(VariablesPerDataset) +
   scale_x_continuous(labels = scales::label_comma(scale = 1/1000, suffix = "k"),
                      breaks = scales::breaks_width(5e3))+
   labs(x = "Number of variables",
-       fill = "Update year")+
+       fill = "Last update year")+
   facet_wrap(vars(survey), scale = "free") +
   theme_minimal()+
   theme(panel.grid.minor = element_blank(),
         panel.grid.major.y = element_blank())
 ```
 
-The statistic **tf-idf** is intended to measure how important a word is to a document in a collection (or corpus) of documents
+To have a general idea of the variable available in that data set we can use the **statistic tf-idf** to list the top 30 more important words of the variables present in the dataset after excluding some stopwords.
+
+Based on the results we see some interesting words like:
+
+-**Occupation**, **employed**, **employment** and **Industry**: I think work variable can affect daily patterns that could benefict taxi drivers.
+-**Population**: The number of people requesting one service could affect the price.
+-**Income**, **earnings**, **poverty**: The average income can affect if people prefer to take a taxi, have their on car or just take public transportation.
+-**Transportation**: Any information about transportation will be useful.
+
+So in general it seems this dataset have a lot of potential and we can concentrate the time to select the more important variables.
 
 ```{r}
 #| code-fold: true
@@ -273,9 +297,8 @@ MostImportWordsPerDataset <-
 
 setorder(MostImportWordsPerDataset, -tf_idf)
 
-TopDataset <- levels(VariablesPerDataset$dataset) |> rev()
 
-MostImportWordsPerDataset[dataset %chin% TopDataset[1], 
+MostImportWordsPerDataset[dataset == "acs1", 
                           head(.SD, 30L),
                           by = "dataset"] |>
   ggplot(aes(tf_idf,
@@ -284,36 +307,182 @@ MostImportWordsPerDataset[dataset %chin% TopDataset[1],
            color = "black",
            linewidth = 0.2) +
   scale_x_continuous(labels = percent_format()) +
-  labs(title = TopDataset[1],
+  labs(title = "acs1",
        x = "tf-idf",
        y = NULL) +
   theme_minimal()+
   theme(panel.grid.minor = element_blank(),
         panel.grid.major.y = element_blank())
+```
+
+
+### Selecting variables to use
+
+Just by looking to the raw data, I found that some variables are related to very specific topics that I don't need to model on like:
+
+- Race
+- Place of Birth
+- Sex
+
+These are indicated in parentheses, so we can create a vector to make exclusion and confirm that any similar was left.
+
+```{r}
+VariablesToIgnore <- c(
+  "Hispanic",
+  "Latino",
+  "American Indian",
+  "Alaska Native",
+  "White",
+  "Black",
+  "African American",
+  "Asian",
+  "Native Hawaiian",
+  "Pacific Islander",
+  "Races?",
+  
+  "Ancestry",
+  "Nativity",
+  "Citizenship Status",
+  "Place of Birth",
+  "Naturalization",
+  "Current Residence",
+  
+  "Male",
+  "Female",
+  "Women",
+  "Men"
+)
+```
+
+
+
+```{r}
+#| eval: false
+
+Acs1ParenthesesInformation <-
+  ValidTablesLastYear[dataset == "acs1"
+                      & year == 2022
+                      & concept %like% "\\("
+                      & !concept %like% paste(VariablesToIgnore, collapse = "|")
+                      & !label %like% "Male|Female",
+                      .(sub_concept = stringr::str_match(concept, "\\((.| )+\\)")[, 1L])
+  ][, .N, sub_concept]
+
+setorder(Acs1ParenthesesInformation, -N)
+
+Acs1ParenthesesInformation
+```
+
+
+```{r}
+#| echo: false
+
+Acs1ParenthesesInformation <- fst::read_fst(here("output/cache-data/Acs1ParenthesesInformation.fst"),
+                                            as.data.table = TRUE)
+
+Acs1ParenthesesInformation
 ```
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
+#| eval: false
+#| echo: false
+#| output: false
 
-MostImportWordsPerDataset[dataset %chin% TopDataset[2], 
-                          head(.SD, 30L),
-                          by = "dataset"] |>
-  ggplot(aes(tf_idf,
-             reorder(word, tf_idf, FUN = sum))) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           linewidth = 0.2) +
-  scale_x_continuous(labels = percent_format()) +
-  labs(title = TopDataset[2],
-       x = "tf-idf",
-       y = NULL) +
-  theme_minimal()+
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank())
+fst::write_fst(Acs1ParenthesesInformation, here("output/cache-data/Acs1ParenthesesInformation.fst"))
 ```
 
+
+Now we just need to apply the same filter for all variables in the dataset.
+
+```{r}
+#| eval: false
+
+Asc1BasicConcept <-
+  ValidTablesLastYear[dataset == "acs1"
+                      & year == 2022
+                      & !concept %like% paste(IgnoreRaceVariables, collapse = "|")
+                      & !label %like% "Male|Female",
+                      .(concept = unique(concept))]
+```
+
+```{r}
+#| echo: false
+
+Asc1BasicConcept <- fst::read_fst(here("output/cache-data/Asc1BasicConcept.fst"),
+                                  as.data.table = TRUE)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+fst::write_fst(Asc1BasicConcept, here("output/cache-data/Asc1BasicConcept.fst"))
+```
+
+After excluding those cases, we still have **`r nrow(Asc1BasicConcept)``** variables to select from, which is still too much if we need to apply spatial joins on each variable to the see which variable have some signal with the target variables.
+
+To explore more efficiently the variables names we can use the **Jaccard distance**, but as the variable names present repetitive words we don't need to evaluate the distance based on letters but **based on words**. To make this possible we need to:
+
+1. Transform each of the variables in to list of 32bit integers by using `hashr::hash`.
+
+```{r}
+Asc1BasicConceptHash <- 
+  Asc1BasicConcept$concept |> 
+  strsplit("\\s+") |> 
+  hashr::hash()
+
+Asc1BasicConcept$concept[1:2]
+
+Asc1BasicConceptHash[1:2]
+```
+
+2. Compute pairwise string distances between hashed words.
+
+```{r}
+Asc1BasicConceptWordDistance <-
+  seq_distmatrix(Asc1BasicConceptHash, 
+                 Asc1BasicConceptHash, 
+                 method = "jaccard", 
+                 q = 1)
+```
+
+To facilitate the manual exploration let's divide the **`r nrow(Asc1BasicConcept)``** variables in to 20 clusters of variables with similar words.
+
+```{r}
+ClusterCheck <-
+  kmeans(Asc1BasicConceptWordDistance,
+         centers = 20, 
+         iter.max = 200)
+
+Asc1BasicConcept[, cluster := ClusterCheck$cluster]
+setkey(Asc1BasicConcept, cluster)
+```
+
+::: {.panel-tabset}
+
+```{r results='asis'}
+for (cluster_i in 1:20) {
+  group_vars <- Asc1BasicConcept[.(cluster_i), concept]
+  cat(paste("\n#### Group", cluster_i, "(",length(group_vars)," vars)", "\n\n"))
+  paste0("- `", group_vars,"`") |> cat(sep = "\n")
+}
+```
+
+:::
+
+Based on the context provided, the most useful variables from the American Community Survey (ACS) for analyzing transportation and socioeconomic patterns in NYC taxi zones would likely include:
+
+1. **Means of Transportation to Work**: This variable can provide insights into how people commute to work, which can be correlated with taxi usage patterns.
+
+2. **Travel Time to Work**: Understanding the average travel time to work can help identify areas where taxis might be more frequently used due to longer commutes.
+
+3. **Household Income**: Income levels can influence the likelihood of using taxis. Higher-income areas might see more taxi usage.
+
+5. **Occupation and Industry**: These variables can provide insights into the types of jobs people have and their work schedules, which can affect taxi usage patterns.
+
+
+These variables can be spatially joined to taxi zone data to create a comprehensive dataset that can be used to analyze and model taxi usage patterns in relation to socioeconomic and transportation characteristics.
 
 ### Listing variables to select
 
