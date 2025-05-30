@@ -70,6 +70,10 @@ library(sf)
 library(tmap)
 tmap_mode("view")
 
+# To work and plot graphs
+library(igraph)
+library(ggraph)
+
 # Access to US Census Bureau datasets
 library(tidycensus)
 
@@ -400,7 +404,7 @@ Now we just need to apply the same filter for all variables in the dataset.
 Asc1BasicConcept <-
   ValidTablesLastYear[dataset == "acs1"
                       & year == 2022
-                      & !concept %like% paste(IgnoreRaceVariables, collapse = "|")
+                      & !concept %like% paste(VariablesToIgnore, collapse = "|")
                       & !label %like% "Male|Female",
                       .(concept = unique(concept))]
 ```
@@ -429,6 +433,7 @@ To explore more efficiently the variables names we can use the **Jaccard distanc
 ```{r}
 Asc1BasicConceptHash <- 
   Asc1BasicConcept$concept |> 
+  tolower() |>
   strsplit("\\s+") |> 
   hashr::hash()
 
@@ -447,16 +452,26 @@ Asc1BasicConceptWordDistance <-
                  q = 1)
 ```
 
-To facilitate the manual exploration let's divide the **`r nrow(Asc1BasicConcept)``** variables in to 20 clusters of variables with similar words.
+To be able to explore the result, let's transform the returned distance matrix into a long data.table, making sure to exclude any duplicated values using the `upper.tri` function from base R and then using argument `na.rm = FALSE` in the `data.table::melt` function.
 
 ```{r}
-ClusterCheck <-
-  kmeans(Asc1BasicConceptWordDistance,
-         centers = 20, 
-         iter.max = 200)
+rownames(Asc1BasicConceptWordDistance) <- Asc1BasicConcept$concept
+colnames(Asc1BasicConceptWordDistance) <- Asc1BasicConcept$concept
 
-Asc1BasicConcept[, cluster := ClusterCheck$cluster]
-setkey(Asc1BasicConcept, cluster)
+Asc1BasicConceptWordDistance[upper.tri(Asc1BasicConceptWordDistance, diag = TRUE)] <- NA
+
+Asc1WordDistanceDt <-
+  as.data.table(Asc1BasicConceptWordDistance,
+                keep.rownames = "Variable Name 1") |>
+  melt(id.vars = "Variable Name 1",
+       variable.name = "Variable Name 2",
+       value.name = "Jaccard Distance",
+       na.rm = TRUE)
+```
+
+```{r}
+ggplot(Asc1WordDistanceDt) + 
+  geom_histogram(aes(`Jaccard Distance`))
 ```
 
 ::: {.panel-tabset}

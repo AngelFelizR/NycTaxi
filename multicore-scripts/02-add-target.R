@@ -1,9 +1,6 @@
 
 # Loading Packages ----
 
-## Custom functions
-library('project.nyc.taxi')
-
 ## To transform data that fits in RAM
 library(data.table)
 library(lubridate)
@@ -14,6 +11,9 @@ library(fst)
 
 ## To manage relative paths
 library(here)
+
+## Custom functions
+source(here("R"))
 
 
 # Importing data ----

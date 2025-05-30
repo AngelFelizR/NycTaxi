@@ -35,6 +35,9 @@ library(lubridate)
 library(ggplot2)
 library(ggiraph)
 
+## Custom functions
+source(here("R"))
+
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
 ```
@@ -111,7 +114,7 @@ Since this process is resource-intensive and each iteration is independent, runn
 
 The only disadvantage of this approach that my current IDE (Rstudio) don't support this process, but it can be run without issues from the **linux terminal** by writing the process on **Rscript files**.
 
-The process was implemented in the **`project.nyc.taxi::add_take_current_trip()`** which has been **tested** to ensure it meets expectations, as confirmed in the [Github file](https://github.com/AngelFelizR/project.nyc.taxi/blob/master/tests/testthat/test-add_take_current_trip.R).
+The process was implemented in the **`add_take_current_trip()`** which has been **tested** to ensure it meets expectations, as confirmed in the [Github file](https://github.com/AngelFelizR/project.nyc.taxi/blob/master/tests/testthat/test-add_take_current_trip.R).
 
 ### Tuning parallel process
 

@@ -48,9 +48,6 @@ The simulation will be based on the following **assumptions** related to the tax
 
 7.  They will take their last trip after working 8 hours, without taking into consideration the 30 minutes break.
 
-::: {.callout-note title="Note - Code Quality"}
-To make sure our simulation meets all those rules the created the `project.nyc.taxi::simulate_trips()` function with unit tests to ensure its accuracy, as you can see in [github](https://github.com/AngelFelizR/project.nyc.taxi/blob/master/tests/testthat/test-simulate_trips.R).
-:::
 
 ## Running trips simulation
 
@@ -66,6 +63,9 @@ library(infer)
 library(DBI)
 library(duckdb)
 library(glue)
+
+## Custom functions
+source(here("R"))
 
 options(datatable.print.nrows = 15)
 ```
@@ -238,7 +238,7 @@ fst::write_fst(PointMeanDistance,here("output/cache-data/PointMeanDistance.fst")
 7.  Running the simulation.
 
 ``` r
-SimulationHourlyWage <- project.nyc.taxi::simulate_trips(con, SimulationStartDay)
+SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
 ```
 
 ```{r echo=FALSE}

@@ -1,0 +1,42 @@
+Package: NycTaxi
+Title: A Data Analysis Project On NYC Taxi Drivers’ Earnings
+Version: 0.1.0.9000
+Authors@R: 
+    person("Angel", "Feliz", , "angel.esteban.feliz@gmail.com", role = c("aut", "cre"),
+           comment = "Personal Web, <https://angelfeliz.com/>")
+Description: In this package, you will find the tools needed to reproduce
+    the analysis done in the project to help taxi drivers in NYC implement
+    strategies that can help them increase their earnings.
+License: GPL (>= 3)
+URL: https://angelfelizr.github.io/NycTaxi/,
+    https://github.com/AngelFelizR/NycTaxi/
+BugReports: https://github.com/AngelFelizR/NycTaxi/issues
+Depends: 
+    R (>= 4.1.0)
+Imports: 
+    data.table,
+    DBI,
+    duckdb,
+    future.apply,
+    glue,
+    leaflet,
+    lubridate,
+    maptiles,
+    sf,
+    stats,
+    timeDate,
+    tmap,
+    utils,
+    withr
+Suggests:
+    future,
+    knitr,
+    pkgload,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+LazyData: true
+LazyDataCompression: xz
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
