@@ -21,7 +21,6 @@ clean_check <- function() {
                      ".quarto",
                      ".Rhistory",
                      ".git",
-                     ".Rprofile",
                      "raw-data",
                      "docs",
                      "investigation-phases", 
