@@ -474,20 +474,30 @@ Asc1WordDistanceDt <-
 ```
 
 ```{r}
-ggplot(Asc1WordDistanceDt)+
-  stat_ecdf(aes(`Jaccard Distance`)) +
-  scale_y_continuous(breaks = breaks_width(0.02),
-                     labels = label_percent())+
-  scale_x_continuous(breaks = breaks_width(0.1),
-                     labels = label_percent())+
-  coord_cartesian(y = c(0, 0.1)) +
-  theme_minimal()+
+NumberOfVariablesByDistance <-
+  seq(0, 1, by = 0.05) |>
+  lapply(\(x) Asc1WordDistanceDt[`Jaccard Distance` <= x,
+                                 .(`Jaccard Distance Threshold` = x,
+                                   `Number of Variables` = uniqueN(c(`Variable Name 1`, `Variable Name 2`)))]) |>
+  rbindlist()
+
+
+ggplot(NumberOfVariablesByDistance,
+       aes(`Jaccard Distance Threshold`, 
+           `Number of Variables`/ length(Asc1BasicConcept$concept)))+
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = label_percent(),
+                     breaks = breaks_width(0.1)) +
+  scale_x_continuous(labels = label_percent(),
+                     breaks = breaks_width(0.1)) +
+  expand_limits(x = 0) +
+  labs(title = "Cumulative Variable Linkage",
+       subtitle = "by Jaccard Distance Cutoff", 
+       x = "Jaccard Distance Threshold",
+       y = "Proportion of Linked Variables") +
+  theme_minimal() +
   theme(panel.grid.minor = element_blank())
-```
-
-
-```{r}
-Asc1WordDistanceDt[`Jaccard Distance` <= 0.4, uniqueN(c(`Variable Name 1`, `Variable Name 2`))]
 ```
 
 
