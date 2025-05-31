@@ -80,6 +80,9 @@ library(tidycensus)
 ## To create general plots
 library(ggplot2)
 library(scales)
+
+## Custom functions
+devtools::load_all()
 ```
 
 :::{.callout-note title="Computational Performance"}

@@ -65,7 +65,7 @@ library(duckdb)
 library(glue)
 
 ## Custom functions
-source(here("R"))
+devtools::load_all()
 
 options(datatable.print.nrows = 15)
 ```

@@ -36,7 +36,7 @@ library(ggplot2)
 library(ggiraph)
 
 ## Custom functions
-source(here("R"))
+devtools::load_all()
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)

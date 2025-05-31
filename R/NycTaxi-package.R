@@ -3,11 +3,13 @@
 
 ## usethis namespace: start
 #' @importFrom data.table :=
+#' @importFrom data.table .N
 #' @importFrom data.table %between%
 #' @importFrom data.table %chin%
 #' @importFrom data.table %like%
 #' @importFrom data.table as.data.table
 #' @importFrom data.table copy
+#' @importFrom data.table data.table
 #' @importFrom data.table fcase
 #' @importFrom data.table fifelse
 #' @importFrom data.table is.data.table
@@ -22,6 +24,27 @@
 #' @importFrom DBI dbGetQuery
 #' @importFrom duckdb duckdb
 #' @importFrom future.apply future_lapply
+#' @importFrom ggplot2 aes
+#' @importFrom ggplot2 element_blank
+#' @importFrom ggplot2 element_text
+#' @importFrom ggplot2 geom_col
+#' @importFrom ggplot2 geom_histogram
+#' @importFrom ggplot2 geom_point
+#' @importFrom ggplot2 geom_step
+#' @importFrom ggplot2 geom_text
+#' @importFrom ggplot2 geom_tile
+#' @importFrom ggplot2 ggplot
+#' @importFrom ggplot2 labs
+#' @importFrom ggplot2 scale_color_manual
+#' @importFrom ggplot2 scale_fill_gradient
+#' @importFrom ggplot2 scale_fill_manual
+#' @importFrom ggplot2 scale_x_continuous
+#' @importFrom ggplot2 scale_x_discrete
+#' @importFrom ggplot2 scale_y_continuous
+#' @importFrom ggplot2 stat_ecdf
+#' @importFrom ggplot2 theme
+#' @importFrom ggplot2 theme_minimal
+#' @importFrom ggplot2 waiver
 #' @importFrom glue glue
 #' @importFrom glue glue_safe
 #' @importFrom leaflet addCircleMarkers
@@ -39,10 +62,18 @@
 #' @importFrom lubridate month
 #' @importFrom lubridate year
 #' @importFrom maptiles get_tiles
+#' @importFrom patchwork plot_annotation
+#' @importFrom patchwork plot_layout
+#' @importFrom rlang enquo
+#' @importFrom rlang quo_name
+#' @importFrom scales comma
+#' @importFrom scales comma_format
+#' @importFrom scales percent
 #' @importFrom sf st_polygon
 #' @importFrom sf st_sfc
 #' @importFrom stats median
 #' @importFrom stats quantile
+#' @importFrom stats reorder
 #' @importFrom stats sd
 #' @importFrom timeDate listHolidays
 #' @importFrom tmap tm_basemap
@@ -82,6 +113,18 @@ utils::globalVariables(c(
   "take_current_trip",
   "trip_miles_mean",
   "trip_time",
-  "waiting_secs"
+  "waiting_secs",
+  
+  # plot_bar
+  "n_trips",
+  "is_top",
+  "cat_summary",
+  
+  # plot_heap_map
+  "N",
+  "cat1",
+  "cat2",
+  "prop"
+  
 
 ))

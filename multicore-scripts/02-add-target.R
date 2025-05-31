@@ -13,7 +13,7 @@ library(fst)
 library(here)
 
 ## Custom functions
-source(here("R"))
+devtools::load_all()
 
 
 # Importing data ----

@@ -6,6 +6,10 @@ options(
 
 source("renv/activate.R")
 
+if (interactive()) {
+  suppressMessages(require(devtools))
+}
+
 # Función R completa para check() con exclusión temporal
 clean_check <- function() {
   # Crear directorio de backup
