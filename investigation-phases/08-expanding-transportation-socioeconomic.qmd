@@ -468,14 +468,28 @@ Asc1WordDistanceDt <-
                 keep.rownames = "Variable Name 1") |>
   melt(id.vars = "Variable Name 1",
        variable.name = "Variable Name 2",
+       variable.factor = FALSE,
        value.name = "Jaccard Distance",
        na.rm = TRUE)
 ```
 
 ```{r}
-ggplot(Asc1WordDistanceDt) + 
-  geom_histogram(aes(`Jaccard Distance`))
+ggplot(Asc1WordDistanceDt)+
+  stat_ecdf(aes(`Jaccard Distance`)) +
+  scale_y_continuous(breaks = breaks_width(0.02),
+                     labels = label_percent())+
+  scale_x_continuous(breaks = breaks_width(0.1),
+                     labels = label_percent())+
+  coord_cartesian(y = c(0, 0.1)) +
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank())
 ```
+
+
+```{r}
+Asc1WordDistanceDt[`Jaccard Distance` <= 0.4, uniqueN(c(`Variable Name 1`, `Variable Name 2`))]
+```
+
 
 ::: {.panel-tabset}
 
