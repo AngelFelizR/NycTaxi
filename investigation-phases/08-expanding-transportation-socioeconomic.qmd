@@ -73,6 +73,7 @@ tmap_mode("view")
 # To work and plot graphs
 library(igraph)
 library(ggraph)
+library(visNetwork)
 
 # Access to US Census Bureau datasets
 library(tidycensus)
@@ -410,6 +411,8 @@ Asc1BasicConcept <-
                       & !concept %like% paste(VariablesToIgnore, collapse = "|")
                       & !label %like% "Male|Female",
                       .(concept = unique(concept))]
+
+Asc1BasicConcept[, concept_length := nchar(concept)]
 ```
 
 ```{r}
@@ -427,16 +430,30 @@ Asc1BasicConcept <- fst::read_fst(here("output/cache-data/Asc1BasicConcept.fst")
 fst::write_fst(Asc1BasicConcept, here("output/cache-data/Asc1BasicConcept.fst"))
 ```
 
-After excluding those cases, we still have **`r nrow(Asc1BasicConcept)``** variables to select from, which is still too much if we need to apply spatial joins on each variable to the see which variable have some signal with the target variables.
+
+```{r}
+ggplot(Asc1BasicConcept)+
+  stat_ecdf(aes(concept_length)) +
+  scale_x_continuous(breaks = breaks_width(10))+
+  theme_minimal()+
+  theme(panel.grid.minor = element_blank())
+
+Asc1BasicConcept[concept_length == 70,
+                 concept]
+```
+
+
+After excluding those cases, we still have **`r nrow(Asc1BasicConcept)`** variables to select from, which is still too much if we need to apply spatial joins on each variable to the see which variable have some signal with the target variables.
 
 To explore more efficiently the variables names we can use the **Jaccard distance**, but as the variable names present repetitive words we don't need to evaluate the distance based on letters but **based on words**. To make this possible we need to:
 
 1. Transform each of the variables in to list of 32bit integers by using `hashr::hash`.
 
 ```{r}
+ShortVariableNames <- Asc1BasicConcept[concept_length <= 70, concept]
+
 Asc1BasicConceptHash <- 
-  Asc1BasicConcept$concept |> 
-  tolower() |>
+  tolower(ShortVariableNames) |>
   strsplit("\\s+") |> 
   hashr::hash()
 
@@ -458,8 +475,8 @@ Asc1BasicConceptWordDistance <-
 To be able to explore the result, let's transform the returned distance matrix into a long data.table, making sure to exclude any duplicated values using the `upper.tri` function from base R and then using argument `na.rm = FALSE` in the `data.table::melt` function.
 
 ```{r}
-rownames(Asc1BasicConceptWordDistance) <- Asc1BasicConcept$concept
-colnames(Asc1BasicConceptWordDistance) <- Asc1BasicConcept$concept
+rownames(Asc1BasicConceptWordDistance) <- ShortVariableNames
+colnames(Asc1BasicConceptWordDistance) <- ShortVariableNames
 
 Asc1BasicConceptWordDistance[upper.tri(Asc1BasicConceptWordDistance, diag = TRUE)] <- NA
 
@@ -481,24 +498,53 @@ NumberOfVariablesByDistance <-
                                    `Number of Variables` = uniqueN(c(`Variable Name 1`, `Variable Name 2`)))]) |>
   rbindlist()
 
+NumberOfVariablesByDistance[, `Proportion of Variables` := `Number of Variables`/ length(ShortVariableNames)]
+
 
 ggplot(NumberOfVariablesByDistance,
        aes(`Jaccard Distance Threshold`, 
-           `Number of Variables`/ length(Asc1BasicConcept$concept)))+
+           `Number of Variables`))+
   geom_line() +
   geom_point() +
-  scale_y_continuous(labels = label_percent(),
-                     breaks = breaks_width(0.1)) +
+  geom_text(aes(label = percent(`Proportion of Variables`,
+                                accuracy = 1)),
+            nudge_y = 25,
+            check_overlap = TRUE) + 
+  scale_y_continuous(labels = label_comma(),
+                     breaks = breaks_width(100)) +
   scale_x_continuous(labels = label_percent(),
                      breaks = breaks_width(0.1)) +
-  expand_limits(x = 0) +
+  expand_limits(x = 0, y = 400) +
   labs(title = "Cumulative Variable Linkage",
        subtitle = "by Jaccard Distance Cutoff", 
-       x = "Jaccard Distance Threshold",
-       y = "Proportion of Linked Variables") +
+       x = "Jaccard Distance Threshold") +
   theme_minimal() +
   theme(panel.grid.minor = element_blank())
 ```
+
+
+```{r}
+VariablesToKeep <- Asc1WordDistanceDt[`Jaccard Distance` <= 0.35]
+
+VariablesToKeep[, .N]
+```
+
+```{r}
+set.seed(2514)
+
+Asc1Graph <- graph_from_data_frame(VariablesToKeep, directed = FALSE)
+Asc1GraphCluster <- cluster_edge_betweenness(Asc1Graph)
+V(Asc1Graph)$color <- Asc1GraphCluster$membership
+
+Asc1GraphData <- toVisNetworkData(Asc1Graph)
+Asc1GraphData$nodes$title <-Asc1GraphData$nodes$label
+
+visNetwork(nodes = Asc1GraphData$nodes,
+           edges = Asc1GraphData$edges) |>
+  visIgraphLayout(layout = "layout_with_kk") |>
+  visInteraction(hover = TRUE)
+```
+
 
 
 ::: {.panel-tabset}
