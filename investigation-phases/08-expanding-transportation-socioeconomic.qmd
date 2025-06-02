@@ -7,17 +7,15 @@ execute:
   warning: false
 ---
 
-Expanding on the previous post's geospatial feature extraction, this article will delve into enriching our understanding of NYC taxi zones with socioeconomic and transportation-related data from the **American Community Survey (ACS)**. This new layer of information will provide crucial context for analyzing `take_current_trip` by revealing underlying community characteristics and commuting behaviors within each zone.
+Expanding on the previous post's geospatial feature extraction, this article will delve into enriching our understanding of NYC taxi zones with socioeconomic and transportation-related data from the **US Census Bureau**. This new layer of information will provide crucial context for analyzing `take_current_trip` by revealing underlying community characteristics and commuting behaviors within each zone.
 
 Here are the steps to follow:
 
-1.  **Import ACS data**:
-    * Identify relevant ACS variables for:
-        * Means of transportation to work.
-        * Travel time to work.
-        * Household income.
-        * Geographical mobility.
-    * Download ACS data for NYC census tracts.
+1. **Importing training data with zone shapes**.
+
+1.  **Import Census data**:
+    * Identify relevant variables.
+    * Download data for Manhattan, Queens and Brooklyn with geometry.
 
 2.  **Spatially join ACS data to taxi zones**:
     * Perform spatial joins to aggregate census tract data to the taxi zone level.
@@ -48,10 +46,6 @@ ColorHighlight <- "lightslateblue"
 ColorGray <- "gray80"
 ```
 
-### Define features to import
-
-
-
 ### Loading packages
 
 ```{r}
@@ -60,8 +54,6 @@ library(here)
 
 ## To transform data that fits in RAM
 library(data.table)
-library(tidytext)
-library(stringdist)
 
 ## To work with spatial data
 library(sf)
@@ -71,9 +63,10 @@ library(tmap)
 tmap_mode("view")
 
 # To work and plot graphs
+library(tidytext)
+library(stringdist)
+library(hashr)
 library(igraph)
-library(ggraph)
-library(visNetwork)
 
 # Access to US Census Bureau datasets
 library(tidycensus)
@@ -90,7 +83,7 @@ devtools::load_all()
 The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
 :::
 
-## Import data
+## Importing training data with zone shapes
 
 Details on how this data was obtained can be found in the **Data Collection Process**.
 
@@ -114,7 +107,9 @@ TrainingSample <-
   rbindlist()
 ```
 
-## Exploring census variables
+## Import Census data
+
+### Identify relevant variables
 
 Based on the `tidycensus` documentation we have 55 tables available for exploration. That's sounds great but a don't have any idea which variables I want use in this project.
 
@@ -127,12 +122,18 @@ To solve this initial problem we are going to scrap the official web site table 
 #| echo: false
 #| output: false
 
-ValidTablesLastYear <- 
-  fst::read_fst(here("output/cache-data/ValidTablesLastYear.fst"),
-                as.data.table = TRUE)
+ValidTablesLastYearFilePath = here("output/cache-data/ValidTablesLastYear.fst")
+
+
+if(file.exists(ValidTablesLastYearFilePath)) {
+  ValidTablesLastYear <- 
+    fst::read_fst(ValidTablesLastYearFilePath, as.data.table = TRUE)
+}
 ```
 
-```r
+```{r}
+#| eval: false
+
 CensusTables <-
   rvest::read_html("https://api.census.gov/data.html") |>
   rvest::html_table() |>
@@ -213,17 +214,15 @@ nrow(ValidTablesLastYear) |> comma()
 nrow(ValidTablesLastYear) |> comma()
 ```
 
-After making that exploration we can see that we have more 340K variables to explore.
+After making that exploration we can see that we have more **340K variables** to explore.
 
 ```{r}
 #| eval: false
 #| echo: false
 #| output: false
 
-fst::write_fst(ValidTablesLastYear, here("output/cache-data/ValidTablesLastYear.fst"))
+fst::write_fst(ValidTablesLastYear, ValidTablesLastYearFilePath)
 ```
-
-### Selecting dataset to use
 
 To understand have we have let's plot the number of variables by dataset and survey for each year.
 
@@ -257,11 +256,33 @@ ggplot(VariablesPerDataset) +
         panel.grid.major.y = element_blank())
 ```
 
-To have a general idea of the variable available in that data set we can use the **statistic tf-idf** to list the top 30 more important words of the variables present in the dataset after excluding some stopwords.
+To have a general idea of the variable available in that data set we can use the **statistic tf-idf** to list the top 30 more important words of the variables present in the dataset.
+
+To have good results with this technique, it's important to complete a list of **stop words** for this data to give space to more relevant words.
+
+```{r}
+CustomStopWords <- c(
+  stop_words$word,
+  "estimate",
+  "estimates",
+  "percent",
+  "months",
+  "past",
+  "detailed",
+  "type",
+  "types",
+  "current",
+  "adjusted",
+  "united",
+  "round",
+  "selected",
+   NA_character_
+)
+```
 
 Based on the results we see some interesting words like:
 
--**Occupation**, **employed**, **employment** and **Industry**: I think work variable can affect daily patterns that could benefict taxi drivers.
+-**Occupation**, **employed**, **employment** and **Industry**: I think work variable can affect daily patterns that could benefit taxi drivers.
 -**Population**: The number of people requesting one service could affect the price.
 -**Income**, **earnings**, **poverty**: The average income can affect if people prefer to take a taxi, have their on car or just take public transportation.
 -**Transportation**: Any information about transportation will be useful.
@@ -272,23 +293,6 @@ So in general it seems this dataset have a lot of potential and we can concentra
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 7.5
-
-CustomStopWords <- c(
-  stop_words$word,
-  "estimate",
-  "estimates",
-  "percent",
-  NA_character_,
-  "months",
-  "past",
-  "detailed",
-  "type",
-  "types",
-  "current",
-  "adjusted",
-  "united",
-  "round"
-)
 
 MostImportWordsPerDataset <-
   ValidTablesLastYear[, .(dataset,
@@ -323,16 +327,13 @@ MostImportWordsPerDataset[dataset == "acs1",
         panel.grid.major.y = element_blank())
 ```
 
-
-### Selecting variables to use
-
-Just by looking to the raw data, I found that some variables are related to very specific topics that I don't need to model on like:
+Just by looking to the raw data, I found that many variables measure the same thing for particular groups based on:
 
 - Race
 - Place of Birth
 - Sex
 
-These are indicated in parentheses, so we can create a vector to make exclusion and confirm that any similar was left.
+As I will join the data based on geography I doesn't make sense to have predictors based on the situations of those particular groups as we won't have does details of passengers of the trips.
 
 ```{r}
 VariablesToIgnore <- c(
@@ -362,44 +363,6 @@ VariablesToIgnore <- c(
 )
 ```
 
-
-
-```{r}
-#| eval: false
-
-Acs1ParenthesesInformation <-
-  ValidTablesLastYear[dataset == "acs1"
-                      & year == 2022
-                      & concept %like% "\\("
-                      & !concept %like% paste(VariablesToIgnore, collapse = "|")
-                      & !label %like% "Male|Female",
-                      .(sub_concept = stringr::str_match(concept, "\\((.| )+\\)")[, 1L])
-  ][, .N, sub_concept]
-
-setorder(Acs1ParenthesesInformation, -N)
-
-Acs1ParenthesesInformation
-```
-
-
-```{r}
-#| echo: false
-
-Acs1ParenthesesInformation <- fst::read_fst(here("output/cache-data/Acs1ParenthesesInformation.fst"),
-                                            as.data.table = TRUE)
-
-Acs1ParenthesesInformation
-```
-
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-fst::write_fst(Acs1ParenthesesInformation, here("output/cache-data/Acs1ParenthesesInformation.fst"))
-```
-
-
 Now we just need to apply the same filter for all variables in the dataset.
 
 ```{r}
@@ -411,8 +374,6 @@ Asc1BasicConcept <-
                       & !concept %like% paste(VariablesToIgnore, collapse = "|")
                       & !label %like% "Male|Female",
                       .(concept = unique(concept))]
-
-Asc1BasicConcept[, concept_length := nchar(concept)]
 ```
 
 ```{r}
@@ -431,53 +392,62 @@ fst::write_fst(Asc1BasicConcept, here("output/cache-data/Asc1BasicConcept.fst"))
 ```
 
 
+Another aspect we found out by exploring the data it's that some variables names are really long and the long the concept definition the more specific the variable and less useful for our model. For example, below we can see the variable with the longer number of characters:
+
+- It measure family income for families by responsibility for own grandchildren:
+    - With Grandparent Householders
+    - or With Spouses Living
+    - With Own Grandchildren Under 18 Years
+       
 ```{r}
+Asc1BasicConcept[nchar(concept) == max(nchar(concept)), concept]
+```
+
+By exploring the cumulative distribution we can see that near 50% of the variable present less **70 characters** per variable which seems the better group to focus the exploration
+
+```{r}
+Asc1BasicConcept[, concept_length := nchar(concept)]
+
 ggplot(Asc1BasicConcept)+
   stat_ecdf(aes(concept_length)) +
   scale_x_continuous(breaks = breaks_width(10))+
+  scale_y_continuous(labels = label_percent(accuracy = 1))+
   theme_minimal()+
   theme(panel.grid.minor = element_blank())
-
-Asc1BasicConcept[concept_length == 70,
-                 concept]
 ```
 
-
-After excluding those cases, we still have **`r nrow(Asc1BasicConcept)`** variables to select from, which is still too much if we need to apply spatial joins on each variable to the see which variable have some signal with the target variables.
-
-To explore more efficiently the variables names we can use the **Jaccard distance**, but as the variable names present repetitive words we don't need to evaluate the distance based on letters but **based on words**. To make this possible we need to:
-
-1. Transform each of the variables in to list of 32bit integers by using `hashr::hash`.
+To confirm if that action make sense, we can see the 2 variables that have 70 characters. we can confirm that are general enough to be valid predictors:
 
 ```{r}
-ShortVariableNames <- Asc1BasicConcept[concept_length <= 70, concept]
+Asc1BasicConceptMaxConceptLength <- 70
 
+Asc1BasicConceptValidConceptLength <- 
+  Asc1BasicConcept[concept_length <= Asc1BasicConceptMaxConceptLength]
+
+Asc1BasicConcept[concept_length == Asc1BasicConceptMaxConceptLength, concept]
+```
+
+After excluding those cases, we still have **`r nrow(Asc1BasicConceptValidConceptLength)` variables to explore**. But we notice that some of the variable measure similar aspects of the studied population and we can calculate the pairwise **Jaccard string distances** of each of the variables.
+
+```{r}
+# 1. Create a hash for each word 
 Asc1BasicConceptHash <- 
-  tolower(ShortVariableNames) |>
+  tolower(Asc1BasicConceptValidConceptLength$concept) |>
   strsplit("\\s+") |> 
-  hashr::hash()
+  hash()
 
-Asc1BasicConcept$concept[1:2]
-
-Asc1BasicConceptHash[1:2]
-```
-
-2. Compute pairwise string distances between hashed words.
-
-```{r}
+# 2. Compute pairwise string distances between hashed words.
 Asc1BasicConceptWordDistance <-
   seq_distmatrix(Asc1BasicConceptHash, 
                  Asc1BasicConceptHash, 
                  method = "jaccard", 
                  q = 1)
-```
 
-To be able to explore the result, let's transform the returned distance matrix into a long data.table, making sure to exclude any duplicated values using the `upper.tri` function from base R and then using argument `na.rm = FALSE` in the `data.table::melt` function.
+# 3. Giving names to matrix
+rownames(Asc1BasicConceptWordDistance) <- Asc1BasicConceptValidConceptLength$concept
+colnames(Asc1BasicConceptWordDistance) <- Asc1BasicConceptValidConceptLength$concept
 
-```{r}
-rownames(Asc1BasicConceptWordDistance) <- ShortVariableNames
-colnames(Asc1BasicConceptWordDistance) <- ShortVariableNames
-
+# 4. Transforming the matrix in to data.table
 Asc1BasicConceptWordDistance[upper.tri(Asc1BasicConceptWordDistance, diag = TRUE)] <- NA
 
 Asc1WordDistanceDt <-
@@ -490,6 +460,14 @@ Asc1WordDistanceDt <-
        na.rm = TRUE)
 ```
 
+To understand what this metric represent in this particular concept, we plotted the cumulative number of unique variables with defined `Jaccard Distance`.
+
+Based on the below chart, we can see that 54% of the variables present at least one relation with less than **0.35 distance**. Which sounds like the group we need to focus, as the longer become the a variable the longer the distance of words it needs to match with another variable. By make this selection we expect to be able to explore the more important variables as:
+
+- Present areas with many ways to measure
+- Exclude too specifit variables
+
+
 ```{r}
 NumberOfVariablesByDistance <-
   seq(0, 1, by = 0.05) |>
@@ -498,7 +476,7 @@ NumberOfVariablesByDistance <-
                                    `Number of Variables` = uniqueN(c(`Variable Name 1`, `Variable Name 2`)))]) |>
   rbindlist()
 
-NumberOfVariablesByDistance[, `Proportion of Variables` := `Number of Variables`/ length(ShortVariableNames)]
+NumberOfVariablesByDistance[, `Proportion of Variables` := `Number of Variables`/ nrow(Asc1BasicConceptValidConceptLength)]
 
 
 ggplot(NumberOfVariablesByDistance,
@@ -522,75 +500,96 @@ ggplot(NumberOfVariablesByDistance,
   theme(panel.grid.minor = element_blank())
 ```
 
+We can also use these distance relations to create meaning clusters based on the **betweenness of the edges** in the network.
 
 ```{r}
-VariablesToKeep <- Asc1WordDistanceDt[`Jaccard Distance` <= 0.35]
+Asc1WordValidDistanceDt <- Asc1WordDistanceDt[`Jaccard Distance` <= 0.35]
 
-VariablesToKeep[, .N]
+Asc1WordValidDistanceGraph <- graph_from_data_frame(Asc1WordValidDistanceDt, directed = FALSE)
+Asc1WordValidDistanceCluster <- cluster_edge_betweenness(Asc1Graph)
+
+Asc1WordValidDistanceCluster
 ```
+
+Now we can take the information back to data.table to more manipulation and exploration.
 
 ```{r}
-set.seed(2514)
+Asc1WordValidDistanceVariables <-
+  V(Asc1WordValidDistanceGraph) |>
+  as.data.frame() |>
+  as.data.table(keep.rownames = "Concept")
 
-Asc1Graph <- graph_from_data_frame(VariablesToKeep, directed = FALSE)
-Asc1GraphCluster <- cluster_edge_betweenness(Asc1Graph)
-V(Asc1Graph)$color <- Asc1GraphCluster$membership
-
-Asc1GraphData <- toVisNetworkData(Asc1Graph)
-Asc1GraphData$nodes$title <-Asc1GraphData$nodes$label
-
-visNetwork(nodes = Asc1GraphData$nodes,
-           edges = Asc1GraphData$edges) |>
-  visIgraphLayout(layout = "layout_with_kk") |>
-  visInteraction(hover = TRUE)
+Asc1WordValidDistanceVariables[
+  j = `:=`(x = NULL,
+           cluster = Asc1WordValidDistanceCluster$membership)
+]
 ```
 
+To understand what kind of variables we have in each cluster lets use the **statistic tf-idf** to list the top 4 words of each cluster and use that reference to select the must meaningful ones for this context.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+TopMeasiningWords <-
+  Asc1WordValidDistanceVariables[, .(cluster,
+                                     concept_lower = tolower(Concept))
+  ][, unnest_tokens(.SD, word, concept_lower)
+  ][!word %chin% CustomStopWords
+    & !word %like% "^\\d+$",
+    .N,
+    by = c("cluster", "word")
+  ][, dataset_total := sum(N), 
+    by = "cluster"
+  ][, bind_tf_idf(.SD, word, cluster, N)
+  ][order(-tf_idf)
+  ][, .(`Top Words` =
+          head(word, 4L) |> 
+          stringr::str_to_sentence() |>
+          paste0(collapse = " | ") |> 
+          paste0(" - ", cluster)),
+    keyby = "cluster"]
 
 
-::: {.panel-tabset}
-
-```{r results='asis'}
-for (cluster_i in 1:20) {
-  group_vars <- Asc1BasicConcept[.(cluster_i), concept]
-  cat(paste("\n#### Group", cluster_i, "(",length(group_vars)," vars)", "\n\n"))
-  paste0("- `", group_vars,"`") |> cat(sep = "\n")
-}
+TopMeasiningWords[Asc1WordValidDistanceVariables,
+                  on = "cluster",
+                  j = .(`Node Count` = .N), 
+                  by = `Top Words`] |>
+  ggplot(aes(y = reorder(`Top Words`, `Node Count`), 
+             x = `Node Count`)) +
+  geom_col(fill = ColorGray,
+           color = "black",
+           linewidth = 0.2) +
+  labs(title = "Cluster Node Distribution", 
+       y = "Cluster ID",
+       x = "Number of Variables") +
+  geom_text(aes(label = `Node Count`),
+            nudge_x = 0.5) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())
 ```
 
-:::
-
-Based on the context provided, the most useful variables from the American Community Survey (ACS) for analyzing transportation and socioeconomic patterns in NYC taxi zones would likely include:
-
-1. **Means of Transportation to Work**: This variable can provide insights into how people commute to work, which can be correlated with taxi usage patterns.
-
-2. **Travel Time to Work**: Understanding the average travel time to work can help identify areas where taxis might be more frequently used due to longer commutes.
-
-3. **Household Income**: Income levels can influence the likelihood of using taxis. Higher-income areas might see more taxi usage.
-
-5. **Occupation and Industry**: These variables can provide insights into the types of jobs people have and their work schedules, which can affect taxi usage patterns.
+After checking the results we are going to select the next clusters to continues with the analysis as are directly related to transportation behavior, income patterns, and population density.
 
 
-These variables can be spatially joined to taxi zone data to create a comprehensive dataset that can be used to analyze and model taxi usage patterns in relation to socioeconomic and transportation characteristics.
 
-### Listing variables to select
+| Cluster | Top Words                          | Reason for Inclusion                                                                 |
+|---------|------------------------------------|--------------------------------------------------------------------------------------|
+| 2       | Means, Transportation, Workplace, Geography | Directly captures commuting methods and workplace locations affecting taxi demand |
+| 3       | Time, Travel, Departure, Workers   | Measures commute duration/patterns critical for taxi usage timing                 |
+| 4       | Household, Workers, Size, Vehicles | Reflects vehicle ownership and workforce density influencing taxi reliance        |
+| 19      | Households, Income, Retirement, Social | Income levels directly correlate with taxi affordability and usage frequency    |
+| 13      | Ratio, Level, Income, Poverty      | Poverty/income ratios indicate socioeconomic segments likely to use taxis        |
 
-```r
-temp[c("MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TIME OF DEPARTURE TO GO TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY TRAVEL TIME TO WORK",
-       "AGGREGATE TRAVEL TIME TO WORK (IN MINUTES) OF WORKERS BY MEANS OF TRANSPORTATION TO WORK",
-       "MEANS OF TRANSPORTATION TO WORK BY VEHICLES AVAILABLE",
-       
-       "MEDIAN HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2021 INFLATION-ADJUSTED DOLLARS) BY AGE OF HOUSEHOLDER"),
-     on = "concept",
-     j = !c("concept")
-][label != "Estimate!!Total:"]
 
-# Geographical Mobility - B07203_008
-temp[name %like% "^[A-Z]\\d+_"] |> View()
+```{r}
+Asc1FinalVariables <-
+  Asc1WordValidDistanceVariables[.(c(2, 3, 4, 19, 13)),
+                                 on = "cluster"]
 
-temp[name %like% "^B08124_"
-     & label %ilike% ".+:.+:$", View(.SD)]
+Asc1FinalVariables
 ```
 
 
