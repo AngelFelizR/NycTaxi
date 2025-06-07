@@ -75,6 +75,9 @@ library(tidycensus)
 library(ggplot2)
 library(scales)
 
+## To create table
+library(gt)
+
 ## Custom functions
 devtools::load_all()
 ```
@@ -290,9 +293,17 @@ Based on the results we see some interesting words like:
 So in general it seems this dataset have a lot of potential and we can concentrate the time to select the more important variables.
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
+#| echo: false
+#| output: false
+
+MostImportWordsPerDataset <-
+  fst::read_fst(here("output/cache-data/MostImportWordsPerDataset.fst"),
+                as.data.table = TRUE)
+```
+
+
+```{r}
+#| eval: false
 
 MostImportWordsPerDataset <-
   ValidTablesLastYear[, .(dataset,
@@ -308,7 +319,22 @@ MostImportWordsPerDataset <-
   ][, bind_tf_idf(.SD, word, dataset, N)]
 
 setorder(MostImportWordsPerDataset, -tf_idf)
+```
 
+```{r}
+#| echo: false
+#| eval: false
+
+fst::write_fst(MostImportWordsPerDataset,
+               here("output/cache-data/MostImportWordsPerDataset.fst"))
+```
+
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
 
 MostImportWordsPerDataset[dataset == "acs1", 
                           head(.SD, 30L),
@@ -394,18 +420,24 @@ fst::write_fst(Asc1BasicConcept, here("output/cache-data/Asc1BasicConcept.fst"))
 
 Another aspect we found out by exploring the data it's that some variables names are really long and the long the concept definition the more specific the variable and less useful for our model. For example, below we can see the variable with the longer number of characters:
 
+```{r}
+#| echo: false
+#| output: asis
+
+Asc1BasicConcept[nchar(concept) == max(nchar(concept)), paste0("> ", concept)] |> cat()
+```
+
 - It measure family income for families by responsibility for own grandchildren:
     - With Grandparent Householders
     - or With Spouses Living
     - With Own Grandchildren Under 18 Years
-       
-```{r}
-Asc1BasicConcept[nchar(concept) == max(nchar(concept)), concept]
-```
 
 By exploring the cumulative distribution we can see that near 50% of the variable present less **70 characters** per variable which seems the better group to focus the exploration
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
 Asc1BasicConcept[, concept_length := nchar(concept)]
 
 ggplot(Asc1BasicConcept)+
@@ -469,6 +501,10 @@ Based on the below chart, we can see that 54% of the variables present at least 
 
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
 NumberOfVariablesByDistance <-
   seq(0, 1, by = 0.05) |>
   lapply(\(x) Asc1WordDistanceDt[`Jaccard Distance` <= x,
@@ -506,7 +542,7 @@ We can also use these distance relations to create meaning clusters based on the
 Asc1WordValidDistanceDt <- Asc1WordDistanceDt[`Jaccard Distance` <= 0.35]
 
 Asc1WordValidDistanceGraph <- graph_from_data_frame(Asc1WordValidDistanceDt, directed = FALSE)
-Asc1WordValidDistanceCluster <- cluster_edge_betweenness(Asc1Graph)
+Asc1WordValidDistanceCluster <- cluster_edge_betweenness(Asc1WordValidDistanceGraph)
 
 Asc1WordValidDistanceCluster
 ```
@@ -585,11 +621,76 @@ After checking the results we are going to select the next clusters to continues
 
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+
 Asc1FinalVariables <-
   Asc1WordValidDistanceVariables[.(c(2, 3, 4, 19, 13)),
                                  on = "cluster"]
 
-Asc1FinalVariables
+# Apply only background colors without borders
+group_colors <- c(
+  "🚌 Cluster 2: Transportation" = "#e3f2fd",
+  "⏱️ Cluster 3: Travel Time" = "#fce4ec",
+  "🏘️ Cluster 4: Household Structure" = "#e8f5e9",
+  "📉 Cluster 13: Poverty Level" = "#fff3e0",
+  "💰 Cluster 19: Household Income" = "#f3e5f5"
+)
+
+# Group Labels
+group_names = names(group_colors)
+
+Asc1FinalVariables[, cluster_label := fcase(
+  cluster == 2,  group_names[1L],
+  cluster == 3,  group_names[2L],
+  cluster == 4,  group_names[3L],
+  cluster == 13, group_names[4L],
+  cluster == 19, group_names[5L]
+)]
+
+# Sort clusters by size (descending order)
+cluster_order <- Asc1FinalVariables[, .N, by = "cluster_label"][order(-N), cluster_label]
+Asc1FinalVariables[, cluster_label := factor(cluster_label, levels = cluster_order)]
+
+# Versión minimalista sin líneas internas
+gt_tbl_minimal <-
+  Asc1FinalVariables[order(cluster_label), !c("cluster")] |>
+  gt(groupname_col = "cluster_label") |>
+  tab_header(
+    title = md("**Variables Grouped by Cluster**"),
+    subtitle = "Cluster labels include icons for easy recognition"
+  ) |>
+  cols_label(Concept = "Variable Description") |>
+  tab_options(
+    row_group.as_column = TRUE,
+    table.width = pct(100),
+    heading.background.color = "#f9f9f9",
+    table.border.top.color = "gray90"
+  ) |>
+  # Remove all striping and borders
+  opt_table_lines(extent = "none") |>
+  tab_style(
+    style = cell_borders(sides = "all", color = "transparent"),
+    locations = cells_body()
+  )
+
+for (grp in cluster_order) {
+  gt_tbl_minimal <- gt_tbl_minimal |>
+    tab_style(
+      style = list(
+        cell_fill(color = group_colors[grp]),
+        cell_text(weight = "bold")
+      ),
+      locations = cells_row_groups(groups = grp)
+    ) |>
+    tab_style(
+      style = list(cell_fill(color = group_colors[grp])),
+      locations = cells_body(rows = cluster_label == grp)
+    )
+}
+
+gt_tbl_minimal
 ```
 
 
