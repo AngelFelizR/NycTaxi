@@ -336,42 +336,14 @@ VariablesToIgnore <- c(
 
 As we will join the data based on geography it doesn't make sense to have predictors based on the situations of those particular groups as we won't have does details of passengers of the trips.
 
-```{r}
-#| echo: false
-#| output: false
-
-ConceptsToExploreFilePath <-
-  here("output/cache-data/08-expanding-transportation-socioeconomic/ConceptsToExplore.fst")
-
-if(file.exists(ConceptsToExploreFilePath)) {
-  ConceptsToExplore <-
-    fst::read_fst(ConceptsToExploreFilePath, as.data.table = TRUE)
-}
-```
 
 ```{r}
-#| eval: false
-
 ConceptsToExplore <-
   ValidTablesLastYear[!concept %ilike% paste(VariablesToIgnore, collapse = "|")
                       & !label %ilike% "Male|Female",
                       .(concept = unique(concept))]
 
 nrow(ConceptsToExplore)
-```
-
-```{r}
-#| echo: false
-
-nrow(ConceptsToExplore)
-```
-
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-fst::write_fst(ConceptsToExplore, ConceptsToExploreFilePath)
 ```
 
 Another aspect we found out by exploring the data it's that some variables names are really long and the long the concept definition the more specific the variable and less useful for our model. For example, below we can see the variable with the longer number of characters:
@@ -489,13 +461,15 @@ ConceptsToExploreByDistanceFilePath <-
   here("output/cache-data/08-expanding-transportation-socioeconomic/ConceptsToExploreByDistance.fst")
 
 if(file.exists(ConceptsToExploreByDistanceFilePath)) {
-  ConceptsToExplore <-
+  ConceptsToExploreByDistance <-
     fst::read_fst(ConceptsToExploreByDistanceFilePath, as.data.table = TRUE)
 }
 ```
 
 
 ```{r}
+#| eval: false
+
 define_clusters_by_distance <- function(min_jaccard_distance,
                                         dt){
   
@@ -534,76 +508,65 @@ ConceptsToExploreByDistance <-
 fst::write_fst(ConceptsToExploreByDistance, ConceptsToExploreByDistanceFilePath)
 ```
 
+After exploring several configurations we can see that that the as we expand the limit of Jaccard Distance the modularity decrease, but the number of clusters initially increases (peaking around 0.3) and then steadily decreases until 0.7, after which it increases sharply again.
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-#| fig-height: 7.5
 
 ConceptsToExploreByDistance[, unique(.SD),
                             .SDcols = c("Jaccard Distance Threshold",
-                                   "modularity",
-                                   "n_clusters")] |>
+                                        "modularity",
+                                        "n_clusters")] |>
   melt(id.vars = "Jaccard Distance Threshold",
        variable.name = "cluster_metric") |>
-  ggplot(aes(`Jaccard Distance Threshold`,
-             value,
-             color = cluster_metric)) +
-  geom_line()+
-  geom_point()+
-  scale_y_continuous(labels = \(x) fifelse(x <= 1 & x > 0, 
-                                           label_percent()(x),
-                                           label_comma(accuracy = 1)(x) ),
-                     breaks = breaks_pretty(7))+
+  ggplot(aes(`Jaccard Distance Threshold`, value)) +
+  geom_line(linewidth = 1,
+            color = "gray40") +
+  geom_point(size = 3,
+             color = "gray40") +
+  geom_vline(xintercept = 0.5,
+             linetype = "dashed",
+             color = ColorHighlight,
+             linewidth = 0.9) +
+  # Add the annotation here
+  annotate("text", x = 0.5, y = Inf, label = "0.5 Threshold",
+           color = ColorHighlight, vjust = 1.2, hjust = -0.05, size = 4) +
+  scale_y_continuous(labels = \(x) fifelse(x <= 1 & x > 0,
+                                            label_percent()(x),
+                                            label_comma(accuracy = 1)(x)),
+                     breaks = breaks_pretty(7)) +
   scale_x_continuous(breaks = breaks_width(0.10)) +
   expand_limits(y = 0) +
   facet_wrap(vars(cluster_metric),
              scale = "free_y",
-             ncol = 1L)+
-  theme_minimal()+
+             ncol = 1L,
+             strip.position = "top") +
+  labs(
+    title = "Modularity and Number of Clusters vs. Jaccard Distance Threshold",
+    subtitle = "Assessing the Trade-off: High Modularity and Low Number of Clusters",
+    x = "Jaccard Distance Threshold",
+    y = "Value"
+  ) +
+  theme_minimal() +
   theme(panel.grid.minor = element_blank(),
-        legend.position = "none")
+        legend.position = "none",
+        plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(color = "gray25"),
+        strip.text = element_text(size = 12, face = "bold"),
+        axis.text = element_text(size = 10))
 ```
 
-Based on the below chart, we can see that 95% of the variables present at least one relation with less than **0.60 distance**. Which sounds like the group we need to focus, as the longer become the variable the longer the distance of words it needs to match with another variable. By make this selection we expect to be able to explore the more important variables as:
-
-- Present areas with many ways to measure
-- Exclude too specific variables
-
-We can also use these distance relations to create meaning clusters based on the **betweenness of the edges** in the network.
+Based on this information **the best threshold is 0.5 Jaccard Distance** as the modularity is higher than 0.8 and the algorithm found less than 60 clusters. After than point the slope to reduce the number of clusters gets lower as concurrence, we don't see worthy to keep increasing the threshold.
 
 ```{r}
-ConceptsToExploreValidDistanceDt <- 
-  ConceptsToExploreWordDistanceDt[`Jaccard Distance` <= 0.60]
-
-ConceptsToExploreValidDistanceGraph <- 
-  graph_from_data_frame(ConceptsToExploreValidDistanceDt,
-                        directed = FALSE)
-
-ConceptsToExploreValidDistanceCluster <-
-  cluster_edge_betweenness(ConceptsToExploreValidDistanceGraph)
-
+ConceptsToExploreClusters <-
+  ConceptsToExploreByDistance[.(0.5),
+                              on = "Jaccard Distance Threshold"]
 ```
 
-Now we can take the information back to data.table to more manipulation and exploration.
 
-```{r}
-ConceptsToExploreValidDistanceVariables <-
-  V(ConceptsToExploreValidDistanceGraph) |>
-  as.data.frame() |>
-  as.data.table(keep.rownames = "Concept")
-
-ConceptsToExploreValidDistanceVariables[
-  j = `:=`(x = NULL,
-           cluster = ConceptsToExploreValidDistanceCluster$membership)
-]
-```
-
-To understand what kind of variables we have in each cluster lets use the **statistic tf-idf** to list the top 4 words of each cluster and use that reference to select the must meaningful ones for this context.
-
-let's use the **statistic tf-idf** to list the top **30 more important words** of the variables present in the dataset by following the next steps:
-
-1. Defining custom **stop words** for this data to **give space to more relevant words**.
+To understand what kind of variables we have in each cluster lets use the **statistic tf-idf** to list the **top 5 words** (after removing stop words) of each cluster and use that reference to select the must meaningful ones for this context.
 
 ```{r}
 CustomStopWords <- c(
@@ -625,16 +588,10 @@ CustomStopWords <- c(
   "level",
    NA_character_
 )
-```
 
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-
-TopMeasiningWords <-
-  ConceptsToExploreValidDistanceVariables[, .(cluster,
-                                              concept_lower = tolower(Concept))
+TopWordsByCluster <-
+  ConceptsToExploreClusters[, .(cluster,
+                                concept_lower = tolower(node))
   ][, unnest_tokens(.SD, word, concept_lower)
   ][!word %chin% CustomStopWords
     & !word %like% "^\\d+$",
@@ -647,55 +604,116 @@ TopMeasiningWords <-
   ][, .(`Top Words` =
           head(word, 5L) |> 
           stringr::str_to_sentence() |>
-          paste0(collapse = " | ") |> 
-          paste0(" - ", cluster)),
-    keyby = "cluster"]
-
-ConceptsToExploreValidDistanceVariables[!TopMeasiningWords,
-                                        on = "cluster"]
-
-
-TopMeasiningWords[ConceptsToExploreValidDistanceVariables,
-                  on = "cluster",
-                  j = .(`Node Count` = .N), 
-                  by = `Top Words`] |>
-  ggplot(aes(y = reorder(`Top Words`, `Node Count`), 
-             x = `Node Count`)) +
-  geom_col(fill = ColorGray,
-           color = "black",
-           linewidth = 0.2) +
-  labs(title = "Cluster Node Distribution", 
-       y = "Cluster ID",
-       x = "Number of Variables") +
-  geom_text(aes(label = `Node Count`),
-            nudge_x = 0.5) +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank())
+          paste0(collapse = ", ")),
+    keyby = "cluster"
+  ][ConceptsToExploreClusters,
+    on = "cluster",
+    j = .(`Node Count` = .N), 
+    by = c("Top Words", "cluster")
+  ][order(- `Node Count`, cluster),
+    .(`Cluster ID` = cluster, `Top Words`, `Node Count`)]
 ```
 
-After checking the results we are going to select the next clusters to continues with the analysis as are directly related to transportation behavior, income patterns, and population density.
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+gt(TopWordsByCluster) |>
+  # Apply visual styling
+  tab_header(
+    title = "Key Variable Clusters from Census Data Analysis",
+    subtitle = "Top representative words and cluster sizes for socioeconomic & transportation patterns"
+  ) |>
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#2c3e50"),
+    locations = cells_title()
+  ) |>
+  data_color(
+    columns = `Node Count`,
+    fn = scales::col_numeric(
+      palette = c("white", ColorGray, ColorHighlight),
+      domain = c(0, max(TopWordsByCluster$`Node Count`))
+    )
+  )|>
+  fmt_number(
+    columns = `Node Count`,
+    decimals = 0
+  ) |>
+  cols_align(
+    align = "left",
+    columns = `Top Words`
+  ) |>
+  cols_label(
+    `Cluster ID` = "CLUSTER",
+    `Top Words` = "TOP REPRESENTATIVE TERMS",
+    `Node Count` = "# VARIABLES"
+  ) |>
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    row_group.background.color = "#f1f3f5",
+    row.striping.include_table_body = TRUE
+  ) |>
+  tab_source_note(
+    source_note = "Clusters identified through NLP analysis of US Census variable concepts"
+  )
+```
+
+Based on the analysis, the following clusters are selected for inclusion due to their direct relevance to transportation behavior, income patterns, and population density - key factors influencing taxi demand (`take_current_trip`):
+
+| Cluster ID | Top Words                          | Node Count | Reason for Inclusion                                                                 | Key Metrics to Extract                                                                 |
+|------------|------------------------------------|------------|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| **18**     | Work, Transportation, Means, Time, Workplace | 32         | **Direct commuting behavior** - primary driver of taxi demand patterns               | - Commute mode share (% taxi/public transit)<br>- Average commute time<br>- Work-from-home rate |
+| **13**     | Population, Years, Civilian, Employed, Age | 32         | **Employment density** - correlates with business/event-related trips              | - Employment-to-population ratio<br>- % working-age population (25-54)<br>- Job density |
+| **36**     | Households, Income, Earnings, Dollars, Security | 19         | **Income capacity** - strongest predictor of taxi affordability and usage frequency | - Median household income<br>- Income density ($/mi²)<br>- % high-income households (>$100K) |
 
 
+### Next Steps:
+1. Extract variables from selected clusters
+2. Calculate zone-level metrics:
+   - **Commuter ratios** (cluster 18)
+   - **Employment-to-population ratios** (cluster 13)
+   - **Income density** (clusters 36)
+   - **Poverty concentration** (cluster 20)
+   - **Housing cost burden** (cluster 21)
+3. Validate correlation with `take_current_trip`
 
-| Cluster | Top Words                          | Reason for Inclusion                                                                 |
-|---------|------------------------------------|--------------------------------------------------------------------------------------|
-| 2       | Means, Transportation, Workplace, Geography | Directly captures commuting methods and workplace locations affecting taxi demand |
-| 3       | Time, Travel, Departure, Workers   | Measures commute duration/patterns critical for taxi usage timing                 |
-| 4       | Household, Workers, Size, Vehicles | Reflects vehicle ownership and workforce density influencing taxi reliance        |
-| 19      | Households, Income, Retirement, Social | Income levels directly correlate with taxi affordability and usage frequency    |
-| 13      | Ratio, Level, Income, Poverty      | Poverty/income ratios indicate socioeconomic segments likely to use taxis        |
+As some variable show up in more than one dataset let's define a priority selection
+
+Ok entonces para mis fines como estoy analizando NYC buscando patrones estables entre distintos años dare preferencia a los siguientes datasets
+
+SDHC
+DHC 
+ACS5
+acs5/subject
 
 ```{r}
-Asc1FinalVariables <-
-  Asc1WordValidDistanceVariables[.(c(2, 3, 4, 19, 13)),
-                                 on = "cluster"]
+ConceptConsolidation <-
+  unique(ValidTablesLastYear[, .(concept,
+                                 year,
+                                 dataset,
+                                 survey)])
 
-Asc1FinalVariables[]
+
+ConceptsToExploreClustersFinalVariables <-
+  ConceptsToExploreClusters[.(c(18, 13, 36)),
+                            on = "cluster"
+  ][ConceptConsolidation,
+    on = c("node" = "concept"),
+    nomatch = NULL]
+
+ConceptsToExploreClustersFinalVariables[, .(N = .N, dataset = paste(dataset, collapse = ",")), node][N > 1, .N, dataset]
 ```
 
 
 ```{r}
+#| eval: false
 #| code-fold: true
 #| code-summary: "Show the code"
 
