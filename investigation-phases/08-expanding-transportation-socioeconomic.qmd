@@ -43,6 +43,7 @@ BoroughColors <- c(
 BoroughSelected <- names(BoroughColors)
 
 ColorHighlight <- "lightslateblue"
+ColorHighlightLow <- "#D3CDF7"
 ColorGray <- "gray80"
 ```
 
@@ -635,7 +636,7 @@ gt(TopWordsByCluster) |>
   data_color(
     columns = `Node Count`,
     fn = scales::col_numeric(
-      palette = c("white", ColorGray, ColorHighlight),
+      palette = c("white", ColorHighlightLow, ColorHighlight),
       domain = c(0, max(TopWordsByCluster$`Node Count`))
     )
   )|>
@@ -667,49 +668,119 @@ gt(TopWordsByCluster) |>
 
 Based on the analysis, the following clusters are selected for inclusion due to their direct relevance to transportation behavior, income patterns, and population density - key factors influencing taxi demand (`take_current_trip`):
 
-| Cluster ID | Top Words                          | Node Count | Reason for Inclusion                                                                 | Key Metrics to Extract                                                                 |
-|------------|------------------------------------|------------|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| **18**     | Work, Transportation, Means, Time, Workplace | 32         | **Direct commuting behavior** - primary driver of taxi demand patterns               | - Commute mode share (% taxi/public transit)<br>- Average commute time<br>- Work-from-home rate |
-| **13**     | Population, Years, Civilian, Employed, Age | 32         | **Employment density** - correlates with business/event-related trips              | - Employment-to-population ratio<br>- % working-age population (25-54)<br>- Job density |
-| **36**     | Households, Income, Earnings, Dollars, Security | 19         | **Income capacity** - strongest predictor of taxi affordability and usage frequency | - Median household income<br>- Income density ($/mi²)<br>- % high-income households (>$100K) |
+| Cluster ID | Top Words                          | Node Count | Reason for Inclusion                                                                 |
+|------------|------------------------------------|------------|--------------------------------------------------------------------------------------|
+| **18**     | Work, Transportation, Means, Time, Workplace | 32    | **Direct commuting behavior** - primary driver of taxi demand patterns          |
+| **13**     | Population, Years, Civilian, Employed, Age | 32      | **Employment density** - correlates with business/event-related trips           |
+| **36**     | Households, Income, Earnings, Dollars, Security | 19 | **Income capacity** - strongest predictor of taxi affordability and usage frequency|
 
-
-### Next Steps:
-1. Extract variables from selected clusters
-2. Calculate zone-level metrics:
-   - **Commuter ratios** (cluster 18)
-   - **Employment-to-population ratios** (cluster 13)
-   - **Income density** (clusters 36)
-   - **Poverty concentration** (cluster 20)
-   - **Housing cost burden** (cluster 21)
-3. Validate correlation with `take_current_trip`
-
-As some variable show up in more than one dataset let's define a priority selection
-
-Ok entonces para mis fines como estoy analizando NYC buscando patrones estables entre distintos años dare preferencia a los siguientes datasets
-
-SDHC
-DHC 
-ACS5
-acs5/subject
 
 ```{r}
-ConceptConsolidation <-
-  unique(ValidTablesLastYear[, .(concept,
-                                 year,
-                                 dataset,
-                                 survey)])
-
-
-ConceptsToExploreClustersFinalVariables <-
+ConceptsToExploreCleanConcept <-
   ConceptsToExploreClusters[.(c(18, 13, 36)),
-                            on = "cluster"
-  ][ConceptConsolidation,
-    on = c("node" = "concept"),
-    nomatch = NULL]
+                            on = "cluster",
+                            .(concept = stringr::str_to_sentence(node),
+                              cluster)]
 
-ConceptsToExploreClustersFinalVariables[, .(N = .N, dataset = paste(dataset, collapse = ",")), node][N > 1, .N, dataset]
+ConceptByDataset <-
+  ValidTablesLastYear[, .(concept = stringr::str_to_sentence(concept),
+                          year,
+                          dataset,
+                          survey)
+  ][, unique(.SD)]
+
+
+ConceptByDatasetToExplore <-
+  ConceptByDataset[ConceptsToExploreCleanConcept,
+                   on = "concept"]
 ```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ConceptByDatasetToExplore[, .(N = .N, 
+                              dataset = sort(dataset) |> paste(collapse = ", ")), 
+                          by = "concept"
+][N > 1, 
+  .(variables =  .N), 
+  keyby = "dataset"] |>
+  
+  
+  gt() |>
+  
+  # Header
+  tab_header(
+    title = md("**Dataset Variable Analysis**"),
+    subtitle = "Distribution of shared variables across survey datasets"
+  ) |>
+  
+  # Col Names
+  cols_label(
+    dataset = "Dataset Collection",
+    variables = "Number of Variables"
+  ) |>
+  
+  # Number Format
+  fmt_number(columns = variables, decimals = 0) |>
+  
+  # Colors
+  data_color(
+    columns = variables,
+    colors = scales::col_numeric(
+      palette = c("white",ColorHighlightLow, ColorHighlight),
+      domain = NULL
+    )
+  ) |>
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#2c3e50"),
+    locations = cells_title()
+  ) |>
+  
+  # Options
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    row_group.background.color = "#f1f3f5",
+    row.striping.include_table_body = TRUE
+  )
+```
+
+```{r}
+ConceptByValidDatasetToExplore <-
+  ConceptByDatasetToExplore[c("acs5", "acs5/subject", "dhc"),
+                            on = "dataset",
+                            .(dataset, concept, cluster)]
+
+ValidTablesLastYear[, concept := stringr::str_to_sentence(concept)]
+
+ValidTablesLastYear[
+  ConceptByValidDatasetToExplore,
+  on = c("dataset","concept")
+][!label %ilike% "Male|Female"
+  & !name %like% "^B0501(3|4)"
+][, View(.SD)]
+
+```
+
+
+
+| Dataset | Title                                                     |
+|---------|-----------------------------------------------------------|
+| dhc   | Decennial Census: Demographic and Housing Characteristics |
+| cd118 | Decennial Census: 118th Congressional District Summary File |
+| dhcas | Decennial Census of Island Areas: American Samoa Demographic and Housing Characteristics |
+| dhcgu | Decennial Census of Island Areas: Guam Demographic and Housing Characteristics |
+| dhcvi | Decennial Census of Island Areas: U.S. Virgin Islands Demographic and Housing Characteristics |
+| sdhc  | 2020 Supplemental Demographic and Housing Characteristics File (S-DHC) |
+
 
 
 ```{r}
