@@ -696,6 +696,9 @@ ConceptByDatasetToExplore <-
 ```
 
 
+Checking the data we can see that some concept are duplicated in some in some datasets, as we can see in the next table.
+
+
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
@@ -753,107 +756,76 @@ ConceptByDatasetToExplore[, .(N = .N,
   )
 ```
 
+
+We can see that we have 2 main groups of cases:
+
+- Variables shared between acs1 (subject) and acs5 (subject).
+- Variables shared between datasets of the decennial US Census.
+
+By reading about the differences between each datasets, we are going to focus in the variables available for the next datasets:
+
+- **acs5** and **acs5/subject**
+
+    - We are going to train the model based on one year data but we want to be able to find patterns that remain for future years as our testing data have trips for 2025 we expect that the model keep working after that year.
+    
+
+- **dhc**
+
+    - We are exploring only NYC so won't need information from indepent island and as result the information provided by those datasets won't be relevant for our training goal.
+
+
 ```{r}
 ConceptByValidDatasetToExplore <-
   ConceptByDatasetToExplore[c("acs5", "acs5/subject", "dhc"),
                             on = "dataset",
                             .(dataset, concept, cluster)]
 
-ValidTablesLastYear[, concept := stringr::str_to_sentence(concept)]
-
-ValidTablesLastYear[
-  ConceptByValidDatasetToExplore,
-  on = c("dataset","concept")
-][!label %ilike% "Male|Female"
-  & !name %like% "^B0501(3|4)"
-][, View(.SD)]
-
 ```
 
-
-
-| Dataset | Title                                                     |
-|---------|-----------------------------------------------------------|
-| dhc   | Decennial Census: Demographic and Housing Characteristics |
-| cd118 | Decennial Census: 118th Congressional District Summary File |
-| dhcas | Decennial Census of Island Areas: American Samoa Demographic and Housing Characteristics |
-| dhcgu | Decennial Census of Island Areas: Guam Demographic and Housing Characteristics |
-| dhcvi | Decennial Census of Island Areas: U.S. Virgin Islands Demographic and Housing Characteristics |
-| sdhc  | 2020 Supplemental Demographic and Housing Characteristics File (S-DHC) |
-
-
+Now we are ready to identify the particular codes (names) related to each variable concept. In this step are going to exclude variables that only provide information based on sex with the exception of `B08013_001` which provide information about "travel time to work (in minutes) of workers".
 
 ```{r}
-#| eval: false
-#| code-fold: true
-#| code-summary: "Show the code"
+ValidTablesLastYear[, concept := stringr::str_to_sentence(concept)]
 
-# Apply only background colors without borders
-group_colors <- c(
-  "🚌 Cluster 2: Transportation" = "#e3f2fd",
-  "⏱️ Cluster 3: Travel Time" = "#fce4ec",
-  "🏘️ Cluster 4: Household Structure" = "#e8f5e9",
-  "📉 Cluster 13: Poverty Level" = "#fff3e0",
-  "💰 Cluster 19: Household Income" = "#f3e5f5"
-)
+VariablesToUse <-
+  ValidTablesLastYear[
+    ConceptByValidDatasetToExplore,
+    on = c("dataset","concept")
+    # Removing variables related to sex
+  ][!label %ilike% "Male|Female"
+  ][, concept_count := .N, 
+    by = "concept"
+    # Aggregate travel time to work (in minutes) of workers by sex
+  ][name == "B08013_001"
+    | concept_count > 2L]
 
-# Group Labels
-group_names = names(group_colors)
+VariablesToUse[, .(N = comma(.N)), "survey"]
+```
 
-Asc1FinalVariables[, cluster_label := fcase(
-  cluster == 2,  group_names[1L],
-  cluster == 3,  group_names[2L],
-  cluster == 4,  group_names[3L],
-  cluster == 13, group_names[4L],
-  cluster == 19, group_names[5L]
-)]
+### Download data for Manhattan, Queens and Brooklyn with geometry
 
-# Sort clusters by size (descending order)
-cluster_order <- Asc1FinalVariables[, .N, by = "cluster_label"][order(-N), cluster_label]
-Asc1FinalVariables[, cluster_label := factor(cluster_label, levels = cluster_order)]
+We will have problems getting information county level in 313 variables
 
-# Versión minimalista sin líneas internas
-gt_tbl_minimal <-
-  Asc1FinalVariables[order(cluster_label), !c("cluster")] |>
-  gt(groupname_col = "cluster_label") |>
-  tab_header(
-    title = md("**Variables Grouped by Cluster**"),
-    subtitle = "Cluster labels include icons for easy recognition"
-  ) |>
-  cols_label(Concept = "Variable Description") |>
-  tab_options(
-    row_group.as_column = TRUE,
-    table.width = pct(100),
-    heading.background.color = "#f9f9f9",
-    table.border.top.color = "gray90"
-  ) |>
-  # Remove all striping and borders
-  opt_table_lines(extent = "none") |>
-  tab_style(
-    style = cell_borders(sides = "all", color = "transparent"),
-    locations = cells_body()
-  )
+```{r}
+VariablesToUse["acs", on = "survey", .N, by = "geography"]
+```
 
-for (grp in cluster_order) {
-  gt_tbl_minimal <- gt_tbl_minimal |>
-    tab_style(
-      style = list(
-        cell_fill(color = group_colors[grp]),
-        cell_text(weight = "bold")
-      ),
-      locations = cells_row_groups(groups = grp)
-    ) |>
-    tab_style(
-      style = list(cell_fill(color = group_colors[grp])),
-      locations = cells_body(rows = cluster_label == grp)
-    )
-}
+```{r}
+ny <-
+  get_acs(geography = "tract", 
+          variables = "B08013_001",
+          year = 2020, 
+          state = "NY",
+          # Manhattan, Brooklyn, Queens
+          county =  c("New York", "Kings", "Queens"),
+          geometry = TRUE,
+          survey = "acs5")
 
-gt_tbl_minimal
+tm_shape(ny) +
+  tm_polygons(fill = "estimate")
 ```
 
 
-### Getting data from API
 
 ### Saving the data
 
