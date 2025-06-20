@@ -819,11 +819,79 @@ ny <-
           # Manhattan, Brooklyn, Queens
           county =  c("New York", "Kings", "Queens"),
           geometry = TRUE,
-          survey = "acs5")
+          survey = "acs5") |>
+  st_transform(crs = st_crs(ZonesShapes)$epsg)
 
 tm_shape(ny) +
   tm_polygons(fill = "estimate")
 ```
+
+```{r}
+NyWithin <-
+  st_join(ny,
+          y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+tm_shape(ZonesShapes) +
+  tm_polygons() +
+  tm_shape(NyWithin) +
+  tm_polygons(fill = "estimate")
+```
+
+```{r}
+NyInSeveralZones <-
+  st_join(ny,
+          y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+
+tm_shape(ZonesShapes) +
+  tm_polygons() +
+  tm_shape(NyInSeveralZones) +
+  tm_polygons(fill = "estimate")
+```
+
+
+```{r}
+intersect(NyInSeveralZones$GEOID,
+          NyWithin$GEOID)
+```
+
+```{r}
+ny[ny$GEOID %chin% 
+     setdiff(ny$GEOID,
+        c(NyInSeveralZones$GEOID,
+          NyWithin$GEOID)), ]
+```
+
+
+```{r}
+apply_intersection_by_id <- function(features,
+                                     shapes){
+  
+  intersection_by_id = function(id, features, shapes) {
+    
+    features_sub = subset(features, LocationID == id)
+    shapes_sub_geo = subset(shapes, LocationID == id) |> st_geometry()
+    
+    new_df = st_intersection(features_sub, shapes_sub_geo)
+    
+    return(new_df)
+  }
+  
+  new_df =
+    lapply(unique(features$LocationID),
+           FUN = intersection_by_id,
+           features = features,
+           shapes = shapes) |>
+    do.call(what = "rbind")
+  
+  return(new_df)
+  
+}
+```
+
 
 
 
