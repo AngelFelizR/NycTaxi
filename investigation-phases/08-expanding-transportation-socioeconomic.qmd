@@ -94,8 +94,8 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 ```{r}
 ZonesShapes <-
   read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
-  subset(borough %in% BoroughSelected) |>
-  transform(Shape_Area = st_area(geometry))
+  (\(df) df[df[["borough"]] %chin% BoroughSelected, ])() |>
+  st_cast(to = "MULTIPOLYGON")
 
 TrainingSample <-
   here("output/take-trip-fst") |>
@@ -782,7 +782,10 @@ ConceptByValidDatasetToExplore <-
 
 ```
 
-Now we are ready to identify the particular codes (names) related to each variable concept. In this step are going to exclude variables that only provide information based on sex with the exception of `B08013_001` which provide information about "travel time to work (in minutes) of workers".
+Now we are ready to identify the particular codes (names) related to each variable concept. In this step are going to exclude variables that:
+
+- Only provide information based on sex with the exception of `B08013_001` which provide information about "travel time to work (in minutes) of workers".
+- Don't have information at tract level of geography.
 
 ```{r}
 ValidTablesLastYear[, concept := stringr::str_to_sentence(concept)]
@@ -791,108 +794,185 @@ VariablesToUse <-
   ValidTablesLastYear[
     ConceptByValidDatasetToExplore,
     on = c("dataset","concept")
-    # Removing variables related to sex
+    
+  # Only provide information based on sex
   ][!label %ilike% "Male|Female"
   ][, concept_count := .N, 
     by = "concept"
-    # Aggregate travel time to work (in minutes) of workers by sex
   ][name == "B08013_001"
-    | concept_count > 2L]
+    | concept_count > 2L
+    
+  # Don't have information at tract 
+  ][fcoalesce(geography, "") != "county"]
 
-VariablesToUse[, .(N = comma(.N)), "survey"]
+VariablesToUse[, .(N = comma(.N)), by = "survey"]
 ```
 
 ### Download data for Manhattan, Queens and Brooklyn with geometry
 
-We will have problems getting information county level in 313 variables
+Now before creating function to get the data for thousends of variables, let's validate the workflow with one variable. In this case let's use the `B08013_001` to explore travel time to work.
 
 ```{r}
-VariablesToUse["acs", on = "survey", .N, by = "geography"]
+#| echo: false
+#| output: false
+
+TravelTimeToWorkTractFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/TravelTimeToWorkTract.qs")
+
+if(file.exists(ValidTablesLastYearFilePath)) {
+  TravelTimeToWorkTract <- qs2::qs_read(TravelTimeToWorkTractFilePath)
+}
 ```
 
 ```{r}
-ny <-
+#| eval: false
+
+TravelTimeToWorkTract <-
   get_acs(geography = "tract", 
-          variables = "B08013_001",
+          variables = c("B08013_001","B08006_001"),
           year = 2020, 
           state = "NY",
           # Manhattan, Brooklyn, Queens
           county =  c("New York", "Kings", "Queens"),
           geometry = TRUE,
-          survey = "acs5") |>
+          survey = "acs5",
+          output = "wide") |>
   st_transform(crs = st_crs(ZonesShapes)$epsg)
 
-tm_shape(ny) +
+# Removing missing data
+TravelTimeToWorkTract <- TravelTimeToWorkTract[!is.na(TravelTimeToWorkTract[["estimate"]]), ]
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(TravelTimeToWorkTract, TravelTimeToWorkTractFilePath)
+```
+
+By plotting the results we can confirm that:
+
+- We have values for the majority of our studied area
+- We have different values from tract to tract
+- The track tracks have different sizes
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+tm_shape(TravelTimeToWorkTract) +
   tm_polygons(fill = "estimate")
 ```
 
-```{r}
-NyWithin <-
-  st_join(ny,
-          y = ZonesShapes,
-          join = st_within,
-          left = FALSE)
+As result we need to join to the original zones of our training set in to 2 steps:
 
-tm_shape(ZonesShapes) +
-  tm_polygons() +
-  tm_shape(NyWithin) +
-  tm_polygons(fill = "estimate")
+- Join the tracts full contained within the original zone shapes.
+- Join the tracts that overlaps in more than one zone shape.
+
+```{r}
+#| eval: false
+
+TravelTimeToWorkTractJoinedList <-
+  lapply(list(within = st_within,
+              overlaps = st_overlaps), 
+         FUN = st_join,
+         x = TravelTimeToWorkTract,
+         y = ZonesShapes,
+         left = FALSE)
+```
+
+Now we need to go over each of the original zone shapes and cut the tracts parts that are not contained on each zone and consolidate the within and overlaps elements of `TravelTimeToWorkTractJoinedList` into one data frame.
+
+```{r}
+#| echo: false
+#| output: false
+
+TravelTimeToWorkTractJoinedFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/TravelTimeToWorkTractJoined.qs")
+
+
+if(file.exists(ValidTablesLastYearFilePath)) {
+  TravelTimeToWorkTractJoined <- qs2::qs_read(TravelTimeToWorkTractJoinedFilePath)
+}
 ```
 
 ```{r}
-NyInSeveralZones <-
-  st_join(ny,
-          y = ZonesShapes,
-          join = st_overlaps,
-          left = FALSE)
+#| eval: false
 
-tm_shape(ZonesShapes) +
-  tm_polygons() +
-  tm_shape(NyInSeveralZones) +
-  tm_polygons(fill = "estimate")
-```
-
-
-```{r}
-intersect(NyInSeveralZones$GEOID,
-          NyWithin$GEOID)
-```
-
-```{r}
-ny[ny$GEOID %chin% 
-     setdiff(ny$GEOID,
-        c(NyInSeveralZones$GEOID,
-          NyWithin$GEOID)), ]
-```
-
-
-```{r}
 apply_intersection_by_id <- function(features,
-                                     shapes){
+                                     shapes,
+                                     id_col){
   
-  intersection_by_id = function(id, features, shapes) {
+  intersection_by_id = function(id, features, shapes, id_col) {
     
-    features_sub = subset(features, LocationID == id)
-    shapes_sub_geo = subset(shapes, LocationID == id) |> st_geometry()
+    features_sub = features[features[[id_col]] == id, ]
+    shapes_sub_geo = shapes[shapes[[id_col]] == id, ] |> st_geometry()
     
-    new_df = st_intersection(features_sub, shapes_sub_geo)
-    
+    new_df = 
+      st_intersection(features_sub,
+                      shapes_sub_geo) |>
+      st_cast(to = "MULTIPOLYGON")
+
     return(new_df)
   }
   
   new_df =
-    lapply(unique(features$LocationID),
+    lapply(unique(features[[id_col]]),
            FUN = intersection_by_id,
            features = features,
-           shapes = shapes) |>
+           shapes = shapes,
+           id_col = id_col) |>
     do.call(what = "rbind")
   
   return(new_df)
   
 }
+
+TravelTimeToWorkTractJoinedList$overlaps <-
+  apply_intersection_by_id(TravelTimeToWorkTractJoinedList$overlaps,
+                           ZonesShapes,
+                           id_col = "OBJECTID")
+
+TravelTimeToWorkTractJoined <- do.call("rbind", TravelTimeToWorkTractJoinedList)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(TravelTimeToWorkTractJoined, TravelTimeToWorkTractJoinedFilePath)
 ```
 
 
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+tm_shape(TravelTimeToWorkTractJoined) +
+  tm_polygons(fill = "estimate")
+```
+
+Perfect, we have joined the to shapes, but we still need to have only one estimate value per original zone shape. To solve this challenge we only need to use the `weighted arithmetic mean` based on the proportion of the area add each tract to the original zone id.
+
+```{r}
+TravelTimeToWorkTractJoined$tract_area <- st_area(TravelTimeToWorkTractJoined$geometry)
+
+setDT(TravelTimeToWorkTractJoined)
+
+TravelTimeToWorkEstimateByZoneId <-
+  TravelTimeToWorkTractJoined[
+    j = .(estimate  = sum(estimate * 
+                            as.double(tract_area /
+                                        sum(tract_area, na.rm = TRUE)),
+                          na.rm = TRUE)),
+    by = c("LocationID", "variable")
+  ][, dcast(.SD, LocationID ~ variable, value.var = "estimate")]
+
+TravelTimeToWorkEstimateByZoneId
+```
+
+Great, we just need to wrap this strategy into the `estimate_by_zone_id` and running into a parallel multicore process to process 3 variables at the same time.
 
 
 ### Saving the data
