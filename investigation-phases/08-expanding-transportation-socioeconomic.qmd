@@ -805,7 +805,8 @@ VariablesToUse <-
   # Don't have information at tract 
   ][fcoalesce(geography, "") != "county"]
 
-VariablesToUse[, .(N = comma(.N)), by = "survey"]
+VariablesToUse[, .(N = comma(.N)), 
+               by = c("survey", "year")]
 ```
 
 ### Download data for Manhattan, Queens and Brooklyn with geometry
@@ -816,20 +817,20 @@ Now before creating function to get the data for thousends of variables, let's v
 #| echo: false
 #| output: false
 
-TravelTimeToWorkTractFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/TravelTimeToWorkTract.qs")
+AcsVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/AcsVariableTracts.qs")
 
 if(file.exists(ValidTablesLastYearFilePath)) {
-  TravelTimeToWorkTract <- qs2::qs_read(TravelTimeToWorkTractFilePath)
+  AcsVariableTracts <- qs2::qs_read(AcsVariableTractsFilePath)
 }
 ```
 
 ```{r}
 #| eval: false
 
-TravelTimeToWorkTract <-
+AcsVariableTracts <-
   get_acs(geography = "tract", 
-          variables = c("B08013_001","B08006_001"),
-          year = 2020, 
+          variables = VariablesToUse["acs", on = "survey", name],
+          year = 2022, 
           state = "NY",
           # Manhattan, Brooklyn, Queens
           county =  c("New York", "Kings", "Queens"),
@@ -837,9 +838,6 @@ TravelTimeToWorkTract <-
           survey = "acs5",
           output = "wide") |>
   st_transform(crs = st_crs(ZonesShapes)$epsg)
-
-# Removing missing data
-TravelTimeToWorkTract <- TravelTimeToWorkTract[!is.na(TravelTimeToWorkTract[["estimate"]]), ]
 ```
 
 ```{r}
@@ -847,7 +845,42 @@ TravelTimeToWorkTract <- TravelTimeToWorkTract[!is.na(TravelTimeToWorkTract[["es
 #| echo: false
 #| output: false
 
-qs2::qs_save(TravelTimeToWorkTract, TravelTimeToWorkTractFilePath)
+qs2::qs_save(AcsVariableTracts, AcsVariableTractsFilePath)
+```
+
+```{r}
+#| echo: false
+#| output: false
+
+DecVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
+
+if(file.exists(ValidTablesLastYearFilePath)) {
+  DecVariableTracts <- qs2::qs_read(DecVariableTractsFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
+DecVariableTracts <-
+  get_decennial(geography = "tract", 
+                variables = VariablesToUse["dec", on = "survey", name],
+                sumfile = "dhc",
+                year = 2020, 
+                state = "NY",
+                # Manhattan, Brooklyn, Queens
+                county =  c("New York", "Kings", "Queens"),
+                geometry = TRUE,
+                output = "wide") |>
+  st_transform(crs = st_crs(ZonesShapes)$epsg)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(DecVariableTracts, DecVariableTractsFilePath)
 ```
 
 By plotting the results we can confirm that:
