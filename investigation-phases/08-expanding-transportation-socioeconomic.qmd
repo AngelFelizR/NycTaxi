@@ -94,7 +94,8 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 ```{r}
 ZonesShapes <-
   read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
-  (\(df) df[df[["borough"]] %chin% BoroughSelected, ])() |>
+  (\(df) df[df[["borough"]] %chin% BoroughSelected,
+            c("OBJECTID", "LocationID")])() |>
   st_cast(to = "MULTIPOLYGON")
 
 TrainingSample <-
@@ -811,7 +812,13 @@ VariablesToUse[, .(N = comma(.N)),
 
 ### Download data for Manhattan, Queens and Brooklyn with geometry
 
-Now before creating function to get the data for thousends of variables, let's validate the workflow with one variable. In this case let's use the `B08013_001` to explore travel time to work.
+After defining the variables to use we only need to define the queries to get the data from the API with `{tidycensus}` for the American Community Survey (ACS) and Decennial US Census (DEC).
+
+::: {.callout-note}
+As we are getting also the geometry information is much efficient to change the `output` argument default from "tidy" to "wide" to avoid having a list column repeating the same geometries over and over after applying the function `tidyr::gather`.
+
+**This will make the spatial join independent to the number of variables to query.**
+:::
 
 ```{r}
 #| echo: false
@@ -821,6 +828,12 @@ AcsVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation
 
 if(file.exists(ValidTablesLastYearFilePath)) {
   AcsVariableTracts <- qs2::qs_read(AcsVariableTractsFilePath)
+}
+
+DecVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
+
+if(file.exists(ValidTablesLastYearFilePath)) {
+  DecVariableTracts <- qs2::qs_read(DecVariableTractsFilePath)
 }
 ```
 
@@ -838,29 +851,6 @@ AcsVariableTracts <-
           survey = "acs5",
           output = "wide") |>
   st_transform(crs = st_crs(ZonesShapes)$epsg)
-```
-
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-qs2::qs_save(AcsVariableTracts, AcsVariableTractsFilePath)
-```
-
-```{r}
-#| echo: false
-#| output: false
-
-DecVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
-
-if(file.exists(ValidTablesLastYearFilePath)) {
-  DecVariableTracts <- qs2::qs_read(DecVariableTractsFilePath)
-}
-```
-
-```{r}
-#| eval: false
 
 DecVariableTracts <-
   get_decennial(geography = "tract", 
@@ -880,25 +870,28 @@ DecVariableTracts <-
 #| echo: false
 #| output: false
 
+qs2::qs_save(AcsVariableTracts, AcsVariableTractsFilePath)
+
 qs2::qs_save(DecVariableTracts, DecVariableTractsFilePath)
 ```
 
-By plotting the results we can confirm that:
-
-- We have values for the majority of our studied area
-- We have different values from tract to tract
-- The track tracks have different sizes
-
+To it's the perfect time to join all variables into one table.
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
+ConsolidatedVariableTracts <- 
+  dplyr::full_join(AcsVariableTracts, 
+                   st_drop_geometry(DecVariableTracts), 
+                   by = c("GEOID", "NAME"))
 
-tm_shape(TravelTimeToWorkTract) +
-  tm_polygons(fill = "estimate")
+dim(ConsolidatedVariableTracts)
+dim(AcsVariableTracts)
+dim(DecVariableTracts)
 ```
 
-As result we need to join to the original zones of our training set in to 2 steps:
+
+## Spatial joins
+
+We need to join to the original zones of our training set in to 2 steps:
 
 - Join the tracts full contained within the original zone shapes.
 - Join the tracts that overlaps in more than one zone shape.
@@ -906,11 +899,11 @@ As result we need to join to the original zones of our training set in to 2 step
 ```{r}
 #| eval: false
 
-TravelTimeToWorkTractJoinedList <-
+ConsolidatedVariableTractsJoinedList <-
   lapply(list(within = st_within,
               overlaps = st_overlaps), 
          FUN = st_join,
-         x = TravelTimeToWorkTract,
+         x = ConsolidatedVariableTracts,
          y = ZonesShapes,
          left = FALSE)
 ```
@@ -921,11 +914,12 @@ Now we need to go over each of the original zone shapes and cut the tracts parts
 #| echo: false
 #| output: false
 
-TravelTimeToWorkTractJoinedFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/TravelTimeToWorkTractJoined.qs")
+ConsolidatedVariableTractsJoinedFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsJoined.qs")
 
 
-if(file.exists(ValidTablesLastYearFilePath)) {
-  TravelTimeToWorkTractJoined <- qs2::qs_read(TravelTimeToWorkTractJoinedFilePath)
+if(file.exists(ConsolidatedVariableTractsJoinedFilePath)) {
+  ConsolidatedVariableTractsJoined <-
+    qs2::qs_read(ConsolidatedVariableTractsJoinedFilePath)
 }
 ```
 
@@ -961,12 +955,14 @@ apply_intersection_by_id <- function(features,
   
 }
 
-TravelTimeToWorkTractJoinedList$overlaps <-
-  apply_intersection_by_id(TravelTimeToWorkTractJoinedList$overlaps,
+ConsolidatedVariableTractsJoinedList$overlaps <-
+  apply_intersection_by_id(ConsolidatedVariableTractsJoinedList$overlaps,
                            ZonesShapes,
                            id_col = "OBJECTID")
 
-TravelTimeToWorkTractJoined <- do.call("rbind", TravelTimeToWorkTractJoinedList)
+ConsolidatedVariableTractsJoined <- 
+  do.call(what = "rbind", 
+          ConsolidatedVariableTractsJoinedList)
 ```
 
 ```{r}
@@ -974,78 +970,85 @@ TravelTimeToWorkTractJoined <- do.call("rbind", TravelTimeToWorkTractJoinedList)
 #| echo: false
 #| output: false
 
-qs2::qs_save(TravelTimeToWorkTractJoined, TravelTimeToWorkTractJoinedFilePath)
-```
-
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-tm_shape(TravelTimeToWorkTractJoined) +
-  tm_polygons(fill = "estimate")
+qs2::qs_save(ConsolidatedVariableTractsJoined, ConsolidatedVariableTractsJoinedFilePath)
 ```
 
 Perfect, we have joined the to shapes, but we still need to have only one estimate value per original zone shape. To solve this challenge we only need to use the `weighted arithmetic mean` based on the proportion of the area add each tract to the original zone id.
 
 ```{r}
-TravelTimeToWorkTractJoined$tract_area <- st_area(TravelTimeToWorkTractJoined$geometry)
+#| echo: false
+#| output: false
 
-setDT(TravelTimeToWorkTractJoined)
+ConsolidatedVariableTractsByZoneIdFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsByZoneId.fst")
 
-TravelTimeToWorkEstimateByZoneId <-
-  TravelTimeToWorkTractJoined[
-    j = .(estimate  = sum(estimate * 
-                            as.double(tract_area /
-                                        sum(tract_area, na.rm = TRUE)),
-                          na.rm = TRUE)),
+
+if(file.exists(ConsolidatedVariableTractsByZoneIdFilePath)) {
+  ConsolidatedVariableTractsByZoneId <-
+    fst::read_fst(ConsolidatedVariableTractsByZoneIdFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
+ConsolidatedVariableTractsJoined$tract_area <-
+  st_area(ConsolidatedVariableTractsJoined$geometry)
+
+ConsolidatedVariableTractsJoinedDt <-
+  st_drop_geometry(ConsolidatedVariableTractsJoined) |>
+  setDT()
+
+IdColumns <-
+  c("GEOID", 
+    "NAME", 
+    "tract_area",
+    "LocationID", 
+    "OBJECTID")
+
+ConsolidatedVariableTidy <-
+  melt(ConsolidatedVariableTractsJoinedDt,
+       id.var = IdColumns,
+       variable.factor = FALSE
+  )[,`:=`(variable_type = fifelse(variable %like% "\\dM$", "moe", "estimate"),
+          variable = sub("(E|M)$", "", variable))
+  ][, dcast(.SD,
+            formula = as.formula(paste0(paste0(c(IdColumns, "variable"), collapse = " + "), "~ variable_type")),
+            value.var = "value")
+  ][, `:=`(NAME = NULL,
+           OBJECTID = NULL,
+           moe = NULL,
+           estimate_low = estimate - fcoalesce(moe, 0),
+           estimate_high = estimate + fcoalesce(moe, 0))
+  ][estimate_low < 0, 
+    estimate_low := 0
+  ][, area_prop :=  as.double(tract_area / sum(tract_area, na.rm = TRUE)),
+    by = c("LocationID", "variable")]
+
+
+ConsolidatedVariableTractsByZoneId <-
+  ConsolidatedVariableTidy[
+    j = .(estimate  = sum(estimate * area_prop, na.rm = TRUE),
+          estimate_low  = sum(estimate_low * area_prop, na.rm = TRUE),
+          estimate_high  = sum(estimate_high * area_prop, na.rm = TRUE)),
     by = c("LocationID", "variable")
-  ][, dcast(.SD, LocationID ~ variable, value.var = "estimate")]
+  ][, melt(.SD,
+           measure.vars = c("estimate", "estimate_low", "estimate_high"),
+           variable.factor = FALSE,
+           variable.name = "variable_type")
+  ][, dcast(.SD, LocationID ~ variable + variable_type, value.var = "value")]
 
-TravelTimeToWorkEstimateByZoneId
+dim(ConsolidatedVariableTractsByZoneId)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+fst::write_fst(ConsolidatedVariableTractsByZoneId, ConsolidatedVariableTractsByZoneIdFilePath)
 ```
 
 Great, we just need to wrap this strategy into the `estimate_by_zone_id` and running into a parallel multicore process to process 3 variables at the same time.
-
-
-### Saving the data
-
-```r
-qs2::qs_save(OsmDataComplete, 
-             here("output/cache-data/OsmDataComplete.qs"))
-```
-
-
-## Spatial joins
-
-We perform two main types of spatial joins to associate the OpenStreetMap features with our taxi zones: first, to identify features entirely within each zone, and second, to identify features that intersect or overlap with the zone boundaries.
-
-### Joining elements **contained** by each zone
-
-Using the `st_within` function, this section identifies OpenStreetMap features—such as points, lines, polygons, multilinestrings, and multipolygons—that are **fully contained** within each taxi zone's boundaries. `st_within` considers multilinestrings and multipolygons to be within a zone only if all their constituent parts are inside.
-
-```r
-PolygonWithinZones <-
-  OsmDataComplete$osm_polygons |>
-  st_join(y = ZonesShapes,
-          join = st_within,
-          left = FALSE)
-```
-
-
-### Joining lines that are **partially contained** for each zone. 
-
-In this section, we identify OSM features that are not entirely within a taxi zone but do intersect or overlap with its boundary. For lines and multilinestrings, we use `st_crosses`, which identifies features that intersect the interior of a zone but are not completely contained within it. For polygons and multipolygons, we use `st_overlaps`, which identifies features that have some area in common with a zone but are not identical to or completely contained within it.
-
-```r
-PolygonInSeveralZones <-
-  OsmDataComplete$osm_polygons |>
-  st_join(y = ZonesShapes,
-          join = st_overlaps,
-          left = FALSE)
-```
-
-#### Cropping features overlapping multiple zones
 
 
 ## Validation
