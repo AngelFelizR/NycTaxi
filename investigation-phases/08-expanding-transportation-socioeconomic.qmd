@@ -984,7 +984,8 @@ ConsolidatedVariableTractsByZoneIdFilePath <- here("output/cache-data/08-expandi
 
 if(file.exists(ConsolidatedVariableTractsByZoneIdFilePath)) {
   ConsolidatedVariableTractsByZoneId <-
-    fst::read_fst(ConsolidatedVariableTractsByZoneIdFilePath)
+    fst::read_fst(ConsolidatedVariableTractsByZoneIdFilePath,
+                  as.data.table = TRUE)
 }
 ```
 
@@ -1036,8 +1037,6 @@ ConsolidatedVariableTractsByZoneId <-
            variable.factor = FALSE,
            variable.name = "variable_type")
   ][, dcast(.SD, LocationID ~ variable + variable_type, value.var = "value")]
-
-dim(ConsolidatedVariableTractsByZoneId)
 ```
 
 ```{r}
@@ -1048,10 +1047,216 @@ dim(ConsolidatedVariableTractsByZoneId)
 fst::write_fst(ConsolidatedVariableTractsByZoneId, ConsolidatedVariableTractsByZoneIdFilePath)
 ```
 
-Great, we just need to wrap this strategy into the `estimate_by_zone_id` and running into a parallel multicore process to process 3 variables at the same time.
+
+```{r}
+dim(ConsolidatedVariableTractsByZoneId)
+```
 
 
 ## Validation
+
+```{r}
+#| echo: false
+#| output: false
+
+PuVariableTractsMeanDiffFilePath <-
+  here("output/cache-data/08-expanding-transportation-socioeconomic/PuVariableTractsMeanDiff.fst")
+
+DoVariableTractsMeanDiffFilePath <-
+  here("output/cache-data/08-expanding-transportation-socioeconomic/DoVariableTractsMeanDiff.fst")
+
+
+if(file.exists(PuVariableTractsMeanDiffFilePath)) {
+  PuVariableTractsMeanDiff <-
+    fst::read_fst(PuVariableTractsMeanDiffFilePath,
+                  as.data.table = TRUE)
+}
+
+if(file.exists(DoVariableTractsMeanDiffFilePath)) {
+  DoVariableTractsMeanDiff <-
+    fst::read_fst(DoVariableTractsMeanDiffFilePath,
+                  as.data.table = TRUE)
+}
+```
+
+```{r}
+#| eval: false
+
+PuVariableTractsMeanDiff <-
+  ConsolidatedVariableTractsByZoneId[TrainingSample[, .(LocationID = PULocationID, 
+                                                        take_current_trip)], 
+                                     on = "LocationID"
+  ][, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else x[!is.na(x)] |> scale(center = FALSE) |> median()),
+    .SDcols = !c("LocationID"),
+    by = "take_current_trip"
+  ][, melt(.SD,
+           id.vars = "take_current_trip",
+           variable.factor = FALSE)
+  ][, .(not_take_vs_take = diff(value)),
+    by = "variable"
+  ][order(-abs(not_take_vs_take))]
+
+
+DoVariableTractsMeanDiff <-
+  ConsolidatedVariableTractsByZoneId[TrainingSample[, .(LocationID = DOLocationID,
+                                                        take_current_trip)], 
+                                     on = "LocationID"
+  ][, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else x[!is.na(x)] |> scale(center = FALSE) |> median()),
+    .SDcols = !c("LocationID"),
+    by = "take_current_trip"
+  ][, melt(.SD,
+           id.vars = "take_current_trip",
+           variable.factor = FALSE)
+  ][, .(not_take_vs_take = diff(value)),
+    by = "variable"
+  ][order(-abs(not_take_vs_take))]
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+fst::write_fst(PuVariableTractsMeanDiff, PuVariableTractsMeanDiffFilePath)
+fst::write_fst(DoVariableTractsMeanDiff, DoVariableTractsMeanDiffFilePath)
+```
+
+```{r}
+VariableTractsMeanDiff <-
+  rbindlist(list(PuVariableTractsMeanDiff,
+                 DoVariableTractsMeanDiff)
+  )[!is.na(not_take_vs_take)]
+```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(VariableTractsMeanDiff) +
+  geom_histogram(aes(not_take_vs_take)) +
+  scale_y_continuous(transform = scales::new_transform("signed_log10",
+                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
+                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+                                                       breaks = scales::pretty_breaks()),
+                     breaks = c(0, 10^(1:4))) +
+  scale_x_continuous(breaks = breaks_width(0.1)) +
+  labs(y = "count on log10 scale")+
+  theme_minimal()
+```
+
+
+```{r}
+TopVariableTractsMeanDiff <- VariableTractsMeanDiff[abs(not_take_vs_take) > 0.30, unique(variable)]
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+# Create the contest-winning gt table directly from your data.table
+  VariablesToUse[.(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()), 
+                 on = "name",
+                 c("dataset",
+                   "concept",
+                   "label",
+                   "name")
+  ][order(concept, name)
+    # Add row groups for better organization
+  ][, category := fcase(
+    grepl("Earnings|Income", concept), "💰 Economic Indicators",
+    grepl("Industry", concept), "🏭 Industry Demographics", 
+    grepl("transportation", concept, ignore.case = TRUE), "🚗 Transportation Patterns",
+    default = "📊 Other Demographics"
+  )] |>
+  
+  gt(groupname_col = "category") |>
+  
+  # Add a stunning header
+  tab_header(
+    title = md("**🏆 Top Census Variables**"),
+    subtitle = md("*Key demographic and economic variables across clusters*")
+  ) |>
+  
+  # Style the column headers
+  cols_label(
+    dataset = md("**Dataset**"),
+    concept = md("**Concept**"),
+    label = md("**Description**"),
+    name = md("**Variable ID**")
+  ) |>
+  
+  # Hide the category column since it's used for grouping
+  cols_hide(category) |>
+  
+  # Style the table
+  tab_style(
+    style = cell_fill(color = ColorHighlight),
+    locations = cells_column_labels()
+  ) |>
+  
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  
+  # Style group headers
+  tab_style(
+    style = list(
+      cell_fill(color = ColorHighlightLow),
+      cell_text(weight = "bold", size = px(14))
+    ),
+    locations = cells_row_groups()
+  ) |>
+  
+  # Style the variable names with monospace font
+  tab_style(
+    style = cell_text(font = "monospace", size = px(11)),
+    locations = cells_body(columns = name)
+  ) |>
+  
+  # Wrap long text in label column
+  tab_style(
+    style = cell_text(size = px(11)),
+    locations = cells_body(columns = label)
+  ) |>
+  
+  # Adjust column widths
+  cols_width(
+    dataset ~ px(120),
+    concept ~ px(200),
+    label ~ px(350),
+    name ~ px(120)
+  ) |>
+  
+  # Add table options for better presentation
+  tab_options(
+    table.font.size = px(12),
+    heading.title.font.size = px(20),
+    heading.subtitle.font.size = px(14),
+    row_group.font.size = px(13),
+    table.border.top.style = "solid",
+    table.border.top.width = px(3),
+    table.border.top.color = ColorHighlight,
+    table.border.bottom.style = "solid",
+    table.border.bottom.width = px(3),
+    table.border.bottom.color = ColorHighlight,
+    column_labels.border.bottom.style = "solid",
+    column_labels.border.bottom.width = px(2),
+    column_labels.border.bottom.color = ColorHighlight,
+    row_group.border.top.style = "solid",
+    row_group.border.top.width = px(2),
+    row_group.border.top.color = ColorHighlight,
+    table.width = pct(100),
+    container.overflow.x = TRUE,
+    container.overflow.y = TRUE
+  ) |>
+  
+  # Add a source note
+  tab_source_note(
+    source_note = md("**Source:** U.S. Census Bureau, American Community Survey (ACS) 5-Year Estimates")
+  )
+```
 
 
 ## Conclusion
