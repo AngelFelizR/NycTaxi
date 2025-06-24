@@ -59,10 +59,6 @@ library(data.table)
 ## To work with spatial data
 library(sf)
 
-## To create interactive maps
-library(tmap)
-tmap_mode("view")
-
 # To work and plot graphs
 library(tidytext)
 library(stringdist)
@@ -1154,110 +1150,216 @@ TopVariableTractsMeanDiff <- VariableTractsMeanDiff[abs(not_take_vs_take) > 0.30
 #| code-fold: true
 #| code-summary: "Show the code"
 
-# Create the contest-winning gt table directly from your data.table
-  VariablesToUse[.(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()), 
-                 on = "name",
-                 c("dataset",
-                   "concept",
-                   "label",
-                   "name")
-  ][order(concept, name)
-    # Add row groups for better organization
-  ][, category := fcase(
-    grepl("Earnings|Income", concept), "💰 Economic Indicators",
-    grepl("Industry", concept), "🏭 Industry Demographics", 
-    grepl("transportation", concept, ignore.case = TRUE), "🚗 Transportation Patterns",
-    default = "📊 Other Demographics"
-  )] |>
-  
-  gt(groupname_col = "category") |>
-  
-  # Add a stunning header
-  tab_header(
-    title = md("**🏆 Top Census Variables**"),
-    subtitle = md("*Key demographic and economic variables across clusters*")
-  ) |>
-  
-  # Style the column headers
-  cols_label(
-    dataset = md("**Dataset**"),
-    concept = md("**Concept**"),
-    label = md("**Description**"),
-    name = md("**Variable ID**")
-  ) |>
-  
-  # Hide the category column since it's used for grouping
-  cols_hide(category) |>
-  
-  # Style the table
-  tab_style(
-    style = cell_fill(color = ColorHighlight),
-    locations = cells_column_labels()
-  ) |>
-  
-  tab_style(
-    style = cell_text(color = "white", weight = "bold"),
-    locations = cells_column_labels()
-  ) |>
-  
-  # Style group headers
-  tab_style(
-    style = list(
-      cell_fill(color = ColorHighlightLow),
-      cell_text(weight = "bold", size = px(14))
+# Enhanced contest-winning gt table with improved styling
+VariablesToUse[.(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()), 
+               on = "name",
+               c("dataset",
+                 "concept",
+                 "label",
+                 "name")
+][order(concept, name)
+  # Add improved row groups with better categorization
+][, category := fcase(
+  grepl("Earnings|Income|Poverty", concept, ignore.case = TRUE), "💰 Economic Indicators",
+  grepl("Industry|Occupation|Employment", concept, ignore.case = TRUE), "🏭 Employment & Industry", 
+  grepl("Transportation|Commuting|Vehicle", concept, ignore.case = TRUE), "🚗 Transportation & Mobility",
+  default = "📊 Other Variables"
+)] |>
+
+gt(groupname_col = "category") |>
+
+# Enhanced header with better typography
+tab_header(
+  title = md("**🏆 Key Census Variables Analysis**"),
+  subtitle = md("*Critical demographic and socioeconomic indicators across geographic clusters*")
+) |>
+
+# Improved column headers with icons and better descriptions
+cols_label(
+  dataset = md("**📋 Dataset**"),
+  concept = md("**🎯 Concept Category**"),
+  label = md("**📝 Variable Description**"),
+  name = md("**🔖 Variable ID**")
+) |>
+
+# Hide the grouping column
+cols_hide(category) |>
+
+# Enhanced header styling with gradient effect
+tab_style(
+  style = list(
+    cell_fill(color = ColorHighlight),
+    cell_text(color = "white", weight = "bold", size = px(13)),
+    cell_borders(sides = "bottom", color = "white", weight = px(2))
+  ),
+  locations = cells_column_labels()
+) |>
+
+# Stunning group headers with enhanced styling
+tab_style(
+  style = list(
+    cell_fill(color = ColorHighlightLow),
+    cell_text(
+      weight = "bold", 
+      size = px(15),
+      color = "#2c3e50"
     ),
-    locations = cells_row_groups()
-  ) |>
+    cell_borders(
+      sides = c("top", "bottom"), 
+      color = ColorHighlight, 
+      weight = px(2)
+    )
+  ),
+  locations = cells_row_groups()
+) |>
+
+# Enhanced title styling
+tab_style(
+  style = list(
+    cell_text(
+      color = "white", 
+      weight = "bold",
+      size = px(22)
+    ),
+    cell_fill(color = "#2c3e50")
+  ),
+  locations = cells_title(groups = "title")
+) |>
+
+tab_style(
+  style = list(
+    cell_text(
+      color = "#ecf0f1", 
+      style = "italic",
+      size = px(16)
+    ),
+    cell_fill(color = "#34495e")
+  ),
+  locations = cells_title(groups = "subtitle")
+) |>
+
+# Variable ID styling with better monospace presentation
+tab_style(
+  style = list(
+    cell_text(
+      font = "Consolas, Monaco, monospace", 
+      size = px(11)
+    )
+  ),
+  locations = cells_body(columns = name)
+) |>
+
+# Dataset column styling
+tab_style(
+  style = cell_text(
+    weight = "bold",
+    size = px(11)
+  ),
+  locations = cells_body(columns = dataset)
+) |>
+
+# Concept column styling
+tab_style(
+  style = cell_text(
+    size = px(11),
+    weight = "bold"
+  ),
+  locations = cells_body(columns = concept)
+) |>
+
+# Label column with improved readability
+tab_style(
+  style = cell_text(
+    size = px(11),
+    color = "#2c3e50"
+  ),
+  locations = cells_body(columns = label)
+) |>
+
+# Optimized column widths for better content display
+cols_width(
+  dataset ~ px(100),
+  concept ~ px(180),
+  label ~ px(400),
+  name ~ px(140)
+) |>
+
+# Comprehensive table options for professional appearance
+tab_options(
+  # Typography
+  table.font.names = c("Segoe UI", "Arial", "sans-serif"),
+  table.font.size = px(12),
+  heading.title.font.size = px(22),
+  heading.subtitle.font.size = px(16),
+  row_group.font.size = px(15),
   
-  # Style the variable names with monospace font
-  tab_style(
-    style = cell_text(font = "monospace", size = px(11)),
-    locations = cells_body(columns = name)
-  ) |>
+  # Background and colors
+  table.background.color = "#fdfdfd",
   
-  # Wrap long text in label column
-  tab_style(
-    style = cell_text(size = px(11)),
-    locations = cells_body(columns = label)
-  ) |>
+  # Borders and lines
+  table.border.top.style = "solid",
+  table.border.top.width = px(4),
+  table.border.top.color = ColorHighlight,
+  table.border.bottom.style = "solid",
+  table.border.bottom.width = px(4),
+  table.border.bottom.color = ColorHighlight,
   
-  # Adjust column widths
-  cols_width(
-    dataset ~ px(120),
-    concept ~ px(200),
-    label ~ px(350),
-    name ~ px(120)
-  ) |>
+  # Column labels
+  column_labels.border.bottom.style = "solid",
+  column_labels.border.bottom.width = px(3),
+  column_labels.border.bottom.color = ColorHighlight,
+  column_labels.background.color = ColorHighlight,
   
-  # Add table options for better presentation
-  tab_options(
-    table.font.size = px(12),
-    heading.title.font.size = px(20),
-    heading.subtitle.font.size = px(14),
-    row_group.font.size = px(13),
-    table.border.top.style = "solid",
-    table.border.top.width = px(3),
-    table.border.top.color = ColorHighlight,
-    table.border.bottom.style = "solid",
-    table.border.bottom.width = px(3),
-    table.border.bottom.color = ColorHighlight,
-    column_labels.border.bottom.style = "solid",
-    column_labels.border.bottom.width = px(2),
-    column_labels.border.bottom.color = ColorHighlight,
-    row_group.border.top.style = "solid",
-    row_group.border.top.width = px(2),
-    row_group.border.top.color = ColorHighlight,
-    table.width = pct(100),
-    container.overflow.x = TRUE,
-    container.overflow.y = TRUE
-  ) |>
+  # Row groups
+  row_group.border.top.style = "solid",
+  row_group.border.top.width = px(2),
+  row_group.border.top.color = ColorHighlight,
+  row_group.border.bottom.style = "solid",
+  row_group.border.bottom.width = px(1),
+  row_group.border.bottom.color = ColorHighlightLow,
   
-  # Add a source note
-  tab_source_note(
-    source_note = md("**Source:** U.S. Census Bureau, American Community Survey (ACS) 5-Year Estimates")
-  )
+  # Striping and spacing
+  row.striping.include_table_body = TRUE,
+  row.striping.background_color = "#f8f9fa",
+  table_body.hlines.style = "solid",
+  table_body.hlines.width = px(1),
+  table_body.hlines.color = "#dee2e6",
+  
+  # Layout
+  table.width = pct(100),
+  container.overflow.x = TRUE,
+  container.overflow.y = TRUE,
+  container.height = px(600)
+) |>
+
+# Enhanced source note with better formatting
+tab_source_note(
+  source_note = md("**📊 Data Source:** U.S. Census Bureau, American Community Survey (ACS) 5-Year Estimates | **📅 Analysis Period:** 2018-2022")
+) |>
+
+# Style the source note
+tab_style(
+  style = list(
+    cell_text(
+      size = px(12),
+      color = "#7f8c8d",
+      style = "italic"
+    )
+  ),
+  locations = cells_source_notes()
+)
 ```
 
+After confirming these promising results we can save the most import features for future use.
+
+```r
+fst::write_fst(
+  ConsolidatedVariableTractsByZoneId[, .SD, 
+                                     .SDcols = c("LocationID",
+                                                 TopVariableTractsMeanDiff)], 
+  path = here("output/AcsVariablesByZoneId.fst")
+)
+```
 
 ## Conclusion
 

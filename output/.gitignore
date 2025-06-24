@@ -2,3 +2,4 @@
 /my-db.duckdb
 /take-trip-fst
 /OmsDensityFeatures.fst
+/AcsVariablesByZoneId.fst

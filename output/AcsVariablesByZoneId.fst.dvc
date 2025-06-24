@@ -1,0 +1,5 @@
+outs:
+- md5: 293e3162b52bff01848cd3a35793ba5a
+  size: 67901
+  hash: md5
+  path: AcsVariablesByZoneId.fst
