@@ -113,7 +113,7 @@ library(units)
 library(ggplot2)
 
 ## Custom functions
-source(here("R"))
+devtools::load_all()
 ```
 
 :::{.callout-note title="Computational Performance"}
@@ -807,7 +807,7 @@ On the other hand, we can also explore in the target variable is correlated with
 #| echo: false
 #| output: false
 
-rm(list = setdiff(ls(), c("TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+rm(list = setdiff(ls(), c("OmsDensityFeatures","TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
 gc()
 
 OsmMedianDiff = qs2::qs_read(here("output/cache-data/OsmMedianDiff.qs"))
@@ -854,10 +854,11 @@ ggplot(OsmMedianDiff) +
 #| echo: false
 #| output: false
 
-rm(list = setdiff(ls(), c("OsmMedianDiff", "TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+rm(list = setdiff(ls(), c("OmsDensityFeatures","OsmMedianDiff", "TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
 gc()
 
 TopOsmMedianDiff = qs2::qs_read(here("output/cache-data/TopOsmMedianDiff.qs"))
+TopOsmMedianDiffFeatures = OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
 ```
 
 After selecting the to variables to explore, we just need to see
@@ -921,7 +922,7 @@ ggplot(TopOsmMedianDiff) +
 After confirming these promising results we can save the most import features for future use.
 
 ```r
-FeaturesToKeep <- sub("(PU|DO)_","", TopOsmMedianDiffFeatures)
+FeaturesToKeep <- c("LocationID", sub("(PU|DO)_","", TopOsmMedianDiffFeatures))
 
 fst::write_fst(OmsDensityFeatures[, ..FeaturesToKeep], 
                path = here("output/OmsDensityFeatures.fst"))

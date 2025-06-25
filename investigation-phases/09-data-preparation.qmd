@@ -1,5 +1,5 @@
 ---
-title: "Exploring Transportation and Socioeconomic Patterns"
+title: "Data Preparation"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -7,8 +7,104 @@ execute:
   warning: false
 ---
 
+```{r}
+## Tools for modeling
+library(tidymodels)
 
-``` r
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+library(lubridate)
+library(timeDate)
+
+## Custom functions
+devtools::load_all()
+```
+
+```{r}
+AcsVariablesByZoneId <- fst::read_fst(
+  here("output/AcsVariablesByZoneId.fst"),
+  as.data.table = TRUE
+)
+
+OmsDensityFeatures <- fst::read_fst(
+  here("output/OmsDensityFeatures.fst"),
+  as.data.table = TRUE
+)
+
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        select = c("LocationID" = "integer",
+                   "Borough" = "character",
+                   "service_zone" = "character"))
+
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst,
+         columns = c("take_current_trip",
+                     # trip_value = tips + driver_pay
+                     #"tips",
+                     #"driver_pay",
+                     "PULocationID",
+                     "DOLocationID",
+                     "wav_match_flag",
+                     "hvfhs_license_num",
+                     "trip_miles",
+                     "trip_time",
+                     "request_datetime"),
+         as.data.table = TRUE) |>
+  rbindlist() |>
+  (\(dt) dt[trip_time >= (60 * 2)] )()
+```
+
+```{r}
+TrainingSample[ZoneCodesRef,
+               on = c("PULocationID" = "LocationID"),
+               `:=`(PUBorough = Borough,
+                    PUServiceZone = service_zone)]
+
+
+TrainingSample[ZoneCodesRef,
+               on = c("DOLocationID" = "LocationID"),
+               `:=`(DOBorough = Borough,
+                    DOServiceZone = service_zone)]
+
+TrainingSample <-
+  setnames(copy(OmsDensityFeatures),
+           paste0("PU", names(OmsDensityFeatures))
+  )[TrainingSample,
+    on = "PULocationID"]
+
+TrainingSample <-
+  setnames(copy(OmsDensityFeatures),
+           paste0("DO", names(OmsDensityFeatures))
+  )[TrainingSample,
+    on = "DOLocationID"]
+
+TrainingSample <-
+  setnames(copy(AcsVariablesByZoneId),
+           paste0("PU", names(AcsVariablesByZoneId))
+  )[TrainingSample,
+    on = "PULocationID"]
+
+TrainingSample <-
+  setnames(copy(AcsVariablesByZoneId),
+           paste0("DO", names(AcsVariablesByZoneId))
+  )[TrainingSample,
+    on = "DOLocationID"]
+
+```
+
+
+```{r}
 # timeDate::listHolidays("US") |>
 #   (\(x) paste0("`Days to ", x, "` = ", 
 #                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
@@ -17,7 +113,7 @@ execute:
 #   cat()
 
 TimeRecipe <-
-  recipe(~ ., data = TrainingSampleZones) |>
+  recipe(take_current_trip ~ ., data = TrainingSample) |>
   
   # Daily cycle
   step_harmonic(request_datetime, 
@@ -38,12 +134,13 @@ TimeRecipe <-
   # Extracting additional information
   step_date(request_datetime,
             features = c("year",
-                         "doy",
                          "week",
                          "decimal",
                          "semester", 
                          "quarter",
-                         "dow", 
+                         "doy",
+                         "dow",
+                         "mday",
                          "month")) |>
   step_holiday(request_datetime,
                holidays = c('USChristmasDay',
@@ -64,7 +161,13 @@ TimeRecipe <-
                             'USThanksgivingDay',
                             'USVeteransDay',
                             'USWashingtonsBirthday')) |>
-  step_mutate(request_datetime_am = am(request_datetime),
+  step_mutate(company = fcase(hvfhs_license_num == "HV0002", "Juno",
+                              hvfhs_license_num == "HV0003", "Uber",
+                              hvfhs_license_num == "HV0004", "Via",
+                              hvfhs_license_num == "HV0005", "Lyft"),
+              
+              
+              request_datetime_am = am(request_datetime),
               request_datetime_pm = pm(request_datetime),
               `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
