@@ -151,12 +151,34 @@ TrainingSample <-
 Now we can create a bounding box that encompasses the selected boroughs to efficiently query OSM data for the region we really need.
 
 ```{r}
+#| echo: false
+#| output: false
+
+bb_boxFilePath = here("output/cache-data/09-data-preparation/bb_box.qs")
+
+
+if(file.exists(bb_boxFilePath)) {
+  bb_box <- qs2::qs_read(bb_boxFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
 bb_box <-
   lapply(X = paste0(BoroughSelected, ", NY"),
          FUN = osmdata::getbb) |>
   do.call(what = "cbind") |>
   (\(x) cbind(min = apply(x, 1, min),
               max = apply(x, 1, max)))()
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(bb_box, bb_boxFilePath)
 ```
 
 This plot shows the selected boroughs and the taxi zones within them, giving us a visual overview of our geographical units of analysis. The blue rectangle represents the bounding box we defined earlier, encompassing Manhattan (red), Queens (blue), and Brooklyn (green). Each of these boroughs is further divided into smaller taxi zones, which are the **primary geographical units for our analysis**. The different colors assigned to each borough (defined in the `BoroughColors` vector) help to visually distinguish them. This initial map confirms that we have correctly loaded the taxi zone shapefile and subsetted it to include only the boroughs of interest for our study.
@@ -922,7 +944,9 @@ ggplot(TopOsmMedianDiff) +
 After confirming these promising results we can save the most import features for future use.
 
 ```r
-FeaturesToKeep <- c("LocationID", sub("(PU|DO)_","", TopOsmMedianDiffFeatures))
+FeaturesToKeep <- 
+  c("LocationID", sub("(PU|DO)_","", TopOsmMedianDiffFeatures)) |>
+  unique()
 
 fst::write_fst(OmsDensityFeatures[, ..FeaturesToKeep], 
                path = here("output/OmsDensityFeatures.fst"))

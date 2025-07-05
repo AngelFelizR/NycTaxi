@@ -656,7 +656,8 @@ gt(TopWordsByCluster) |>
     column_labels.font.weight = "bold",
     column_labels.background.color = "#f8f9fa",
     row_group.background.color = "#f1f3f5",
-    row.striping.include_table_body = TRUE
+    #row.striping.include_table_body = TRUE,
+    quarto.disable_processing = TRUE
   ) |>
   tab_source_note(
     source_note = "Clusters identified through NLP analysis of US Census variable concepts"
@@ -749,7 +750,8 @@ ConceptByDatasetToExplore[, .(N = .N,
     column_labels.font.weight = "bold",
     column_labels.background.color = "#f8f9fa",
     row_group.background.color = "#f1f3f5",
-    row.striping.include_table_body = TRUE
+    #row.striping.include_table_body = TRUE,
+    quarto.disable_processing = TRUE
   )
 ```
 
@@ -1280,7 +1282,7 @@ tab_style(
 cols_width(
   dataset ~ px(100),
   concept ~ px(180),
-  label ~ px(400),
+  label ~ px(350),
   name ~ px(140)
 ) |>
 
@@ -1319,17 +1321,19 @@ tab_options(
   row_group.border.bottom.color = ColorHighlightLow,
   
   # Striping and spacing
-  row.striping.include_table_body = TRUE,
-  row.striping.background_color = "#f8f9fa",
+  #row.striping.include_table_body = TRUE,
+  #row.striping.background_color = "#f8f9fa",
   table_body.hlines.style = "solid",
   table_body.hlines.width = px(1),
   table_body.hlines.color = "#dee2e6",
   
   # Layout
-  table.width = pct(100),
-  container.overflow.x = TRUE,
-  container.overflow.y = TRUE,
-  container.height = px(600)
+  # table.width = pct(100),
+  # container.overflow.x = TRUE,
+  # container.overflow.y = TRUE,
+  # container.height = px(600),
+  
+  quarto.disable_processing = TRUE
 ) |>
 
 # Enhanced source note with better formatting

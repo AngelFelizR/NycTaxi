@@ -23,6 +23,8 @@ library(timeDate)
 devtools::load_all()
 ```
 
+## Importing data
+
 ```{r}
 AcsVariablesByZoneId <- fst::read_fst(
   here("output/AcsVariablesByZoneId.fst"),
@@ -65,55 +67,24 @@ TrainingSample <-
   (\(dt) dt[trip_time >= (60 * 2)] )()
 ```
 
-```{r}
-TrainingSample[ZoneCodesRef,
-               on = c("PULocationID" = "LocationID"),
-               `:=`(PUBorough = Borough,
-                    PUServiceZone = service_zone)]
-
-
-TrainingSample[ZoneCodesRef,
-               on = c("DOLocationID" = "LocationID"),
-               `:=`(DOBorough = Borough,
-                    DOServiceZone = service_zone)]
-
-TrainingSample <-
-  setnames(copy(OmsDensityFeatures),
-           paste0("PU", names(OmsDensityFeatures))
-  )[TrainingSample,
-    on = "PULocationID"]
-
-TrainingSample <-
-  setnames(copy(OmsDensityFeatures),
-           paste0("DO", names(OmsDensityFeatures))
-  )[TrainingSample,
-    on = "DOLocationID"]
-
-TrainingSample <-
-  setnames(copy(AcsVariablesByZoneId),
-           paste0("PU", names(AcsVariablesByZoneId))
-  )[TrainingSample,
-    on = "PULocationID"]
-
-TrainingSample <-
-  setnames(copy(AcsVariablesByZoneId),
-           paste0("DO", names(AcsVariablesByZoneId))
-  )[TrainingSample,
-    on = "DOLocationID"]
-
-```
-
+## Defining all features
 
 ```{r}
-# timeDate::listHolidays("US") |>
-#   (\(x) paste0("`Days to ", x, "` = ", 
-#                "difftime(", x,"(year(request_datetime)), request_datetime, units = 'days')",
-#                " |> as.integer()") )() |>
-#   paste0(collapse = ",\n") |>
-#   cat()
-
-TimeRecipe <-
+AllFeaturesRecipe <-
+  
+  # Starting Recipe
   recipe(take_current_trip ~ ., data = TrainingSample) |>
+  
+  # Adding Geospatial Data
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = ZoneCodesRef,
+                                col_pattern = c("DO", "PU")) |>
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = AcsVariablesByZoneId,
+                                col_pattern = c("DO", "PU")) |>
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = OmsDensityFeatures,
+                                col_pattern = c("DO", "PU")) |>
   
   # Daily cycle
   step_harmonic(request_datetime, 
@@ -164,7 +135,7 @@ TimeRecipe <-
   step_mutate(company = fcase(hvfhs_license_num == "HV0002", "Juno",
                               hvfhs_license_num == "HV0003", "Uber",
                               hvfhs_license_num == "HV0004", "Via",
-                              hvfhs_license_num == "HV0005", "Lyft"),
+                              hvfhs_license_num == "HV0005", "Lyft") |> as.factor(),
               
               
               request_datetime_am = am(request_datetime),
@@ -188,10 +159,13 @@ TimeRecipe <-
               `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
 
-
-TrainingSampleZonesTime <-
-  prep(TimeRecipe) |>
-  bake(new_data = NULL)
-
-glimpse(TrainingSampleZonesTime)
 ```
+
+```{r}
+AllFeaturesDt <-
+  prep(AllFeaturesRecipe) |>
+  bake(new_data = TrainingSample[1:5])
+
+glimpse(AllFeaturesDt)
+```
+
