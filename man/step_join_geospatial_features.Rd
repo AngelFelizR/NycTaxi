@@ -45,13 +45,17 @@ column. If the original variable has role \code{NA}, then \code{predictor} is us
 have been estimated.}
 
 \item{spatial_features}{A data frame containing the geospatial features to
-join with the recipe data. This should contain the spatial variables and
+join with the recipe data. This should contain both spatial variables and
 the joining columns.}
 
-\item{col_pattern}{A character vector of patterns to match column names.
-If specified, columns matching these patterns will be used to create
-the join relationship. This is useful when you have prefixed column names
-that need to be matched without the prefix.}
+\item{col_pattern}{A character vector of prefixes to remove from selected
+columns in the main data. For each prefix, the step will:
+\itemize{
+\item Identify main data columns starting with the prefix
+\item Create a copy of \code{spatial_features} with all columns prefixed
+\item Join using the prefixed columns
+}
+When \code{NULL}, a direct join is performed using selected columns.}
 
 \item{skip}{A logical. Should the step be skipped when the recipe is baked
 by \code{\link[recipes:bake]{recipes::bake()}}? While all operations are baked when \code{\link[recipes:prep]{recipes::prep()}}
@@ -76,17 +80,17 @@ matching geographical identifiers.
 }
 \details{
 This step performs a join operation between the recipe data and provided
-geospatial features. The join is based on matching column names or patterns.
-
-When \code{col_pattern} is specified, the step will:
+geospatial features. The join behavior depends on \code{col_pattern}:
+\itemize{
+\item When \code{col_pattern} is provided, the step processes each prefix by:
 \enumerate{
-\item Remove the specified patterns from column names to create the join keys
-\item Perform the join operation for each pattern
-\item Add prefixes to the resulting spatial feature columns
+\item Selecting main data columns starting with the prefix
+\item Creating prefixed copies of spatial features
+\item Performing joins using the prefixed columns
 }
-
-When \code{col_pattern} is NULL, a direct join is performed using the specified
-column names.
+\item When \code{col_pattern} is \code{NULL}, a direct join is performed using the selected
+columns without renaming
+}
 }
 \section{Tidying}{
 
@@ -94,10 +98,12 @@ When you \code{\link[generics:tidy]{tidy()}} this step, a tibble is returned wit
 columns \code{terms}, \code{spatial_features}, and \code{id}:
 
 \describe{
-\item{terms}{character, the selectors or variables selected}
-\item{spatial_features}{character, names of the spatial features added}
+\item{terms}{character, the columns used for joining}
+\item{spatial_features}{character, names of spatial feature columns added}
 \item{id}{character, id of this step}
 }
+
+There is one row for each pair of (join column, spatial feature).
 }
 
 \section{Case weights}{

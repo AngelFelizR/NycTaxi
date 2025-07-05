@@ -17,12 +17,16 @@
 #' @param trained A logical to indicate if the quantities for preprocessing
 #'   have been estimated.
 #' @param spatial_features A data frame containing the geospatial features to
-#'   join with the recipe data. This should contain the spatial variables and
+#'   join with the recipe data. This should contain both spatial variables and
 #'   the joining columns.
-#' @param col_pattern A character vector of patterns to match column names.
-#'   If specified, columns matching these patterns will be used to create
-#'   the join relationship. This is useful when you have prefixed column names
-#'   that need to be matched without the prefix.
+#' @param col_pattern A character vector of prefixes to remove from selected
+#'   columns in the main data. For each prefix, the step will:
+#'   \itemize{
+#'     \item Identify main data columns starting with the prefix
+#'     \item Create a copy of `spatial_features` with all columns prefixed
+#'     \item Join using the prefixed columns
+#'   }
+#'   When `NULL`, a direct join is performed using selected columns.
 #' @param skip A logical. Should the step be skipped when the recipe is baked
 #'   by [recipes::bake()]? While all operations are baked when [recipes::prep()]
 #'   is run, some operations may not be able to be conducted on new data
@@ -36,25 +40,26 @@
 #'
 #' @details
 #' This step performs a join operation between the recipe data and provided
-#' geospatial features. The join is based on matching column names or patterns.
+#' geospatial features. The join behavior depends on `col_pattern`:
 #' 
-#' When `col_pattern` is specified, the step will:
-#' 1. Remove the specified patterns from column names to create the join keys
-#' 2. Perform the join operation for each pattern
-#' 3. Add prefixes to the resulting spatial feature columns
-#' 
-#' When `col_pattern` is NULL, a direct join is performed using the specified
-#' column names.
+#' - When `col_pattern` is provided, the step processes each prefix by:
+#'   1. Selecting main data columns starting with the prefix
+#'   2. Creating prefixed copies of spatial features
+#'   3. Performing joins using the prefixed columns
+#' - When `col_pattern` is `NULL`, a direct join is performed using the selected
+#'   columns without renaming
 #'
 #' @section Tidying:
 #' When you [`tidy()`][generics::tidy()] this step, a tibble is returned with
 #' columns `terms`, `spatial_features`, and `id`:
 #' 
 #' \describe{
-#'   \item{terms}{character, the selectors or variables selected}
-#'   \item{spatial_features}{character, names of the spatial features added}
+#'   \item{terms}{character, the columns used for joining}
+#'   \item{spatial_features}{character, names of spatial feature columns added}
 #'   \item{id}{character, id of this step}
 #' }
+#' 
+#' There is one row for each pair of (join column, spatial feature).
 #'
 #' @section Case weights:
 #' This step performs an inner join. The case weights are not modified by this
@@ -247,19 +252,14 @@ print.step_join_geospatial_features <- function(
     width = max(20, options()$width - 35), 
     ...
 ) {
-  
-  title <- "Adding spatial features "
+  title <- "Joining geospatial features by "
+  join_cols <- if (x$trained) attr(x$spatial_features, "col_to_join") else NULL
   
   recipes::print_step(
-    # Names after prep:
-    tr_obj = if(x$trained) names(x$spatial_features) else NULL,
-    # Names before prep (could be selectors)
+    tr_obj = join_cols,
     untr_obj = x$terms,
-    # Has it been prepped?
     trained = x$trained,
-    # What does this step do?
     title = title,
-    # An estimate of how many characters to print on a line:
     width = width
   )
   invisible(x)
@@ -270,11 +270,16 @@ print.step_join_geospatial_features <- function(
 #' @export
 tidy.step_join_geospatial_features <- function(x, ...) {
   if (is_trained(x)) {
-    res <- tibble::tibble(
-      terms = names(attr(x$spatial_features, "col_to_join")),
-      spatial_features = names(x$spatial_features),
-      id = x$id
+    join_cols <- attr(x$spatial_features, "col_to_join")
+    spatial_cols <- names(x$spatial_features)
+    
+    res <- expand.grid(
+      terms = join_cols,
+      spatial_features = spatial_cols,
+      stringsAsFactors = FALSE
     )
+    res$id <- x$id
+    res <- tibble::as_tibble(res)
   } else {
     term_names <- sel2char(x$terms)
     res <- tibble::tibble(
@@ -283,5 +288,5 @@ tidy.step_join_geospatial_features <- function(x, ...) {
       id = x$id
     )
   }
-  res
+  return(res)
 }
