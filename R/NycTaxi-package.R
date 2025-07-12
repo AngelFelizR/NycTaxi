@@ -71,6 +71,7 @@
 #' @importFrom recipes rand_id
 #' @importFrom recipes recipes_eval_select
 #' @importFrom recipes step
+#' @importFrom recipes tidy
 #' @importFrom rlang abort
 #' @importFrom rlang enquo
 #' @importFrom rlang enquos

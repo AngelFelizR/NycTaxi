@@ -67,13 +67,13 @@
 #'
 #' @examples
 #' # Create sample data
-#' main_data <- data.frame(
+#' main_data = data.frame(
 #'   region_id = c("A", "B", "C"),
 #'   value = c(10, 20, 30)
 #' )
 #' 
 #' # Create spatial features
-#' spatial_data <- data.frame(
+#' spatial_data = data.frame(
 #'   region_id = c("A", "B", "C"),
 #'   latitude = c(40.7, 34.1, 41.9),
 #'   longitude = c(-74.0, -118.2, -87.6),
@@ -92,9 +92,9 @@
 #' 
 #' # Expanding data start and end region id
 #' main_data_prefix = main_data
-#' main_data_prefix$region_id <- NULL
-#' main_data_prefix$start_region_id <- main_data$region_id
-#' main_data_prefix$end_region_id <- rev(main_data$region_id)
+#' main_data_prefix$region_id = NULL
+#' main_data_prefix$start_region_id = main_data$region_id
+#' main_data_prefix$end_region_id = rev(main_data$region_id)
 #' 
 #' # Adding geospatial features
 #' recipes::recipe(value ~ ., data = main_data_prefix) |>
@@ -126,7 +126,8 @@ step_join_geospatial_features <- function(
       spatial_features = spatial_features,
       col_pattern = col_pattern,
       skip = skip,
-      id = id
+      id = id,
+      info = NULL
     )
   )
 }
@@ -140,7 +141,8 @@ step_join_geospatial_features_new <- function(
     spatial_features,
     col_pattern,
     skip,
-    id
+    id,
+    info
 ) {
   recipes::step(
     subclass = "join_geospatial_features",
@@ -149,6 +151,7 @@ step_join_geospatial_features_new <- function(
     trained = trained,
     spatial_features = spatial_features,
     col_pattern = col_pattern,
+    role = role,
     skip = skip,
     id = id
   )
@@ -165,25 +168,39 @@ prep.step_join_geospatial_features <- function(
   # We need to confirm that the data can be joined
   # Before saving the data as an step
   
-  col_to_join <- recipes::recipes_eval_select(x$terms, training, info)
+  col_to_join = recipes::recipes_eval_select(x$terms, training, info)
   
-  attr(x$spatial_features, "col_to_join") <- col_to_join
+  attr(x$spatial_features, "col_to_join") = col_to_join
   
   if(!is.null(x$col_pattern)){
     
-    col_to_join_clean <-
+    col_to_join_clean =
       gsub(pattern = paste(x$col_pattern, collapse = "|"),
            replacement = "",
            col_to_join) |>
       unique()
     
   } else {
-    col_to_join_clean <- col_to_join
+    col_to_join_clean = col_to_join
   }
   
   if (!any(col_to_join_clean %in% names(x$spatial_features))) {
     rlang::abort("The defined terms cannot be found in spatial_features. Confirm if you need to define some `col_pattern` to define the join relation to apply.")
   }
+  
+  # Listing columns to add
+  new_spatial_cols = names(x$spatial_features) |> setdiff(y = col_to_join)
+  
+  # Adding pattern (if needed)
+  if (!is.null(x$col_pattern)) {
+    new_spatial_cols = sapply(x$col_pattern, \(x) paste0(x ,new_spatial_cols) ) |> as.vector()  
+  }
+  
+  # Converting characters to quosure
+  new_quos <- lapply(rlang::syms(new_spatial_cols), \(x) quo(!!x))
+  
+  # Adding new quosures a x$terms
+  x$terms <- c(x$terms, new_quos)
   
   step_join_geospatial_features_new(
     terms = x$terms,
@@ -192,10 +209,13 @@ prep.step_join_geospatial_features <- function(
     spatial_features = x$spatial_features,
     col_pattern = x$col_pattern,
     skip = x$skip,
-    id = x$id
+    id = x$id,
+    info = updated_info
   )
+
   
 }
+
 
 #' @export
 bake.step_join_geospatial_features <- function(
@@ -203,44 +223,44 @@ bake.step_join_geospatial_features <- function(
     new_data,
     ...
 ) {
-  spatial_features <- object$spatial_features
+  spatial_features = object$spatial_features
   
   data.table::setDT(new_data)
   data.table::setDT(spatial_features)
-  col_to_join <- attr(spatial_features, "col_to_join")
+  col_to_join = attr(spatial_features, "col_to_join")
   
   if(is.null(object$col_pattern)){
     
-    new_data <- spatial_features[new_data,
+    new_data = spatial_features[new_data,
                                  on = col_to_join]
     
-    new_data <- tibble::as_tibble(new_data)
+    new_data = tibble::as_tibble(new_data)
     
     return(new_data)
     
   }
   
-  old_names <- names(spatial_features)
+  old_names = names(spatial_features)
   
   for(prefix_i in object$col_pattern){
     
-    col_to_join_i <- 
+    col_to_join_i = 
       grep(pattern = prefix_i, 
            x = col_to_join, 
            value = TRUE)
     
     # Create a copy of spatial features with prefixed names
-    spatial_copy <- data.table::copy(spatial_features)
-    new_names <- paste0(prefix_i, old_names)
+    spatial_copy = data.table::copy(spatial_features)
+    new_names = paste0(prefix_i, old_names)
     data.table::setnames(spatial_copy, old_names, new_names)
     
     # Perform the join
-    new_data <- spatial_copy[new_data,
+    new_data = spatial_copy[new_data,
                              on = col_to_join_i]
     
   }
   
-  new_data <- tibble::as_tibble(new_data)
+  new_data = tibble::as_tibble(new_data)
   
   return(new_data)
   
@@ -252,8 +272,8 @@ print.step_join_geospatial_features <- function(
     width = max(20, options()$width - 35), 
     ...
 ) {
-  title <- "Joining geospatial features by "
-  join_cols <- if (x$trained) attr(x$spatial_features, "col_to_join") else NULL
+  title = "Joining geospatial features by "
+  join_cols = if (x$trained) attr(x$spatial_features, "col_to_join") else NULL
   
   recipes::print_step(
     tr_obj = join_cols,
@@ -269,24 +289,11 @@ print.step_join_geospatial_features <- function(
 #' @param x A `step_join_geospatial_features` object.
 #' @export
 tidy.step_join_geospatial_features <- function(x, ...) {
-  if (is_trained(x)) {
-    join_cols <- attr(x$spatial_features, "col_to_join")
-    spatial_cols <- names(x$spatial_features)
-    
-    res <- expand.grid(
-      terms = join_cols,
-      spatial_features = spatial_cols,
-      stringsAsFactors = FALSE
-    )
-    res$id <- x$id
-    res <- tibble::as_tibble(res)
-  } else {
-    term_names <- sel2char(x$terms)
-    res <- tibble::tibble(
-      terms = term_names,
-      spatial_features = NA_character_,
-      id = x$id
-    )
-  }
-  return(res)
+  
+  tibble(
+    terms = x$inputs,
+    value = "",
+    id = rep(x$id, length(x$inputs))
+  )
+  
 }

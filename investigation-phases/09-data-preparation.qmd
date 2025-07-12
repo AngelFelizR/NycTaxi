@@ -52,9 +52,6 @@ TrainingSample <-
   head(12L) |>
   lapply(FUN = fst::read_fst,
          columns = c("take_current_trip",
-                     # trip_value = tips + driver_pay
-                     #"tips",
-                     #"driver_pay",
                      "PULocationID",
                      "DOLocationID",
                      "wav_match_flag",
@@ -63,8 +60,7 @@ TrainingSample <-
                      "trip_time",
                      "request_datetime"),
          as.data.table = TRUE) |>
-  rbindlist() |>
-  (\(dt) dt[trip_time >= (60 * 2)] )()
+  rbindlist()
 ```
 
 ## Defining all features
@@ -73,7 +69,11 @@ TrainingSample <-
 AllFeaturesRecipe <-
   
   # Starting Recipe
-  recipe(take_current_trip ~ ., data = TrainingSample) |>
+  recipe(take_current_trip ~ ., 
+         data = TrainingSample) |>
+  
+  # Selecting variables over 2 min
+  step_filter(trip_time >= (60 * 2)) |>
   
   # Adding Geospatial Data
   step_join_geospatial_features(ends_with("LocationID"),
@@ -85,6 +85,9 @@ AllFeaturesRecipe <-
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = OmsDensityFeatures,
                                 col_pattern = c("DO", "PU")) |>
+  
+  # Transforming String
+  step_string2factor(all_string_predictors()) |>
   
   # Daily cycle
   step_harmonic(request_datetime, 
@@ -113,6 +116,7 @@ AllFeaturesRecipe <-
                          "dow",
                          "mday",
                          "month")) |>
+  
   step_holiday(request_datetime,
                holidays = c('USChristmasDay',
                             'USColumbusDay',
@@ -132,14 +136,17 @@ AllFeaturesRecipe <-
                             'USThanksgivingDay',
                             'USVeteransDay',
                             'USWashingtonsBirthday')) |>
-  step_mutate(company = fcase(hvfhs_license_num == "HV0002", "Juno",
+  
+  step_mutate(.pkgs = c("data.table", "lubridate", "timeDate"),
+              
+              company = fcase(hvfhs_license_num == "HV0002", "Juno",
                               hvfhs_license_num == "HV0003", "Uber",
                               hvfhs_license_num == "HV0004", "Via",
                               hvfhs_license_num == "HV0005", "Lyft") |> as.factor(),
               
+              request_datetime_am = am(request_datetime) |> as.integer(),
+              request_datetime_pm = pm(request_datetime) |> as.integer(),
               
-              request_datetime_am = am(request_datetime),
-              request_datetime_pm = pm(request_datetime),
               `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
@@ -157,15 +164,63 @@ AllFeaturesRecipe <-
               `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
               `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
-              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer())
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer()) |>
+  
+  
+  # Removing variable extracted
+  step_rm(ends_with(c("LocationID","request_datetime"))) |>
+
+  # Making transformations
+  step_nzv(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_scale(all_numeric_predictors()) |>
+  step_dummy(all_factor())
 
 ```
 
 ```{r}
-AllFeaturesDt <-
-  prep(AllFeaturesRecipe) |>
-  bake(new_data = TrainingSample[1:5])
+AllData =
+  AllFeaturesRecipe |>
+  prep() |>
+  bake(new_data = NULL)
 
-glimpse(AllFeaturesDt)
+setDT(AllData)
+
+AllData[, .SD, .SDcols = is.character]
+
+cor(AllData)
 ```
+
+```{r}
+
+devtools::load_all()
+
+# Starting Recipe
+recipe(take_current_trip ~ ., 
+       data = TrainingSample[1:5, c("take_current_trip","DOLocationID", "PULocationID")]) |>
+  
+  # Adding Geospatial Data
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = ZoneCodesRef,
+                                col_pattern = c("DO", "PU")) |>
+  
+  # Transforming String
+  step_string2factor(all_string_predictors()) |>
+  prep() |>
+  juice()
+
+
+
+# Starting Recipe
+recipe(a ~ b, 
+       data = data.frame(a = 1:2, b = 4:5)) |>
+  step_join_geospatial_features(b,
+                                spatial_features = data.frame(b = 4:5,
+                                                              h = c("a", "b")),
+                                role = "predictor") |>
+  step_string2factor(all_nominal_predictors()) |>
+  prep() |>
+  juice()
+```
+
 

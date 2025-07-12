@@ -13,6 +13,7 @@ step_join_geospatial_features(
   trained = FALSE,
   spatial_features,
   col_pattern = NULL,
+  inputs = NULL,
   skip = FALSE,
   id = recipes::rand_id("join_geospatial_features")
 )
@@ -23,6 +24,7 @@ step_join_geospatial_features_new(
   trained,
   spatial_features,
   col_pattern,
+  inputs,
   skip,
   id
 )
@@ -114,13 +116,13 @@ step and are assumed to be based on the original data structure.
 
 \examples{
 # Create sample data
-main_data <- data.frame(
+main_data = data.frame(
   region_id = c("A", "B", "C"),
   value = c(10, 20, 30)
 )
 
 # Create spatial features
-spatial_data <- data.frame(
+spatial_data = data.frame(
   region_id = c("A", "B", "C"),
   latitude = c(40.7, 34.1, 41.9),
   longitude = c(-74.0, -118.2, -87.6),
@@ -139,9 +141,9 @@ recipes::recipe(value ~ ., data = main_data) |>
 
 # Expanding data start and end region id
 main_data_prefix = main_data
-main_data_prefix$region_id <- NULL
-main_data_prefix$start_region_id <- main_data$region_id
-main_data_prefix$end_region_id <- rev(main_data$region_id)
+main_data_prefix$region_id = NULL
+main_data_prefix$start_region_id = main_data$region_id
+main_data_prefix$end_region_id = rev(main_data$region_id)
 
 # Adding geospatial features
 recipes::recipe(value ~ ., data = main_data_prefix) |>
