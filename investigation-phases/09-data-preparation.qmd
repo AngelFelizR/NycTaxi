@@ -78,13 +78,13 @@ AllFeaturesRecipe <-
   # Adding Geospatial Data
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = ZoneCodesRef,
-                                col_pattern = c("DO", "PU")) |>
+                                col_prefix = c("DO", "PU")) |>
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = AcsVariablesByZoneId,
-                                col_pattern = c("DO", "PU")) |>
+                                col_prefix = c("DO", "PU")) |>
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = OmsDensityFeatures,
-                                col_pattern = c("DO", "PU")) |>
+                                col_prefix = c("DO", "PU")) |>
   
   # Transforming String
   step_string2factor(all_string_predictors()) |>
@@ -168,48 +168,61 @@ AllFeaturesRecipe <-
   
   
   # Removing variable extracted
-  step_rm(ends_with(c("LocationID","request_datetime"))) |>
+  step_rm(ends_with(c("LocationID","request_datetime", "hvfhs_license_num"))) |>
 
   # Making transformations
   step_nzv(all_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
-  step_scale(all_numeric_predictors()) |>
-  step_dummy(all_factor())
+  step_scale(all_numeric_predictors())
 
 ```
 
 ```{r}
-AllData =
+TransformedData <-
   AllFeaturesRecipe |>
   prep() |>
-  bake(new_data = NULL)
-
-setDT(AllData)
-
-AllData[, .SD, .SDcols = is.character]
-
-cor(AllData)
+  juice()
 ```
 
 ```{r}
+library(corrr)
+
+setDT(TransformedData)
+
+correlate(TransformedData[, !c("take_current_trip")]) |>
+  shave() |>
+  stretch(na.rm = TRUE) |>
+  transform(abs_r = abs(r)) |>
+  ggplot(aes(abs_r)) +
+  stat_ecdf(linewidth = 1) +
+  scale_x_continuous(breaks = scales::breaks_width(0.1),
+                     labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(breaks = scales::breaks_width(0.1),
+                     labels = scales::label_percent(accuracy = 1)) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+```
+
+```{r}
+correlate(TransformedData) |>
+  focus(take_current_trip)
+  shave() |>
+  stretch(na.rm = TRUE) |>
+  transform(abs_r = abs(r)) |>
+  ggplot(aes(abs_r)) +
+  stat_ecdf(linewidth = 1) +
+  scale_x_continuous(breaks = scales::breaks_width(0.1),
+                     labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(breaks = scales::breaks_width(0.1),
+                     labels = scales::label_percent(accuracy = 1)) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+```
+
+
+```r
 
 devtools::load_all()
-
-# Starting Recipe
-recipe(take_current_trip ~ ., 
-       data = TrainingSample[1:5, c("take_current_trip","DOLocationID", "PULocationID")]) |>
-  
-  # Adding Geospatial Data
-  step_join_geospatial_features(ends_with("LocationID"),
-                                spatial_features = ZoneCodesRef,
-                                col_pattern = c("DO", "PU")) |>
-  
-  # Transforming String
-  step_string2factor(all_string_predictors()) |>
-  prep() |>
-  juice()
-
-
 
 # Starting Recipe
 recipe(a ~ b, 
@@ -220,7 +233,21 @@ recipe(a ~ b,
                                 role = "predictor") |>
   step_string2factor(all_nominal_predictors()) |>
   prep() |>
-  juice()
+  juice() |>
+  pillar::glimpse()
+
+
+# Starting Recipe
+recipe(a ~ DO_b + PU_b, 
+       data = data.frame(a = 1:2, DO_b = 4:5, PU_b = 5:4)) |>
+  step_join_geospatial_features(ends_with("_b"),
+                                spatial_features = data.frame(b = 4:5,
+                                                              h = c("a", "b")),
+                                col_prefix = c("DO_", "PU_")) |>
+  step_string2factor(all_nominal_predictors()) |>
+  prep() |>
+  juice() |>
+  pillar::glimpse()
 ```
 
 

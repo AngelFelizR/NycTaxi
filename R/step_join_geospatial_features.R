@@ -13,13 +13,13 @@
 #' @param role For model terms created by this step, what analysis role should
 #'   they be assigned? By default, the new columns created by this step from
 #'   the original variables will be assigned the same role as the original
-#'   column. If the original variable has role `NA`, then `predictor` is used.
+#'   column.
 #' @param trained A logical to indicate if the quantities for preprocessing
 #'   have been estimated.
 #' @param spatial_features A data frame containing the geospatial features to
 #'   join with the recipe data. This should contain both spatial variables and
 #'   the joining columns.
-#' @param col_pattern A character vector of prefixes to remove from selected
+#' @param col_prefix A character vector of prefixes to remove from selected
 #'   columns in the main data. For each prefix, the step will:
 #'   \itemize{
 #'     \item Identify main data columns starting with the prefix
@@ -40,13 +40,13 @@
 #'
 #' @details
 #' This step performs a join operation between the recipe data and provided
-#' geospatial features. The join behavior depends on `col_pattern`:
+#' geospatial features. The join behavior depends on `col_prefix`:
 #' 
-#' - When `col_pattern` is provided, the step processes each prefix by:
+#' - When `col_prefix` is provided, the step processes each prefix by:
 #'   1. Selecting main data columns starting with the prefix
 #'   2. Creating prefixed copies of spatial features
 #'   3. Performing joins using the prefixed columns
-#' - When `col_pattern` is `NULL`, a direct join is performed using the selected
+#' - When `col_prefix` is `NULL`, a direct join is performed using the selected
 #'   columns without renaming
 #'
 #' @section Tidying:
@@ -101,7 +101,7 @@
 #'   step_join_geospatial_features(
 #'    ends_with("region_id"),
 #'     spatial_features = spatial_data,
-#'     col_pattern = c("start_", "end_")
+#'     col_prefix = c("start_", "end_")
 #'   ) |>
 #'   recipes::prep() |>
 #'   recipes::bake(new_data = NULL)
@@ -110,10 +110,10 @@
 step_join_geospatial_features <- function(
     recipe,
     ...,
-    role = NA,
-    trained = FALSE,
     spatial_features,
-    col_pattern = NULL,
+    role = "predictor",
+    trained = FALSE,
+    col_prefix = NULL,
     skip = FALSE,
     id = recipes::rand_id("join_geospatial_features")
 ) {
@@ -121,10 +121,10 @@ step_join_geospatial_features <- function(
     recipe,
     step_join_geospatial_features_new(
       terms = rlang::enquos(...),
+      spatial_features = spatial_features,
       trained = trained,
       role = role,
-      spatial_features = spatial_features,
-      col_pattern = col_pattern,
+      col_prefix = col_prefix,
       skip = skip,
       id = id,
       info = NULL
@@ -139,7 +139,7 @@ step_join_geospatial_features_new <- function(
     role,
     trained,
     spatial_features,
-    col_pattern,
+    col_prefix,
     skip,
     id,
     info
@@ -147,10 +147,10 @@ step_join_geospatial_features_new <- function(
   recipes::step(
     subclass = "join_geospatial_features",
     terms = terms,
+    spatial_features = spatial_features,
     role = role,
     trained = trained,
-    spatial_features = spatial_features,
-    col_pattern = col_pattern,
+    col_prefix = col_prefix,
     role = role,
     skip = skip,
     id = id
@@ -165,49 +165,55 @@ prep.step_join_geospatial_features <- function(
     ...
 ) {
   
-  # We need to confirm that the data can be joined
-  # Before saving the data as an step
+  # 1. Defining the index to join based on recipe ------------------------------
   
-  col_to_join = recipes::recipes_eval_select(x$terms, training, info)
+  join_by = recipes::recipes_eval_select(x$terms, training, info)
+
   
-  attr(x$spatial_features, "col_to_join") = col_to_join
+  # 2. Saving the information for bake step ------------------------------------
   
-  if(!is.null(x$col_pattern)){
-    
-    col_to_join_clean =
-      gsub(pattern = paste(x$col_pattern, collapse = "|"),
+  attr(x$spatial_features, "join_by") = join_by
+  
+  
+  # 3. Removing prefix to match with columns in spatial_features ---------------
+  
+  join_by_not_prefix =
+    if(!is.null(x$col_prefix)){
+      gsub(pattern = paste0(x$col_prefix, collapse = "|"),
            replacement = "",
-           col_to_join) |>
-      unique()
-    
-  } else {
-    col_to_join_clean = col_to_join
+           join_by) |>
+        unique()
+    } else {
+      join_by
+    }
+  
+  if (!any(join_by_not_prefix %in% names(x$spatial_features))) {
+    rlang::abort("The defined terms cannot be found in spatial_features. Confirm if you need to define some `col_prefix` to define the join relation to apply.")
   }
   
-  if (!any(col_to_join_clean %in% names(x$spatial_features))) {
-    rlang::abort("The defined terms cannot be found in spatial_features. Confirm if you need to define some `col_pattern` to define the join relation to apply.")
+  
+  # 4. Adding columns to join as new terms -------------------------------------
+  # This step is crucial for making sure that the new feature can be found
+  # in the following steps and was the hards part of creating this recipe
+
+  new_spatial_cols = names(x$spatial_features) |> setdiff(y = join_by_not_prefix)
+  
+  if (!is.null(x$col_prefix)) {
+    new_spatial_cols = sapply(x$col_prefix, \(x) paste0(x ,new_spatial_cols) ) |> as.vector()  
   }
+  new_quos <- lapply(rlang::syms(new_spatial_cols), \(x) rlang::quo(!!x))
   
-  # Listing columns to add
-  new_spatial_cols = names(x$spatial_features) |> setdiff(y = col_to_join)
-  
-  # Adding pattern (if needed)
-  if (!is.null(x$col_pattern)) {
-    new_spatial_cols = sapply(x$col_pattern, \(x) paste0(x ,new_spatial_cols) ) |> as.vector()  
-  }
-  
-  # Converting characters to quosure
-  new_quos <- lapply(rlang::syms(new_spatial_cols), \(x) quo(!!x))
-  
-  # Adding new quosures a x$terms
   x$terms <- c(x$terms, new_quos)
+
+  
+  # 5. Passing the as new step -------------------------------------------------
   
   step_join_geospatial_features_new(
     terms = x$terms,
+    spatial_features = x$spatial_features,
     role = x$role,
     trained = TRUE,
-    spatial_features = x$spatial_features,
-    col_pattern = x$col_pattern,
+    col_prefix = x$col_prefix,
     skip = x$skip,
     id = x$id,
     info = updated_info
@@ -223,48 +229,64 @@ bake.step_join_geospatial_features <- function(
     new_data,
     ...
 ) {
-  spatial_features = object$spatial_features
   
+  # 1. Defining tables as data.table to perform the join -----------------------
+  
+  spatial_features = object$spatial_features
   data.table::setDT(new_data)
   data.table::setDT(spatial_features)
-  col_to_join = attr(spatial_features, "col_to_join")
   
-  if(is.null(object$col_pattern)){
+  
+  # 2. Listing the ids to perform the join -------------------------------------
+  
+  join_by = attr(spatial_features, "join_by")
+  
+  
+  # 3. Join the features to the new data ---------------------------------------
+  # If were are not using prefixes them we can perform a single join
+  # But if we are using prefixes then we need to perform a join for each prefix
+  
+  if(is.null(object$col_prefix)){
     
-    new_data = spatial_features[new_data,
-                                 on = col_to_join]
+    new_data = spatial_features[new_data, on = join_by]
+
+  }else{
     
-    new_data = tibble::as_tibble(new_data)
+    old_names = names(spatial_features)
     
-    return(new_data)
-    
+    for(prefix_i in object$col_prefix){
+      
+      join_by_i = 
+        grep(pattern = prefix_i, 
+             x = join_by, 
+             value = TRUE)[1L]
+      
+      spatial_copy = data.table::copy(spatial_features)
+      
+      new_names = paste0(prefix_i, old_names)
+      data.table::setnames(spatial_copy, old_names, new_names)
+      
+      new_data = spatial_copy[new_data, on = join_by_i]
+      
+    }
+  
   }
-  
-  old_names = names(spatial_features)
-  
-  for(prefix_i in object$col_pattern){
-    
-    col_to_join_i = 
-      grep(pattern = prefix_i, 
-           x = col_to_join, 
-           value = TRUE)
-    
-    # Create a copy of spatial features with prefixed names
-    spatial_copy = data.table::copy(spatial_features)
-    new_names = paste0(prefix_i, old_names)
-    data.table::setnames(spatial_copy, old_names, new_names)
-    
-    # Perform the join
-    new_data = spatial_copy[new_data,
-                             on = col_to_join_i]
-    
-  }
+
+  # 4. Taking the new data back to tibble to avoid problems --------------------
   
   new_data = tibble::as_tibble(new_data)
+  
   
   return(new_data)
   
 }
+
+
+#' @export
+required_pkgs.step_join_geospatial_features <- function(x, ...) {
+  c("data.table", "NycTaxi")
+}
+
 
 #' @export
 print.step_join_geospatial_features <- function(
@@ -273,7 +295,7 @@ print.step_join_geospatial_features <- function(
     ...
 ) {
   title = "Joining geospatial features by "
-  join_cols = if (x$trained) attr(x$spatial_features, "col_to_join") else NULL
+  join_cols = if (x$trained) attr(x$spatial_features, "join_by") else NULL
   
   recipes::print_step(
     tr_obj = join_cols,
@@ -283,17 +305,4 @@ print.step_join_geospatial_features <- function(
     width = width
   )
   invisible(x)
-}
-
-#' @rdname step_join_geospatial_features
-#' @param x A `step_join_geospatial_features` object.
-#' @export
-tidy.step_join_geospatial_features <- function(x, ...) {
-  
-  tibble(
-    terms = x$inputs,
-    value = "",
-    id = rep(x$id, length(x$inputs))
-  )
-  
 }

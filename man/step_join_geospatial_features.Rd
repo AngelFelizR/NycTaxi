@@ -3,17 +3,15 @@
 \name{step_join_geospatial_features}
 \alias{step_join_geospatial_features}
 \alias{step_join_geospatial_features_new}
-\alias{tidy.step_join_geospatial_features}
 \title{Join Geospatial Features to Recipe Data}
 \usage{
 step_join_geospatial_features(
   recipe,
   ...,
-  role = NA,
-  trained = FALSE,
   spatial_features,
-  col_pattern = NULL,
-  inputs = NULL,
+  role = "predictor",
+  trained = FALSE,
+  col_prefix = NULL,
   skip = FALSE,
   id = recipes::rand_id("join_geospatial_features")
 )
@@ -23,13 +21,11 @@ step_join_geospatial_features_new(
   role,
   trained,
   spatial_features,
-  col_pattern,
-  inputs,
+  col_prefix,
   skip,
-  id
+  id,
+  info
 )
-
-\method{tidy}{step_join_geospatial_features}(x, ...)
 }
 \arguments{
 \item{recipe}{A recipe object. The step will be added to the sequence of
@@ -38,19 +34,19 @@ operations for this recipe.}
 \item{...}{One or more selector functions to choose variables from the data
 to use for joining. See \code{\link[recipes:selections]{recipes::selections()}} for more details.}
 
-\item{role}{For model terms created by this step, what analysis role should
-they be assigned? By default, the new columns created by this step from
-the original variables will be assigned the same role as the original
-column. If the original variable has role \code{NA}, then \code{predictor} is used.}
-
-\item{trained}{A logical to indicate if the quantities for preprocessing
-have been estimated.}
-
 \item{spatial_features}{A data frame containing the geospatial features to
 join with the recipe data. This should contain both spatial variables and
 the joining columns.}
 
-\item{col_pattern}{A character vector of prefixes to remove from selected
+\item{role}{For model terms created by this step, what analysis role should
+they be assigned? By default, the new columns created by this step from
+the original variables will be assigned the same role as the original
+column.}
+
+\item{trained}{A logical to indicate if the quantities for preprocessing
+have been estimated.}
+
+\item{col_prefix}{A character vector of prefixes to remove from selected
 columns in the main data. For each prefix, the step will:
 \itemize{
 \item Identify main data columns starting with the prefix
@@ -67,8 +63,6 @@ using \code{skip = TRUE} as it may affect the computations for subsequent
 operations.}
 
 \item{id}{A character string that is unique to this step to identify it.}
-
-\item{x}{A \code{step_join_geospatial_features} object.}
 }
 \value{
 An updated version of \code{recipe} with the new step added to the
@@ -82,15 +76,15 @@ matching geographical identifiers.
 }
 \details{
 This step performs a join operation between the recipe data and provided
-geospatial features. The join behavior depends on \code{col_pattern}:
+geospatial features. The join behavior depends on \code{col_prefix}:
 \itemize{
-\item When \code{col_pattern} is provided, the step processes each prefix by:
+\item When \code{col_prefix} is provided, the step processes each prefix by:
 \enumerate{
 \item Selecting main data columns starting with the prefix
 \item Creating prefixed copies of spatial features
 \item Performing joins using the prefixed columns
 }
-\item When \code{col_pattern} is \code{NULL}, a direct join is performed using the selected
+\item When \code{col_prefix} is \code{NULL}, a direct join is performed using the selected
 columns without renaming
 }
 }
@@ -150,7 +144,7 @@ recipes::recipe(value ~ ., data = main_data_prefix) |>
   step_join_geospatial_features(
    ends_with("region_id"),
     spatial_features = spatial_data,
-    col_pattern = c("start_", "end_")
+    col_prefix = c("start_", "end_")
   ) |>
   recipes::prep() |>
   recipes::bake(new_data = NULL)
