@@ -7,9 +7,27 @@ execute:
   warning: false
 ---
 
+    
+## Setting up the environment
+
+In this section we are lodding the data functions to use for creating and testing the models.
+
 ```{r}
 ## Tools for modeling
 library(tidymodels)
+library(mixOmics)
+library(glmnet)
+library(rules)
+library(xrf)
+library(kernlab)
+library(ranger)
+library(xgboost)
+
+## Tools to explore correlations
+library(corrr)
+library(ggtext)
+library(glue)
+library(scales)
 
 ## To manage relative paths
 library(here)
@@ -21,9 +39,13 @@ library(timeDate)
 
 ## Custom functions
 devtools::load_all()
+
+params <- yaml::read_yaml(here("params.yml"))
 ```
 
 ## Importing data
+
+Here we import  de data to use.
 
 ```{r}
 AcsVariablesByZoneId <- fst::read_fst(
@@ -51,42 +73,48 @@ TrainingSample <-
   (\(dt) dt[order(n_char, name), full_path])() |>
   head(12L) |>
   lapply(FUN = fst::read_fst,
-         columns = c("take_current_trip",
-                     "PULocationID",
-                     "DOLocationID",
-                     "wav_match_flag",
-                     "hvfhs_license_num",
-                     "trip_miles",
-                     "trip_time",
-                     "request_datetime"),
          as.data.table = TRUE) |>
   rbindlist()
+
+TrainingSample[, take_current_trip := take_current_trip == 1L]
 ```
 
-## Defining all features
+## Data preparation
+
+Before training the models we need to create a recipe that integrate all the additional fills we can add based on domain knowledge, but keeping important columns for trip identification.
 
 ```{r}
 AllFeaturesRecipe <-
   
   # Starting Recipe
-  recipe(take_current_trip ~ ., 
+  recipe(take_current_trip ~ PULocationID + DOLocationID + wav_match_flag + hvfhs_license_num + trip_miles + trip_time + request_datetime + trip_id + performance_per_hour + percentile_75_performance, 
          data = TrainingSample) |>
+  
+  # Updating roles of variables important for trip identification
+  update_role(trip_id, 
+              performance_per_hour,
+              percentile_75_performance,
+              new_role = "additional info") |>
   
   # Selecting variables over 2 min
   step_filter(trip_time >= (60 * 2)) |>
   
+  # Renaming variables to join
+  step_rename(PU_LocationID = PULocationID,
+              DO_LocationID = DOLocationID) |>
+  
   # Adding Geospatial Data
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = ZoneCodesRef,
-                                col_prefix = c("DO", "PU")) |>
+                                col_prefix = c("DO_", "PU_")) |>
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = AcsVariablesByZoneId,
-                                col_prefix = c("DO", "PU")) |>
+                                col_prefix = c("DO_", "PU_")) |>
   step_join_geospatial_features(ends_with("LocationID"),
                                 spatial_features = OmsDensityFeatures,
-                                col_prefix = c("DO", "PU")) |>
+                                col_prefix = c("DO_", "PU_")) |>
   
-  # Transforming String
+  # Transforming strings to factors
   step_string2factor(all_string_predictors()) |>
   
   # Daily cycle
@@ -142,7 +170,8 @@ AllFeaturesRecipe <-
               company = fcase(hvfhs_license_num == "HV0002", "Juno",
                               hvfhs_license_num == "HV0003", "Uber",
                               hvfhs_license_num == "HV0004", "Via",
-                              hvfhs_license_num == "HV0005", "Lyft") |> as.factor(),
+                              hvfhs_license_num == "HV0005", "Lyft",
+                              default = "New") |> as.factor(),
               
               request_datetime_am = am(request_datetime) |> as.integer(),
               request_datetime_pm = pm(request_datetime) |> as.integer(),
@@ -167,87 +196,235 @@ AllFeaturesRecipe <-
               `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer()) |>
   
   
-  # Removing variable extracted
+  # Removing variables
   step_rm(ends_with(c("LocationID","request_datetime", "hvfhs_license_num"))) |>
-
-  # Making transformations
   step_nzv(all_predictors()) |>
-  step_dummy(all_nominal_predictors()) |>
-  step_scale(all_numeric_predictors())
+  
+  step_sample()
 
 ```
 
+## Defining models to train
+
 ```{r}
-TransformedData <-
+# Logistic regression via glmnet
+GlmnetSpec <- 
+  logistic_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("classification") |> 
+  set_engine("glmnet")
+
+# Polynomial support vector machines (SVMs) via kernlab
+KernlabSpec <- 
+  svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("kernlab")
+
+# Radial basis function support vector machines (SVMs) via kernlab
+KernlabSpec <- 
+  svm_rbf(cost = tune(), rbf_sigma = tune()) |> 
+  set_mode("classification")|> 
+  set_engine("kernlab")
+
+# Random forests via ranger
+RangerSpec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) |> 
+  set_mode("classification") |> 
+  set_engine("ranger") 
+
+# Boosted trees via xgboost
+XgboostSpec <- 
+  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(), 
+    loss_reduction = tune(), sample_size = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("xgboost") 
+
+# RuleFit models via xrf
+XrfSpec <- 
+  rule_fit(mtry = tune(), trees = tune(), min_n = tune(), tree_depth = tune(), 
+    learn_rate = tune(), loss_reduction = tune(), sample_size = tune(), penalty = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("xrf")
+```
+
+## Defining recipes to use
+
+### Linear and Generalized Linear Classification Models
+
+```{r}
+GlmnetBasicRecipe <-
   AllFeaturesRecipe |>
-  prep() |>
-  juice()
+  step_dummy(all_nominal_predictors()) |>
+  step_interact(terms = ~ all_numeric_predictors():all_numeric_predictors()) |>
+  step_YeoJohnson(all_numeric_predictors()) |>
+  step_normalize(all_numeric_predictors())
+  
+GlmnetCorrRecipe <-
+  GlmnetBasicRecipe |>
+  step_corr(all_numeric_predictors(),threshold = tune())
+
+GlmnetPcaRecipe <-
+  GlmnetBasicRecipe |>
+  step_pca(all_numeric_predictors(), num_comp = tune())
+
+GlmnetPlsRecipe <-
+  GlmnetBasicRecipe |>
+  step_pls(all_numeric_predictors(), num_comp = tune())
 ```
+
+### Support vector machines
 
 ```{r}
-library(corrr)
+KernlabBasicRecipe <-
+  AllFeaturesRecipe |>
+  step_log(all_numeric_predictors(), base = 2) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_normalize(all_numeric_predictors())
+  
+KernlabCorrRecipe <-
+  KernlabBasicRecipe |>
+  step_corr(all_numeric_predictors(),threshold = tune())
 
-setDT(TransformedData)
+KernlabPcaRecipe <-
+  KernlabBasicRecipe |>
+  step_pca(all_numeric_predictors(), num_comp = tune())
 
-correlate(TransformedData[, !c("take_current_trip")]) |>
-  shave() |>
-  stretch(na.rm = TRUE) |>
-  transform(abs_r = abs(r)) |>
-  ggplot(aes(abs_r)) +
-  stat_ecdf(linewidth = 1) +
-  scale_x_continuous(breaks = scales::breaks_width(0.1),
-                     labels = scales::label_percent(accuracy = 1)) +
-  scale_y_continuous(breaks = scales::breaks_width(0.1),
-                     labels = scales::label_percent(accuracy = 1)) +
-  theme_minimal(base_size = 12) +
-  theme(panel.grid.minor = element_blank())
+KernlabPlsRecipe <-
+  KernlabBasicRecipe |>
+  step_pls(all_numeric_predictors(), num_comp = tune())
 ```
+
+### Tree-Based and Rule-Based Classification
 
 ```{r}
-correlate(TransformedData) |>
-  focus(take_current_trip)
-  shave() |>
-  stretch(na.rm = TRUE) |>
-  transform(abs_r = abs(r)) |>
-  ggplot(aes(abs_r)) +
-  stat_ecdf(linewidth = 1) +
-  scale_x_continuous(breaks = scales::breaks_width(0.1),
-                     labels = scales::label_percent(accuracy = 1)) +
-  scale_y_continuous(breaks = scales::breaks_width(0.1),
-                     labels = scales::label_percent(accuracy = 1)) +
-  theme_minimal(base_size = 12) +
-  theme(panel.grid.minor = element_blank())
+RangerRecipe <-
+  AllFeaturesRecipe |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_novel(all_nominal_predictors()) 
+
+XgboostRecipe <-
+  RangerRecipe |>
+  step_dummy(all_nominal_predictors())
+
+XrfRecipe <-
+  XgboostRecipe |>
+  step_normalize(all_numeric_predictors())
+```
+
+## Tunning
+
+
+```{r}
+glmnet_tune <- 
+  tune_grid(glmnet_workflow, resamples = stop("add your rsample object"), grid = glmnet_grid) 
+
+glmnet_grid <- tidyr::crossing(penalty = 10^seq(-6, -1, length.out = 20), mixture = c(0.05, 
+    0.2, 0.4, 0.6, 0.8, 1))
+
+set.seed(36924)
+xrf_tune <-
+  tune_grid(xrf_workflow, resamples = stop("add your rsample object"), grid = stop("add number of candidate points"))
 ```
 
 
-```r
 
-devtools::load_all()
+```{r}
+glmnet_recipe <- 
+  recipe(formula = take_current_trip ~ PULocationID + DOLocationID + wav_match_flag + 
+    hvfhs_license_num + trip_miles + trip_time + request_datetime, data = TrainingSample) |> 
+  step_novel(all_nominal_predictors()) |> 
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  step_normalize(all_numeric_predictors()) 
 
-# Starting Recipe
-recipe(a ~ b, 
-       data = data.frame(a = 1:2, b = 4:5)) |>
-  step_join_geospatial_features(b,
-                                spatial_features = data.frame(b = 4:5,
-                                                              h = c("a", "b")),
-                                role = "predictor") |>
-  step_string2factor(all_nominal_predictors()) |>
-  prep() |>
-  juice() |>
-  pillar::glimpse()
+xrf_recipe <- 
+  recipe(formula = take_current_trip ~ PULocationID + DOLocationID + wav_match_flag + 
+    hvfhs_license_num + trip_miles + trip_time + request_datetime, data = TrainingSample) |> 
+  step_novel(all_nominal_predictors()) |> 
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  step_normalize(all_numeric_predictors()) 
 
+glmnet_workflow <- 
+  workflow() |> 
+  add_recipe(glmnet_recipe) |> 
+  add_model(glmnet_spec) 
 
-# Starting Recipe
-recipe(a ~ DO_b + PU_b, 
-       data = data.frame(a = 1:2, DO_b = 4:5, PU_b = 5:4)) |>
-  step_join_geospatial_features(ends_with("_b"),
-                                spatial_features = data.frame(b = 4:5,
-                                                              h = c("a", "b")),
-                                col_prefix = c("DO_", "PU_")) |>
-  step_string2factor(all_nominal_predictors()) |>
-  prep() |>
-  juice() |>
-  pillar::glimpse()
+xrf_workflow <- 
+  workflow() |> 
+  add_recipe(xrf_recipe) |> 
+  add_model(xrf_spec) 
 ```
+
+
+
+
+
+```{r}
+# usemodels::use_kernlab_svm_rbf(take_current_trip ~ ., data = NewData)
+
+kernlab_recipe <- 
+  recipe(formula = take_current_trip ~ ., data = NewData) |> 
+  step_zv(all_predictors()) |> 
+  step_normalize(all_numeric_predictors()) 
+
+
+
+kernlab_workflow <- 
+  workflow() |> 
+  add_recipe(kernlab_recipe) |> 
+  add_model(kernlab_spec) 
+
+set.seed(50925)
+kernlab_tune <-
+  tune_grid(kernlab_workflow, resamples = stop("add your rsample object"), grid = stop("add number of candidate points"))
+```
+
+
+
+```{r}
+usemodels::use_ranger(take_current_trip ~ ., data = NewData)
+
+ranger_recipe <- 
+  recipe(formula = take_current_trip ~ ., data = NewData) 
+
+
+
+ranger_workflow <- 
+  workflow() |> 
+  add_recipe(ranger_recipe) |> 
+  add_model(ranger_spec) 
+
+set.seed(86136)
+ranger_tune <-
+  tune_grid(ranger_workflow, resamples = stop("add your rsample object"), grid = stop("add number of candidate points"))
+
+```
+
+
+
+```{r}
+usemodels::use_xgboost(take_current_trip ~ ., data = NewData)
+
+xgboost_recipe <- 
+  recipe(formula = take_current_trip ~ ., data = NewData) |> 
+  step_novel(all_nominal_predictors()) |> 
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |> 
+  step_zv(all_predictors()) 
+
+
+
+xgboost_workflow <- 
+  workflow() |> 
+  add_recipe(xgboost_recipe) |> 
+  add_model(xgboost_spec) 
+
+set.seed(90137)
+xgboost_tune <-
+  tune_grid(xgboost_workflow, resamples = stop("add your rsample object"), grid = stop("add number of candidate points"))
+```
+
+
+
+
 
 

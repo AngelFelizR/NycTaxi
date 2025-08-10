@@ -1,0 +1,7 @@
+ColorHighlight: lightslateblue
+ColorHighlightLow: #D3CDF7
+ColorGray: gray80
+BoroughColors:
+  Manhattan: #e41a1c
+  Queens: #377eb8
+  Brooklyn: #4daf4a

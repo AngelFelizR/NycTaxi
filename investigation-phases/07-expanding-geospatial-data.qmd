@@ -154,8 +154,7 @@ Now we can create a bounding box that encompasses the selected boroughs to effic
 #| echo: false
 #| output: false
 
-bb_boxFilePath = here("output/cache-data/09-data-preparation/bb_box.qs")
-
+bb_boxFilePath <- here("output/cache-data/07-expanding-geospatial-data/bb_box.qs")
 
 if(file.exists(bb_boxFilePath)) {
   bb_box <- qs2::qs_read(bb_boxFilePath)
