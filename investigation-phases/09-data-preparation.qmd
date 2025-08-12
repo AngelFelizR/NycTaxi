@@ -85,14 +85,6 @@ TrainingSample <-
            factor(levels = c("yes", "no")))
 ```
 
-## Defining resamples
-
-
-```{r}
-set.seed(5878)
-TrainingSampleResamples <- vfold_cv(TrainingSample, v = 10)
-```
-
 
 ## Data preparation
 
@@ -212,7 +204,10 @@ AllFeaturesRecipe <-
   
   
   # Removing variables
-  step_rm(ends_with(c("LocationID","request_datetime", "hvfhs_license_num")))
+  step_rm(ends_with(c("LocationID","request_datetime", "hvfhs_license_num"))) |>
+  
+  # Imputing the data
+  step_impute_median(all_numeric_predictors())
 
 ```
 
@@ -266,65 +261,143 @@ XrfSpec <-
 
 ## Defining recipes to use
 
-### Generalized linear models and support vector machines
+### Defining basic recipies
+
 
 ```{r}
 NormalizedRecipe <-
   AllFeaturesRecipe |>
   step_YeoJohnson(all_numeric_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
-  step_impute_median(all_numeric_predictors()) |>
-  step_impute_mode(all_nominal_predictors()) |>
   step_nzv(all_predictors()) |>
   step_normalize(all_numeric_predictors())
-  
+
+BasicTreeRecipe <-
+  AllFeaturesRecipe |>
+  step_nzv(all_predictors()) |>
+  step_novel(all_nominal_predictors())
+```
+
+### Making preprossessing prior tunning
+
+```{r}
+#| echo: false
+#| output: false
+
+TrainingSampleNormalizedFilePath <- here("output/cache-data/09-data-preparation/TrainingSampleNormalized.qs")
+TrainingSampleForTreesFilePath <- here("output/cache-data/09-data-preparation/TrainingSampleForTrees.qs")
+
+if(file.exists(TrainingSampleNormalizedFilePath)) {
+  TrainingSampleNormalized <- qs2::qs_read(TrainingSampleNormalizedFilePath)
+}
+
+if(file.exists(TrainingSampleForTreesFilePath)) {
+  TrainingSampleForTrees <- qs2::qs_read(TrainingSampleForTreesFilePath)
+}
+```
+
+
+```{r}
+#| eval: false
+
+TrainingSampleNormalized <-
+  prep(NormalizedRecipe) |>
+  bake(new_data = NULL)
+
+TrainingSampleForTrees <-
+  prep(BasicTreeRecipe) |>
+  bake(new_data = NULL)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(TrainingSampleNormalized, TrainingSampleNormalizedFilePath)
+qs2::qs_save(TrainingSampleForTrees, TrainingSampleForTreesFilePath)
+```
+
+
+### Defining resamples
+
+```{r}
+set.seed(5878)
+TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
+
+set.seed(1245)
+TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
+```
+
+### Defining recipes to tune
+
+```{r}
+start_recipe <- function(df) {
+  new_recipe = 
+    recipe(take_current_trip ~ ., data = df) |>
+    update_role(trip_id, 
+                performance_per_hour,
+                percentile_75_performance,
+                new_role = "additional info")
+}
+
 NormalizedCorrRecipe <-
-  NormalizedRecipe |>
+  start_recipe(TrainingSampleNormalized) |>
   step_corr(all_numeric_predictors(), threshold = tune())
 
 NormalizedPcaRecipe <-
-  NormalizedRecipe |>
+  start_recipe(TrainingSampleNormalized) |>
   step_pca(all_numeric_predictors(), num_comp = tune()) |>
   step_normalize(all_numeric_predictors())
 
 NormalizedPlsRecipe <-
-  NormalizedRecipe |>
+  start_recipe(TrainingSampleNormalized) |>
   step_pls(all_numeric_predictors(), num_comp = tune()) |>
   step_normalize(all_numeric_predictors())
-```
-
-### Tree-Based and Rule-Based Classification
-
-```{r}
-BasicTreeRecipe <-
-  AllFeaturesRecipe |>
-  step_nzv(all_predictors()) |>
-  step_other(all_nominal_predictors(), threshold = tune()) |>
-  step_novel(all_nominal_predictors()) 
 
 XgboostRecipe <-
-  BasicTreeRecipe |>
-  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+  start_recipe(TrainingSampleForTrees) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
 
 XrfRecipe <-
   XgboostRecipe |>
-  step_nzv(all_predictors()) |>
   step_normalize(all_numeric_predictors())
 ```
+
 
 ## Defining workflows to tune
 
 ```{r}
-AllWorkflowsToTune <-
-  rbind(
-    workflow_set(
-      preproc = list(rm_corr = NormalizedCorrRecipe,
-                     pca = NormalizedPcaRecipe,
-                     pls = NormalizedPlsRecipe), 
-      models = list(logistic = GlmnetSpec,
-                    svm_rbf = KernlabRbfSpec,
-                    svm_poly = KernlabPolySpec)
-    ),
+#| echo: false
+#| output: false
+
+NormalizedWorkFlowToTuneFilePath <- here("output/cache-data/09-data-preparation/NormalizedWorkFlowToTune.qs")
+TreeWorkFlowsToTuneFilePath <- here("output/cache-data/09-data-preparation/TreeWorkFlowsToTune.qs")
+
+if(file.exists(NormalizedWorkFlowToTuneFilePath)) {
+  NormalizedWorkFlowToTune <- qs2::qs_read(NormalizedWorkFlowToTuneFilePath)
+}
+
+if(file.exists(TreeWorkFlowsToTuneFilePath)) {
+  TreeWorkFlowsToTune <- qs2::qs_read(TreeWorkFlowsToTuneFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
+NormalizedWorkFlowToTune <- workflow_set(
+  preproc = list(rm_corr = NormalizedCorrRecipe,
+                 pca = NormalizedPcaRecipe,
+                 pls = NormalizedPlsRecipe), 
+  models = list(logistic = GlmnetSpec,
+                svm_rbf = KernlabRbfSpec,
+                svm_poly = KernlabPolySpec)
+)
+
+TreeWorkFlowsToTune <- bind_rows(
     workflow_set(
       preproc = list(reduce_levels = BasicTreeRecipe), 
       models = list(bag_tree = RpartBagSpec,
@@ -343,11 +416,15 @@ AllWorkflowsToTune <-
   )
 ```
 
-## Defining metrics to evalate
-
 ```{r}
-MetricsToEval <- metric_set(roc_auc, brier_class)
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(NormalizedWorkFlowToTune, NormalizedWorkFlowToTuneFilePath)
+qs2::qs_save(TreeWorkFlowsToTune, TreeWorkFlowsToTuneFilePath)
 ```
+
 
 ## Tuning grid for each workflow
 
@@ -355,66 +432,35 @@ MetricsToEval <- metric_set(roc_auc, brier_class)
 #| echo: false
 #| output: false
 
-AllWorkflowsToTuneFilePath <- here("output/cache-data/09-data-preparation/AllWorkflowsToTune.qs")
+NormalizedWorkFlowTunedFilePath <- here("output/cache-data/09-data-preparation/NormalizedWorkFlowTuned.qs")
+TreeWorkFlowsTunedFilePath <- here("output/cache-data/09-data-preparation/TreeWorkFlowsTuned.qs")
 
-if(file.exists(AllWorkflowsToTuneFilePath)) {
-  AllWorkflowsToTune <- qs2::qs_read(AllWorkflowsToTuneFilePath)
+if(file.exists(NormalizedWorkFlowTunedFilePath)) {
+  NormalizedWorkFlowTuned <- qs2::qs_read(NormalizedWorkFlowTunedFilePath)
+}
+if(file.exists(TreeWorkFlowsTunedFilePath)) {
+  TreeWorkFlowsTuned <- qs2::qs_read(TreeWorkFlowsTunedFilePath)
 }
 ```
 
 
 ```{r}
-#| eval: false
+#| file: multicore-scripts/03-tunning-initial-grid.R
 
-for(flow_i in AllWorkflowsToTune$wflow_id) {
-  
-  wf_i <- extract_workflow(AllWorkflowsToTune, id = flow_i) 
-  
-  wf_param_i <- extract_parameter_set_dials(wf_i)
-  
-  if(flow_i == "BasicTreeRecipe_RangerSpec"){
-    TrainingSampleTransformed <- 
-      prep(AllFeaturesRecipe) |>
-      bake(new_data = NULL)
-    
-    wf_param_i <-
-      finalize(object = wf_param_i,
-               x = TrainingSampleTransformed)
-  }
-  
-  set.seed(1401)
-  initial_grid <- 
-    grid_space_filling(wf_param_i,
-                       size = 15, 
-                       type = "audze_eglais",
-                       original = FALSE)
-  
-  print(paste("tunning", flow_i))
-  
-  tunning_results =
-    tune_grid(object = wf_i,
-              resamples = TrainingSampleResamples,
-              param_info = wf_param_i,
-              grid = initial_grid,
-              metrics = MetricsToEval)
-  
-  print(paste("saving results for", flow_i))
-  
-  AllWorkflowsToTune <-
-    AllWorkflowsToTune |>
-    option_add(param_info = wf_param_i,
-               initial = tunning_results,
-               id = flow_i)
-}
 ```
 
 ```{r}
-#| eval: false
-#| echo: false
-#| output: false
+NormalizedWorkFlowTuned$option[[1L]][["initial"]] |>
+  collect_metrics() |>
+  filter(.metric == "roc_auc") |>
+  arrange(desc(mean))
 
-qs2::qs_save(AllWorkflowsToTune, AllWorkflowsToTuneFilePath)
+mean(TrainingSample$take_current_trip == "yes")
+
+file.mtime(NormalizedWorkFlowTunedFilePath)
 ```
+
+
 
 
 ## Defining workflows to tune
