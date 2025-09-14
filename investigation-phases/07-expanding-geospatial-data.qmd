@@ -1,0 +1,959 @@
+---
+title: "Expanding Geospatial Information"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
+
+As we saw in the **initial exploration**, `take_current_trip` varies across zones, but we know that only providing IDs offers limited context for the models to differentiate between zones. Thus, we enrich the data with **geospatial features** derived from **OpenStreetMap (OSM)** to provide deeper insights into each zone.
+
+Here are the steps to follow:
+
+1. **Import data**:  
+
+   - Load NYC taxi zone shapefiles (from TLC, EPSG:2263) and training data.  
+
+2. **Extract OSM data**:  
+
+   - Fetch OSM data for Queens, Brooklyn, and Manhattan using key tags.
+   
+     - `amenity`
+     - `shop`
+     - `office`
+     - `tourism`
+     - `public_transport`
+     - `aeroway`
+     - `emergency`
+     - `sport`
+     - `highway`
+     - `landuse`
+     
+   - Reproject OSM data to EPSG:2263 to match taxi zone CRS.  
+
+3. **Spatial joins**:  
+
+   - Link OSM features to taxi zones:  
+   
+     - Points: Include if within zone.  
+     - Lines: Include if features are fully contained in zones and for partially intersecting lines, clip the feature to the zone boundary and retain only the overlapping portion.
+     - Polygons: Include if features are fully contained in zones and for partially intersecting polygons, clip the feature to the zone boundary and retain only the overlapping portion.
+
+4. **Extract new features**:  
+
+  - For each zone and tag:  
+   
+     - Number of OSM points per $mi^2$.  
+     - Total length ($mi$) of OSM lines per $mi^2$.  
+     - Total area ($mi^2$) of OSM polygons per $mi^2$.  
+
+5. **Validation**:  
+
+   - Integrate new features and training data
+   - Define the correlation between new predictors and `take_current_trip`
+    
+## Setting up the environment
+
+### Define colors to use
+
+```{r}
+BoroughColors <- c(
+  'Manhattan' = '#e41a1c',
+  'Queens' = '#377eb8',
+  'Brooklyn'= '#4daf4a'
+)
+
+BoroughSelected <- names(BoroughColors)
+
+ColorHighlight <- "lightslateblue"
+ColorGray <- "gray80"
+```
+
+### Define features to import
+
+```{r}
+FeaturesToGet <- c(
+   "amenity",
+   "shop",
+   "office",
+   "tourism",
+   "public_transport",
+   "aeroway",
+   "emergency",
+   "sport",
+   "highway",
+   "landuse"
+)
+```
+
+### Loading packages
+
+```{r}
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+
+## To work with spatial data
+library(sf)
+
+## To create interactive maps
+library(tmap)
+tmap_mode("view")
+
+## To download OpenStreetMap data
+library(osmdata)
+
+## Transforming distance units
+library(units)
+
+## To create general plots
+library(ggplot2)
+
+## Custom functions
+devtools::load_all()
+```
+
+:::{.callout-note title="Computational Performance"}
+The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
+:::
+
+## Import data
+
+Details on how this data was obtained can be found in the **Data Collection Process**.
+
+```{r}
+ZonesShapes <-
+  read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
+  subset(borough %in% BoroughSelected) |>
+  transform(Shape_Area = st_area(geometry))
+
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst,
+         columns = c("trip_id","PULocationID", "DOLocationID", "take_current_trip"),
+         as.data.table = TRUE) |>
+  rbindlist()
+```
+
+## Extract OSM data
+
+### Defining bounding box
+
+Now we can create a bounding box that encompasses the selected boroughs to efficiently query OSM data for the region we really need.
+
+```{r}
+#| echo: false
+#| output: false
+
+bb_boxFilePath <- here("output/cache-data/07-expanding-geospatial-data/bb_box.qs")
+
+if(file.exists(bb_boxFilePath)) {
+  bb_box <- qs2::qs_read(bb_boxFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
+bb_box <-
+  lapply(X = paste0(BoroughSelected, ", NY"),
+         FUN = osmdata::getbb) |>
+  do.call(what = "cbind") |>
+  (\(x) cbind(min = apply(x, 1, min),
+              max = apply(x, 1, max)))()
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(bb_box, bb_boxFilePath)
+```
+
+This plot shows the selected boroughs and the taxi zones within them, giving us a visual overview of our geographical units of analysis. The blue rectangle represents the bounding box we defined earlier, encompassing Manhattan (red), Queens (blue), and Brooklyn (green). Each of these boroughs is further divided into smaller taxi zones, which are the **primary geographical units for our analysis**. The different colors assigned to each borough (defined in the `BoroughColors` vector) help to visually distinguish them. This initial map confirms that we have correctly loaded the taxi zone shapefile and subsetted it to include only the boroughs of interest for our study.
+
+
+```{r}
+plot_box(bb_box) +
+  tm_shape(ZonesShapes) +
+  tm_polygons(fill = "borough",
+              fill.scale = tm_scale_categorical(values = BoroughColors),
+              fill_alpha = 0.6)
+```
+
+### Getting data from API
+
+This section retrieves geospatial data from OpenStreetMap (OSM) for the features listed in `FeaturesToGet` and save it in RDS files in the `output/cache-data/ directory` to **speed up the development process** of this portfolio.
+
+:::{.callout-note}
+By caching the results of computationally intensive operations, we can avoid re-running the entire workflow every time the page is updated or changes are made.
+:::
+
+
+```r
+keep_feature_value <- function(osm_list, key) {
+  
+  shape_list =
+    c("osm_points",
+      "osm_lines",
+      "osm_polygons",
+      "osm_multilines",
+      "osm_multipolygons")
+  
+  for(shape_i in shape_list){
+    
+    if(is.null(osm_list[[shape_i]])){
+      next
+    }
+    
+    # Removing cases without key value
+    osm_list[[shape_i]] =
+      subset(osm_list[[shape_i]],
+             !is.na(get(key, inherits = FALSE)),
+             select = c("name", key))
+    
+    # Fixing not valid geometries
+    not_valid_cases = !sf::st_is_valid(osm_list[[shape_i]])
+    if(sum(not_valid_cases) > 0) {
+      osm_list[[shape_i]] = sf::st_make_valid(osm_list[[shape_i]])
+    }
+    
+  }
+  
+  return(osm_list)
+}
+
+
+for(feature_i in FeaturesToGet){
+  
+  OsmData <-
+    opq(bb_box) |>
+    add_osm_feature(feature_i) |>
+    osmdata_sf() |>
+    keep_feature_value(feature_i)
+  
+  saveRDS(OsmData, 
+          here(sprintf("output/cache-data/feature_%s.rds", feature_i)), 
+          compress = "xz")
+}
+```
+
+### Consolidating data
+
+This function takes the list of OSM features, selects relevant columns, pivots the data to a longer format, and transforms it to the correct coordinate reference system.
+
+```r
+tidy_osm_data <- function(osm_sf, crs = NULL) {
+  
+  shape_list =
+    c("osm_points",
+      "osm_lines",
+      "osm_polygons",
+      "osm_multilines",
+      "osm_multipolygons")
+  
+  for(shape_i in shape_list) {
+    
+    osm_sf[[shape_i]] =
+      osm_sf[[shape_i]] |>
+      dplyr::select(-osm_id) |>
+      tidyr::pivot_longer(!c("name", "geometry"),
+                          names_to = "feature",
+                          values_drop_na = TRUE)
+    
+    if(!is.null(crs)){
+      osm_sf[[shape_i]] = st_transform(osm_sf[[shape_i]], crs = crs)
+    }
+    
+  }
+  
+  return(osm_sf)
+  
+}
+
+OsmDataComplete <-
+  FeaturesToGet |>
+  sapply(FUN = \(x) here(sprintf("output/cache-data/feature_%s.rds", x))) |>
+  lapply(FUN = readRDS) |>
+  do.call(what = "c") |>
+  tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
+```
+
+### Saving the data
+
+I opted to use the `qs2` package for saving and reading R objects throughout this project instead of the base R functions like `saveRDS` and `readRDS`. This decision was based on benchmarks I encountered while learning about the `targets` R package, which indicated that `qs2` offers **significantly faster serialization and de-serialization times**, particularly for larger datasets like the geospatial data we are working with. This speed advantage helps to reduce the overall execution time of the workflow, which is beneficial for the development and presentation of this portfolio.
+
+```r
+qs2::qs_save(OsmDataComplete, 
+             here("output/cache-data/OsmDataComplete.qs"))
+```
+
+
+```{r}
+#| echo: FALSE
+
+OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
+
+OsmDataComplete
+```
+
+## Spatial joins
+
+We perform two main types of spatial joins to associate the OpenStreetMap features with our taxi zones: first, to identify features entirely within each zone, and second, to identify features that intersect or overlap with the zone boundaries.
+
+### Joining elements **contained** by each zone
+
+Using the `st_within` function, this section identifies OpenStreetMap features—such as points, lines, polygons, multilinestrings, and multipolygons—that are **fully contained** within each taxi zone's boundaries. `st_within` considers multilinestrings and multipolygons to be within a zone only if all their constituent parts are inside.
+
+```r
+PointsWithinZones <-
+  st_join(OsmDataComplete$osm_points,
+          ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+LinesWithinZones <-
+  OsmDataComplete$osm_lines |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+MultiLinesWithinZones <-
+  OsmDataComplete$osm_multilines |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+          
+PolygonWithinZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+
+MultiPolygonWithinZones <-
+  st_make_valid(OsmDataComplete$osm_multipolygons) |>
+  st_join(y = ZonesShapes,
+          join = st_within,
+          left = FALSE)
+```
+
+```{r}
+#| echo: false
+
+PointsWithinZones <-
+  qs2::qs_read(here("output/cache-data/PointsWithinZones.qs"))
+
+LinesWithinZones <-
+  qs2::qs_read(here("output/cache-data/LinesWithinZones.qs"))
+
+MultiLinesWithinZones <-
+  qs2::qs_read(here("output/cache-data/MultiLinesWithinZones.qs"))
+
+PolygonWithinZones <-
+  qs2::qs_read(here("output/cache-data/PolygonWithinZones.qs"))
+
+MultiPolygonWithinZones <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonWithinZones.qs"))
+```
+
+To ensure the accuracy of our spatial joins, we first want to visually inspect the features that were identified as being *fully contained* within a specific taxi zone. We'll start by examining zone with `LocationID` 191.
+
+By examining this map, we can visually confirm that the **lines and polygons displayed are indeed located entirely within the boundaries** of the chosen taxi zone. This helps us to verify the correctness of our `st_within` spatial join operation before proceeding with further analysis on these fully contained features.
+
+```{r}
+ZoneToCheck <- 191L
+
+ZonesShapesToCheck <- subset(ZonesShapes, LocationID == ZoneToCheck)
+LinesWithinZonesToCheck  <- subset(LinesWithinZones, LocationID == ZoneToCheck)
+PolygonWithinZonesToCheck <- subset(PolygonWithinZones, LocationID == ZoneToCheck)
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesWithinZonesToCheck) +
+  tm_lines(col = "feature") +
+  tm_shape(PolygonWithinZonesToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+<br>
+
+Now we can save the save the results.
+
+```r
+qs2::qs_save(PointsWithinZones, 
+             here("output/cache-data/PointsWithinZones.qs"))
+
+qs2::qs_save(LinesWithinZones, 
+             here("output/cache-data/LinesWithinZones.qs"))
+
+qs2::qs_save(MultiLinesWithinZones, 
+             here("output/cache-data/MultiLinesWithinZones.qs"))
+
+qs2::qs_save(PolygonWithinZones, 
+             here("output/cache-data/PolygonWithinZones.qs"))
+
+qs2::qs_save(MultiPolygonWithinZones, 
+             here("output/cache-data/MultiPolygonWithinZones.qs"))
+```
+
+
+
+### Joining lines that are **partially contained** for each zone. 
+
+In this section, we identify OSM features that are not entirely within a taxi zone but do intersect or overlap with its boundary. For lines and multilinestrings, we use `st_crosses`, which identifies features that intersect the interior of a zone but are not completely contained within it. For polygons and multipolygons, we use `st_overlaps`, which identifies features that have some area in common with a zone but are not identical to or completely contained within it.
+
+```r
+LinesInSeveralZones <-
+  OsmDataComplete$osm_lines |>
+  st_join(y = ZonesShapes,
+          join = st_crosses,
+          left = FALSE)
+
+MultiLinesInSeveralZones <-
+  OsmDataComplete$osm_multilines |>
+  st_join(y = ZonesShapes,
+          join = st_crosses,
+          left = FALSE)
+
+PolygonInSeveralZones <-
+  OsmDataComplete$osm_polygons |>
+  st_join(y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+
+MultiPolygonInSeveralZones <-
+  st_make_valid(OsmDataComplete$osm_multipolygons) |>
+  st_join(y = ZonesShapes,
+          join = st_overlaps,
+          left = FALSE)
+```
+
+```{r}
+#| echo: false
+
+LinesInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/LinesInSeveralZones.qs"))
+
+MultiLinesInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZones.qs"))
+
+PolygonInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/PolygonInSeveralZones.qs"))
+
+MultiPolygonInSeveralZones <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZones.qs"))
+```
+
+By visualizing these features, we can confirm that our `st_crosses` and `st_overlaps` operations **correctly identified the lines and polygons that only partially interact** with the selected taxi zone. This is a crucial step before we proceed with the cropping process in the subsequent section, ensuring we only apply the cropping to the features that actually extend beyond the zone boundaries.
+
+```{r}
+LinesInSeveralZonesToCheck  <- subset(LinesInSeveralZones, LocationID == ZoneToCheck)
+PolygonInSeveralZonesToCheck <- subset(PolygonInSeveralZones, LocationID == ZoneToCheck)
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesInSeveralZonesToCheck) +
+  tm_lines(col = "blue") +
+  tm_shape(PolygonInSeveralZonesToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+<br>
+
+Let's save the data for future use.
+
+```r
+qs2::qs_save(LinesInSeveralZones, 
+             here("output/cache-data/LinesInSeveralZones.qs"))
+
+qs2::qs_save(MultiLinesInSeveralZones, 
+             here("output/cache-data/MultiLinesInSeveralZones.qs"))
+             
+qs2::qs_save(PolygonInSeveralZones, 
+             here("output/cache-data/PolygonInSeveralZones.qs"))
+
+qs2::qs_save(MultiPolygonInSeveralZones, 
+             here("output/cache-data/MultiPolygonInSeveralZones.qs"))
+```
+
+#### Cropping features overlapping multiple zones
+
+This section focuses on refining the geospatial data of lines and polygons that were identified as overlapping multiple taxi zones. The goal is to accurately attribute these features to the specific zone they intersect with.
+
+The `apply_intersection_by_id` function iterates through each unique taxi zone ID. For each zone, it subsets the lines and polygons that overlap with it and then performs a spatial intersection. This operation effectively "crops" the line or polygon to the exact boundaries of the taxi zone.
+
+This step is crucial for accurately calculating metrics like the length of roads or the area of land use within each zone, as it ensures that only the portion of a feature that lies within a specific zone is considered for that zone.
+
+
+```r
+apply_intersection_by_id <- function(features,
+                                     shapes){
+  
+  intersection_by_id = function(id, features, shapes) {
+    
+    features_sub = subset(features, LocationID == id)
+    shapes_sub_geo = subset(shapes, LocationID == id) |> st_geometry()
+    
+    new_df = st_intersection(features_sub, shapes_sub_geo)
+    
+    return(new_df)
+  }
+  
+  new_df =
+    lapply(unique(features$LocationID),
+           FUN = intersection_by_id,
+           features = features,
+           shapes = shapes) |>
+    do.call(what = "rbind")
+  
+  return(new_df)
+  
+}
+
+LinesInSeveralZonesCropped <- 
+  apply_intersection_by_id(LinesInSeveralZones, ZonesShapes)
+  
+MultiLinesInSeveralZonesCropped <-
+  apply_intersection_by_id(MultiLinesInSeveralZones, ZonesShapes)
+  
+PolygonInSeveralZonesCropped <-
+  apply_intersection_by_id(PolygonInSeveralZones, ZonesShapes)
+  
+MultiPolygonInSeveralZonesCropped <-
+  apply_intersection_by_id(MultiPolygonInSeveralZones, ZonesShapes)
+```
+
+```{r}
+#| echo: false
+
+LinesInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/LinesInSeveralZonesCropped.qs"))
+
+MultiLinesInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+
+PolygonInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+
+MultiPolygonInSeveralZonesCropped <-
+  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
+```
+
+
+The resulting map shows the blue lines and colored polygons neatly contained within the grey boundary of zone `r ZoneToCheck`. This ensures that when we calculate features like road length or land use area for zone `r ZoneToCheck`, we only consider the portions of these features that actually lie within its boundaries, leading to more accurate analysis.
+
+```{r}
+LinesInSeveralZonesCroppedToCheck  <- 
+  subset(LinesInSeveralZonesCropped, LocationID == ZoneToCheck)
+
+PolygonInSeveralZonesCroppedToCheck <-
+  subset(PolygonInSeveralZonesCropped, LocationID == ZoneToCheck)
+
+
+tm_shape(ZonesShapesToCheck)+
+  tm_polygons(fill = "grey") +
+  tm_shape(LinesInSeveralZonesCroppedToCheck) +
+  tm_lines(col = "blue") +
+  tm_shape(PolygonInSeveralZonesCroppedToCheck) +
+  tm_polygons(fill = "feature")
+```
+
+<br>
+
+After performing those operations, we can save the data for future use.
+
+```r
+qs2::qs_save(LinesInSeveralZonesCropped, 
+             here("output/cache-data/LinesInSeveralZonesCropped.qs"))
+
+qs2::qs_save(MultiLinesInSeveralZonesCropped, 
+             here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+
+qs2::qs_save(PolygonInSeveralZonesCropped, 
+             here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+
+qs2::qs_save(MultiPolygonInSeveralZonesCropped, 
+             here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
+```
+
+
+### Joining objects based on geometry types
+
+After making those changes, we can consolidate all the data to use into 3 **geometry types**:
+
+- `POINT`
+- `MULTILINESTRING`
+- `MULTIPOLYGON`
+
+```{r}
+#| echo: false
+
+AllPointsZones <-
+  qs2::qs_read(here("output/cache-data/AllPointsZones.qs"))
+
+AllLinesZones <-
+  qs2::qs_read(here("output/cache-data/AllLinesZones.qs"))
+
+AllPolygonZones <-
+  qs2::qs_read(here("output/cache-data/AllPolygonZones.qs"))
+```
+
+
+```r
+AllPointsZones <- as.data.table(PointsWithinZones)
+
+AllLinesZones <-
+  list(LinesWithinZones,
+       MultiLinesInSeveralZones,
+       MultiLinesWithinZones,
+       MultiLinesInSeveralZonesCropped) |>
+  lapply(FUN = \(df) as.data.table(st_cast(df, to = "MULTILINESTRING"))) |>
+  rbindlist(use.names = TRUE)
+
+AllPolygonZones <-
+  list(PolygonWithinZones,
+       PolygonInSeveralZonesCropped,
+       MultiPolygonWithinZones,
+       MultiPolygonInSeveralZonesCropped) |>
+  lapply(FUN = \(df) as.data.table(st_cast(df, to = "MULTIPOLYGON"))) |>
+  rbindlist(use.names = TRUE)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+
+qs2::qs_save(AllPointsZones, 
+             here("output/cache-data/AllPointsZones.qs"))
+
+qs2::qs_save(AllLinesZones, 
+             here("output/cache-data/AllLinesZones.qs"))
+
+qs2::qs_save(AllPolygonZones, 
+             here("output/cache-data/AllPolygonZones.qs"))
+```
+
+## Extract new features
+
+```{r}
+#| echo: false
+
+PointDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/PointDensityFeatures.qs"))
+
+LineDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/LineDensityFeatures.qs"))
+
+PolygonDensityFeatures <-
+  qs2::qs_read(here("output/cache-data/PolygonDensityFeatures.qs"))
+```
+
+
+- **Number of OSM points per $mi^2$**
+
+```{r}
+#| eval: false
+
+PointDensityFeatures <-
+  AllPointsZones[, .N, 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value, "_per_mi2"))
+  ][, n_per_mi2 := N / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "n_per_mi2", fill = 0L)]
+```
+
+
+- **Total length ($mi$) of OSM lines per $mi^2$**
+
+```{r}
+#| eval: false
+
+LineDensityFeatures <-
+  AllLinesZones[, .(total_length = sum(st_length(geometry)) |> set_units(value = mi)) , 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value, "_per_mi"))
+  ][, distance_per_mi2 := as.double(total_length) / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "distance_per_mi2", fill = 0L)]
+```
+
+- **Total area ($mi^2$) of OSM polygons per $mi^2$**
+
+```{r}
+#| eval: false
+
+PolygonDensityFeatures <-
+  AllPolygonZones[, .(total_area = sum(st_area(geometry)) |> set_units(value = mi^2)) , 
+                 .(LocationID = OBJECTID,
+                   Shape_Area = set_units(Shape_Area, mi^2),
+                   variable = paste0(toupper(feature),"-", value))
+  ][, area_prop := as.double(total_area) / as.double(Shape_Area)
+  ][, dcast(.SD, LocationID ~ variable, value.var = "area_prop", fill = 0L)]
+```
+
+```{r}
+#| eval: false
+#| echo: false
+
+qs2::qs_save(PointDensityFeatures, 
+             here("output/cache-data/PointDensityFeatures.qs"))
+
+qs2::qs_save(LineDensityFeatures, 
+             here("output/cache-data/LineDensityFeatures.qs"))
+
+qs2::qs_save(PolygonDensityFeatures, 
+             here("output/cache-data/PolygonDensityFeatures.qs"))
+```
+
+
+## Validation
+
+Now we just need to consolidate and save all features in a single table and join to the training data.
+
+```{r}
+OmsDensityFeatures <-
+  list(PointDensityFeatures,
+       LineDensityFeatures,
+       PolygonDensityFeatures) |>
+  Reduce(f = \(x,y) x[y, on = "LocationID"])
+
+PuOmsDensityFeatures <-
+  setnames(copy(OmsDensityFeatures), 
+           c("PULocationID", paste0("PU_", names(OmsDensityFeatures)[-1L])))
+
+DoOmsDensityFeatures <-
+  setnames(copy(OmsDensityFeatures), 
+           c("DOLocationID", paste0("DO_", names(OmsDensityFeatures)[-1L])))
+
+TrainingSampleOmsDensityFeatures <-
+  PuOmsDensityFeatures[TrainingSample, on = "PULocationID"
+  ][, DoOmsDensityFeatures[.SD, on = "DOLocationID"]]
+
+dim(TrainingSampleOmsDensityFeatures) |> scales::comma()
+```
+
+```{r}
+#| echo: false
+#| output: false
+
+rm(list = grep("OmsDensityFeatures|TrainingSample|Color", ls(), invert = TRUE, value = TRUE))
+gc()
+```
+
+Let's explore the correlated features.
+
+```{r}
+#| echo: false
+
+CorMatrix = qs2::qs_read(here("output/cache-data/CorMatrix.qs"))
+```
+
+
+```{r}
+#| eval: false
+
+CorMatrix <- cor(TrainingSampleOmsDensityFeatures[, !c("trip_id")])
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(CorMatrix, 
+             here("output/cache-data/CorMatrix.qs"))
+```
+
+As we can see, the variables **don't show a strong correlation** (<11% for the top cases) with the variable to predict, so we will need to go deeper on feature engineering before using these variables for modeling.
+
+```{r}
+#| echo: false
+
+TopOsmCorrelations = qs2::qs_read(here("output/cache-data/TopOsmCorrelations.qs"))
+```
+
+```r
+TopOsmCorrelations <-
+  as.data.table(CorMatrix, 
+                keep.rownames = "variable"
+  )[order(-abs(take_current_trip)), 
+    .(variable, 
+      abs_cor = abs(take_current_trip),
+      greater_than_0 = take_current_trip > 0)
+  ][2:16
+  ][,variable := reorder(variable, abs_cor, sum)]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(TopOsmCorrelations, 
+             here("output/cache-data/TopOsmCorrelations.qs"))
+```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(TopOsmCorrelations)+
+  geom_col(aes(abs_cor, variable, fill = greater_than_0),
+           color = "black",
+           linewidth = 0.4)+
+  scale_fill_manual(values = c("TRUE" = ColorHighlight,
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(breaks = scales::breaks_width(0.01),
+                     labels = scales::label_percent(accuracy = 1))+
+  labs(y = "",
+       x = "Absolute Correlation",
+       fill = "Positive Correlation") +
+  theme_minimal()+
+  theme(legend.position = "top")
+```
+
+On the other hand, we can also explore in the target variable is correlated with a different median of the new features. As all the variable present different dimensions we are going to scale the variables before calculating the mean and then taking the difference of means.
+
+```{r}
+#| echo: false
+#| output: false
+
+rm(list = setdiff(ls(), c("OmsDensityFeatures","TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+gc()
+
+OsmMedianDiff = qs2::qs_read(here("output/cache-data/OsmMedianDiff.qs"))
+```
+
+```r
+OsmMedianDiff <-
+  TrainingSampleOmsDensityFeatures[, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else median(scale(x, center = FALSE))),
+                                   .SDcols = !c("trip_id", "PULocationID", "DOLocationID"),
+                                   by = "take_current_trip"
+  ][, melt(.SD,
+           id.vars = "take_current_trip")
+  ][, .(not_take_vs_take = diff(value)),
+    by = .(variable = as.character(variable))
+  ][order(-abs(not_take_vs_take))]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(OsmMedianDiff, 
+             here("output/cache-data/OsmMedianDiff.qs"))
+```
+
+In the below chart we can see that for majority of the variables the difference of medians is 0, probably because the feature are **near zero variance** as doesn't show very often in many zones, but on the other hand we can see that some features present some $|\text{med}(x)| > 0.1$ that would be important to see in more detail.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ggplot(OsmMedianDiff) +
+  geom_histogram(aes(not_take_vs_take)) +
+  scale_y_continuous(transform = scales::new_transform("signed_log10",
+                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
+                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+                                                       breaks = scales::pretty_breaks()),
+                     breaks = c(0, 10^(1:4))) +
+  labs(y = "count on log10 scale")+
+  theme_minimal()
+```
+
+```{r}
+#| echo: false
+#| output: false
+
+rm(list = setdiff(ls(), c("OmsDensityFeatures","OsmMedianDiff", "TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
+gc()
+
+TopOsmMedianDiff = qs2::qs_read(here("output/cache-data/TopOsmMedianDiff.qs"))
+TopOsmMedianDiffFeatures = OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
+```
+
+After selecting the to variables to explore, we just need to see
+
+```r
+TopOsmMedianDiffFeatures <- OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
+
+TopOsmMedianDiff <-
+  TrainingSampleOmsDensityFeatures[, melt(.SD,
+                                          id.vars = c("trip_id", "take_current_trip")),
+                                   .SDcols = c("trip_id",
+                                               "take_current_trip",
+                                               TopOsmMedianDiffFeatures)
+  ][, `:=`(variable = factor(variable, levels = rev(TopOsmMedianDiffFeatures)),
+           take_current_trip = take_current_trip == 1L)
+  ][, value := scale(value, center = FALSE),
+    by = "variable"]
+```
+
+```{r}
+#| eval: false  
+#| echo: false
+
+qs2::qs_save(TopOsmMedianDiff, 
+             here("output/cache-data/TopOsmMedianDiff.qs"))
+```
+
+Based on the next chart, we can see that the median change based on different factors like:
+
+| Variable                            | Influence of `take_current_trip` (TRUE vs FALSE) on Median        |
+|-------------------------------------|-------------------------------------------------------------------|
+| PU_SPORT-american_handball          | Median **higher** when `take_current_trip` is `TRUE`. |
+| DO_AMENITY-bicycle_rental_per_mi2   | Median  **lower**  when `take_current_trip` is `TRUE`.|
+| PU_AMENITY-school                   | Median **higher**  when `take_current_trip` is `TRUE`. |
+| DO_AMENITY-bicycle_parking_per_mi2  | Median **lower** when `take_current_trip` is `TRUE`.|
+| PU_AMENITY-restaurant_per_mi2       | Median **lower** when `take_current_trip` is `TRUE`.|
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 7.5
+
+
+ggplot(TopOsmMedianDiff) +
+  geom_boxplot(aes(x = value,
+                   y  = variable,
+                   fill = take_current_trip)) +
+  scale_fill_manual(values = c("TRUE" = ColorHighlight,
+                               "FALSE" = ColorGray))+
+  scale_x_continuous(transform = scales::new_transform("signed_log10",
+                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
+                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+                                                       breaks = scales::pretty_breaks()),
+                     labels = scales::label_comma(accuracy = 0.1),
+                     breaks = c(0, 10^seq(-1,4, by = 0.25))) +
+  labs(x = "",
+       y = "") +
+  theme_minimal()
+```
+
+After confirming these promising results we can save the most import features for future use.
+
+```r
+FeaturesToKeep <- 
+  c("LocationID", sub("(PU|DO)_","", TopOsmMedianDiffFeatures)) |>
+  unique()
+
+fst::write_fst(OmsDensityFeatures[, ..FeaturesToKeep], 
+               path = here("output/OmsDensityFeatures.fst"))
+```
+
+
+## Conclusion
+
+We know that these features will be useful for modeling, especially for finding correlations with weekdays and hours.
+
+It's important to take in consideration that the data is **right skewed** and present some **high-leverage points** that will need to be solved depending on the model to select.

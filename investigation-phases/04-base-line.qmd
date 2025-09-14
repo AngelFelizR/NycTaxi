@@ -1,0 +1,347 @@
+---
+title: "Defining Base Line"
+params:
+  UpdateSimulation: FALSE
+editor_options: 
+  chunk_output_type: console
+---
+
+Defining the baseline based on this data is a challenge as the data doesn't have any *unique id* to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
+
+---
+
+## Defining Business Metric
+
+Based on the current information, we can say that our objective is to increase the **Daily Hourly Wage** received by each taxi driver defined by the following formula:
+
+$$
+\text{Daily Hourly Wage} = \frac{\text{Total Earnings}}{\text{Total Hours Worked}}
+$$
+
+
+## Simulation Assumptions
+
+The simulation will be based on the following **assumptions** related to the taxi drivers:
+
+1.  They can start to work:
+
+    -   From any zone of Manhattan, Brooklyn or Queens (the more active ones)
+    -   From any month, weekday or hour.
+
+2.  The TLC license number (taxi company) needs to keep constant for all trips in workday.
+
+3.  Only wheelchair-accessible vehicles can accept trips with that request.
+
+4.  As we cannot estimate whether each zone have more active taxis than passengers we will assume that there is always more passengers than taxis and each taxi driver can **accept the first requested trip**.
+
+5.  The taxis will find trips based on their time waiting and will take the first trip in their valid radius:
+
+    -   0-1 Minute: Search within a 1-mile radius.
+
+    -   1-3 Minutes: Expand search to a 3-mile radius if no trip is found.
+
+    -   3-5 Minutes: Expand search to a 5-mile radius if still no trip is found.
+
+    -   Keep adding 2 miles every two minutes until finding a trip.
+
+6.  They have a 30 minutes break after 4 hours working once ending the current trip.
+
+7.  They will take their last trip after working 8 hours, without taking into consideration the 30 minutes break.
+
+
+## Running trips simulation
+
+1.  Loading the functions to use.
+
+```{r warning = FALSE, message = FALSE}
+library(here)
+library(scales)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(infer)
+library(DBI)
+library(duckdb)
+library(glue)
+
+## Custom functions
+devtools::load_all()
+
+options(datatable.print.nrows = 15)
+```
+
+2.  Creating folders to save data on disk.
+
+```{r}
+if(!dir.exists(here("output"))) dir.create(here("output"))
+if(!dir.exists(here("output/take-trip-fst"))) dir.create(here("output/take-trip-fst"))
+if(!dir.exists(here("output/cache-data"))) dir.create(here("output/cache-data"))
+```
+
+3.  Creating a connection with DuckDB.
+
+``` r
+con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
+```
+
+4.  Importing the definition of each code zone.
+
+```{r}
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        colClasses = c("integer",
+                       "character",
+                       "character",
+                       "character"))
+```
+
+5.  As most of the trips take place between **Manhattan**, **Brooklyn** and **Queens**, let's list all possible combinations of related locations to use it as filter later.
+
+```{r}
+ZoneCodesFilter <-
+  ZoneCodesRef[c("Manhattan", "Brooklyn", "Queens"), 
+               on = "Borough",
+               CJ(PULocationID = LocationID,
+                  DOLocationID = LocationID)]
+```
+
+5.  Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so we need to save the on disk to keep using the same data.
+
+``` r
+# Addig ZoneCodesFilters to db
+dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
+
+# Sampling 60 trips from db
+SimulationStartDayQuery <- "
+SELECT t1.*
+FROM NycTrips t1
+INNER JOIN ZoneCodesFilter t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+WHERE t1.year = 2023
+USING SAMPLE reservoir(60 ROWS) REPEATABLE (3518);
+"
+SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
+setDT(SimulationStartDay)
+
+# Saving results
+fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
+
+pillar::glimpse(SimulationStartDay)
+```
+
+```{r echo=FALSE}
+SimulationStartDay <-
+  here("output/cache-data/SimulationStartDay.fst") |>
+  fst::read_fst(as.data.table = TRUE)
+
+pillar::glimpse(SimulationStartDay)
+```
+
+We can also confirm that the sample satisfy the initial restrictions:
+
+-   All trips are from 2023.
+
+```{r}
+SimulationStartDay[, .N, year]
+```
+
+-   The trips begin on the expected boroughs.
+
+```{r}
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "PULocationID"),
+             .N,
+             by = "Borough"]
+```
+
+-   The trips end on the expected boroughs.
+
+```{r}
+ZoneCodesRef[SimulationStartDay, 
+             on = c("LocationID" = "DOLocationID"),
+             .N,
+             by = "Borough"]
+```
+
+Now we can conclude that the initial data **satisfy the assumption 1**.
+
+6.  Calculating the mean distance present from one location to other if it has **fewer than 7 miles**.
+
+``` r
+MeanDistanceQuery <- "
+CREATE TABLE PointMeanDistance AS
+
+-- Selecting all avaiable from trips that don't start and end at same point
+WITH ListOfPoints AS (
+  SELECT 
+    t1.PULocationID,
+    t1.DOLocationID,
+    AVG(t1.trip_miles) AS trip_miles_mean
+  FROM 
+    NycTrips t1
+  INNER JOIN
+    ZoneCodesFilter t2
+    ON t1.PULocationID = t2.PULocationID AND
+       t1.DOLocationID = t2.DOLocationID
+  WHERE
+    t1.PULocationID <> t1.DOLocationID AND
+    t1.year = 2023
+  GROUP BY 
+    t1.PULocationID, 
+    t1.DOLocationID
+  HAVING 
+    AVG(t1.trip_miles) <= 7
+),
+
+-- Defining all available distances
+ListOfPointsComplete AS (
+  SELECT
+    PULocationID,
+    DOLocationID,
+    trip_miles_mean
+  FROM ListOfPoints
+  UNION ALL
+  SELECT
+    DOLocationID AS PULocationID,
+    PULocationID AS DOLocationID,
+    trip_miles_mean
+  FROM ListOfPoints
+),
+NumeredRows AS (
+  SELECT
+    PULocationID,
+    DOLocationID,
+    trip_miles_mean,
+    row_number() OVER (PARTITION BY PULocationID, DOLocationID) AS n_row
+  FROM ListOfPointsComplete
+)
+
+-- Selecting the first combination of distances
+SELECT 
+  PULocationID,
+  DOLocationID,
+  trip_miles_mean
+FROM NumeredRows
+WHERE n_row = 1
+ORDER BY PULocationID, trip_miles_mean;
+"
+
+# Saving table on DB for simulation
+dbExecute(con, MeanDistanceQuery)
+
+# Saving the table as a file
+PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
+fst::write_fst(PointMeanDistance,here("output/cache-data/PointMeanDistance.fst"))
+```
+
+7.  Running the simulation.
+
+``` r
+SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
+```
+
+```{r echo=FALSE}
+if(exists("SimulationHourlyWage")){
+  fst::write_fst(SimulationHourlyWage, here("output/cache-data/SimulationHourlyWage.fst"))
+}else{
+  SimulationHourlyWage <- fst::read_fst(
+    here("output/cache-data/SimulationHourlyWage.fst"),
+    as.data.table = TRUE
+  )
+}
+```
+
+8.  Disconnecting from DB.
+
+``` r
+dbDisconnect(con, shutdown = TRUE)
+```
+
+9.  Showing simulation results.
+
+```{r}
+DailyHourlyWage <-
+  SimulationHourlyWage[, .(`Daily Hourly Wage` = 
+                             sum(sim_driver_pay + sim_tips) /
+                             as.double(difftime(max(sim_dropoff_datetime), 
+                                                min(sim_request_datetime),
+                                                units = "hours"))),
+                       by = "simulation_id"]
+
+
+DailyHourlyWage |>
+  ggplot()+
+  geom_histogram(aes(`Daily Hourly Wage`),
+                 bins = 10) +
+  scale_x_continuous(breaks = breaks_width(10)) +
+  theme_light()
+```
+
+## Defining a Condifence Interval
+
+After simulating 60 days, we can use **bootstrap** to infer the distribution of the mean **Daily Hourly Wage** for any day in the year by following the next steps.
+
+1.  Resample with replacement a new 60 days hourly wage 3,000 times and calculate the mean of each resample.
+
+```{r parsermd-chunk-11}
+set.seed(1586)
+
+BootstrapHourlyWage <-
+  specify(DailyHourlyWage,
+          `Daily Hourly Wage` ~ NULL) |>
+  generate(reps = 3000, type = "bootstrap") |>
+  calculate(stat = "mean")
+
+BootstrapHourlyWage
+```
+
+2.  Compute the 95% confident interval.
+
+```{r parsermd-chunk-12}
+BootstrapInterval <- 
+  get_ci(BootstrapHourlyWage, 
+         level = 0.95,
+         type = "percentile")
+
+BootstrapInterval
+```
+
+3.  Visualize the estimated distribution.
+
+```{r parsermd-chunk-13}
+visualize(BootstrapHourlyWage)+
+  shade_ci(endpoints = BootstrapInterval,
+           color = "#2c77BF",
+           fill = "#2c77BF")+
+  annotate(geom = "text",
+           y = 400,
+           x = c(BootstrapInterval[1L][[1L]] - 0.4,
+                 BootstrapInterval[2L][[1L]] + 0.4),
+           label = unlist(BootstrapInterval) |> comma(accuracy = 0.01))+
+  labs(title = "Mean Hourly Wage Distribution",
+       y = "Count")+
+  theme_light()+
+  theme(panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold"),
+        axis.title.x = element_blank())
+```
+
+## Business Case
+
+Based on the simulation's results we can confirm that the average earnings for a taxi driver per hour goes between `r round(BootstrapInterval[1L][[1L]], 2)` and `r round(BootstrapInterval[2L][[1L]], 2)`, but that doesn't represent the highest values observed on the simulation.
+
+If we can check the simulation results we can confirm that a 25% of the simulated days presented earnings over the 60 dollars per hour.
+
+```{r}
+GoalRate <- 
+  DailyHourlyWage$`Daily Hourly Wage` |>
+  quantile(probs = 0.75) |>
+  unname() |>
+  round(2)
+
+GoalRate
+```
+
+If we can apply a strategy that can move the `Daily Hourly Wage` to `r GoalRate` dollars per hour, assuming the the taxi driver works 5 days every week for 8 hours, that would mean a increase of **`r scales::dollar((GoalRate - BootstrapInterval[1L][[1L]]) * 8 * 5 * 4)` every month**.

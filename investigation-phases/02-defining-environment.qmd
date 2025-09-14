@@ -1,0 +1,73 @@
+---
+title: "Defining Development Environment"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:
+
+1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I used [this article](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-debian-10) as a guide to complete the task on **debian 12**.
+
+2. Install [git](https://git-scm.com/downloads).
+
+```bash
+sudo apt install git
+```
+
+3. Download the image related with this project.
+
+```bash
+docker pull rocker/geospatial:4.4.2
+```
+
+4. Go the parent directory under you want to clone the project.
+
+```bash
+cd <parent-dir-path>
+```
+
+5. Create a directory to cache installed packages.
+
+```bash
+mkdir pkg_cache_r_4.4
+```
+
+6. Download the repo by running.
+
+```bash
+git clone https://github.com/AngelFelizR/NycTaxi
+```
+
+7. The run the next command to run Rstudio Server from a new container.
+
+```bash
+docker run --rm -tid --name rstudio \
+  -e DISABLE_AUTH=true \
+  -p 8787:8787 \
+  -v <parent-dir-path>:/home/rstudio \
+  -v <parent-dir-path>/pkg_cache_r_4.4:/opt/r-cache \
+  rocker/geospatial:4.4.2
+```
+
+8. Then you can go to your favorite browser and go to [localhost:8787](http://localhost:8787/). This address is used to access the RStudio Server interface running in the Docker container.
+
+9. Then open the **NycTaxi** project from Rstudio.
+
+10. Go to the R console and restore all packages listed on the `renv.lock` file.
+
+```r
+renv::restore()
+```
+
+11. After creating both folders we can run our container by running the next command based on your working directory.
+
+```bash
+docker stop rstudio
+```

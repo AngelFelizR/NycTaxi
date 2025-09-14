@@ -1,0 +1,222 @@
+---
+title: "Data Sampling"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+As we have a very large dataset and it doesn't include one of the target variables we want to predict, we need to apply the following steps:
+
+-   Selecting a **representative subset** of the data
+-   Adding the new target variable **`take_current_trip`**
+
+This will help us to have more meaningful results during the *Data Understanding* phase.
+
+## Loading packages to use
+
+```{r warning = FALSE, message = FALSE}
+## To manage relative paths
+library(here)
+
+## To import and export data frames as binary files
+library(fst)
+
+## To transform data that fits in RAM
+library(data.table)
+library(lubridate)
+
+## To create plots
+library(ggplot2)
+library(ggiraph)
+
+## Custom functions
+devtools::load_all()
+
+## Defining the print params to use in the report
+options(datatable.print.nrows = 15, digits = 4)
+```
+
+## Sampling data to use
+
+Selecting the 0.20% of the data, aiming for around 500K samples for training and testing the model and saving the data in a binary file.
+
+``` r
+## Establishing a connection with the database
+con <- DBI::dbConnect(duckdb::duckdb(), dbdir = here("output/my-db.duckdb"))
+
+## Defining query to sample
+ValidZoneSampleQuery <- glue::glue("
+SELECT t1.*
+FROM NycTrips t1
+INNER JOIN ZoneCodesFilter t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+USING SAMPLE 0.20% (system, 547548);
+")
+
+## Sampling data from db
+ValidZoneSample <- DBI::dbGetQuery(con, ValidZoneSampleQuery)
+
+## Closing the database connection
+DBI::dbDisconnect(con, shutdown = TRUE)
+
+## Saving results to disk
+write_fst(ValidZoneSample,
+          here("output/cache-data/ValidZoneSample.fst"))
+```
+
+```{r echo=FALSE}
+if(!exists("ValidZoneSample")){
+  ValidZoneSample <- fst::read_fst(
+    here("output/cache-data/ValidZoneSample.fst"),
+    as.data.table = TRUE
+  )
+}
+```
+
+## Adding `take_current_trip` to sample
+
+### Purpose
+
+The purpose of this variable is to compare each trip with potential trips that a taxi driver could take in the following minutes and determine if it’s better to accept the current trip request or wait for a more profitable trip in the following minutes.
+
+### Assumptions
+
+To answer this question, we will need assumptions similar to those used in simulating a taxi driver’s decision-making process specially to select the valid trips that need to be taken in consideration to compare with.
+
+For a trip to be considered valid, it must meet the following requirements:
+
+1.  The trip corresponds to the same company as the original trip request.
+
+2.  Only if the original trip request specified a wheelchair-accessible vehicle (WAV), future WAV trips will be eligible.
+
+3.  The trip was requested from 3 seconds (time needed to reject a trip request) up to 15 minutes after the original request time.
+
+4.  The trip start point is located in valid distance from the start point of the original trip (assuming the taxi driver is in that point) based on the relate time the trip was requested based on the request time of the original trip
+
+    -   0-1 Minute: Only 1-mile radius is valid.
+
+    -   1-3 Minutes: Expand up to 3-mile radius.
+
+    -   3-5 Minutes: Expand up to 5-mile radius.
+
+    -   Keep adding 2 miles until completing the allowed 15 minutes.
+
+### Implementation
+
+Since this process is resource-intensive and each iteration is independent, running it in parallel as a **multicore process** (supported by `future`) is optimal. This approach utilizes the full capacity of my computer, which has 8 cores and 17 GB of RAM.
+
+The only disadvantage of this approach that my current IDE (Rstudio) don't support this process, but it can be run without issues from the **linux terminal** by writing the process on **Rscript files**.
+
+The process was implemented in the **`add_take_current_trip()`** which has been **tested** to ensure it meets expectations, as confirmed in the [Github file](https://github.com/AngelFelizR/project.nyc.taxi/blob/master/tests/testthat/test-add_take_current_trip.R).
+
+### Tuning parallel process
+
+Before running a process 500k times, it's important to make sure we are using the best configuration due the code and the hardware were are using.
+
+In our case we focus in defining best values for:
+
+-   Number of cores used by `data.table`
+
+-   Number of cores used by `future`
+
+-   Chunk.size used by `future`
+
+-   Scheduling used by `future`
+
+For that reason we have created the `R/01-fine-tune-future-process.R` script, which print the time needed for each process on the terminal after completing each one.
+
+``` bash
+docker exec -ti Rstudio bash
+cd home/rstudio/NycTaxi
+Rscript R/01-fine-tune-future-process.R
+```
+
+The below plot summaries the obtained results.
+
+```{r}
+#| echo: false
+BenchmarkResults <- data.frame(
+  CoreConfiguration = c(
+    rep("Future: 7 and DT: 1 Cores", times = 11L),
+    rep("Future: 4 and DT: 8 Cores", times = 12L)
+  ),
+  Scheduling = c(
+    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5,
+    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6
+  ),
+  ChunkSize = c(
+    25, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200,
+    5, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200, 200
+  ),
+  Duration = c(
+    528.970, 428.321, 407.558, 382.662, 384.741, 380.178, 379.015, 379.000, 377.592, 373.415, 379.463,
+    538.531, 442.395, 458.97, 424.615, 366.119, 361.745, 350.42, 347.733, 346.434, 351.716, 348.664, 358.177
+  ))
+
+BenchmarkPlot <-
+  ggplot(BenchmarkResults,
+         aes(x = ChunkSize, 
+             y = Duration, 
+             color = as.character(Scheduling),
+             group = interaction(Scheduling, CoreConfiguration),
+             tooltip = round(Duration,2))) +
+  geom_line() +
+  geom_point_interactive(size = 1.5) +
+  scale_y_log10() +
+  facet_wrap(vars(CoreConfiguration)) +
+  labs(title = "Future Performance",
+       color = "Scheduling",
+       y = "Duration (s)",
+       x = "Chunk Size") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        plot.title = element_text(face = "bold"))
+
+girafe(ggobj = BenchmarkPlot)
+```
+
+And as we can see the got better performance by using fewer cores for future, due the RAM capacity limit, when using only 4 cores and increasing the number of task per core we can see the time needed to complete the 2k samples it's reduced as it didn't use the SWAP memory while running the process, as we can see in the next screenshot.
+
+![](../figures/htop_parallel_process.png)
+
+And after checking this results we ended with the next configuration:
+
+-   Number of cores used by `data.table`: 8
+
+-   Number of cores used by `future`: 4
+
+-   Chunk.size used by `future`: 200
+
+-   Scheduling used by `future`: 0.6
+
+### Running process
+
+Once we know how to set up the parallel process we need to run it month by month and save the results to avoid losing the progress in case of any process fail.
+
+As this process was very demanding for my computer so we preferred to run each month on individual R session to avoid filling the memory by using the next __bash script__ and passing the each month as param for the __Rscript__.
+
+```{bash}
+#| eval: false
+#| file: ../R/run_add_target.sh
+```
+
+Once defined the bash script we can use it by running the next command in the terminal.
+
+```bash
+docker exec -ti Rstudio bash
+cd home/rstudio/NycTaxi
+bash R/run_add_target.sh R/02-add-target.R  1 24
+```
+
+Here we can see that the 24 files have been saved as fst binnary files.
+
+```{bash}
+ls -lh ../output/take-trip-fst
+```

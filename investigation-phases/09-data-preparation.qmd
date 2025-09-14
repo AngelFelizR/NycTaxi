@@ -1,0 +1,494 @@
+---
+title: "Data Preparation"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
+
+    
+## Setting up the environment
+
+In this section we are lodding the data functions to use for creating and testing the models.
+
+```{r}
+## Tools for modeling
+library(tidymodels)
+library(baguette)
+library(rules)
+
+## Tools to explore correlations
+library(corrr)
+library(ggtext)
+library(glue)
+library(scales)
+
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+library(lubridate)
+library(timeDate)
+
+## Custom functions
+devtools::load_all()
+
+params <- yaml::read_yaml(here("params.yml"))
+
+# Listing packges needed for modeling
+if(FALSE){
+  mixOmics::auroc
+  glmnet::glmnet.control
+  kernlab::kernelFast
+  ranger::importance
+  xgboost::slice
+}
+```
+
+## Importing data
+
+Here we import  de data to use.
+
+```{r}
+AcsVariablesByZoneId <- fst::read_fst(
+  here("output/AcsVariablesByZoneId.fst"),
+  as.data.table = TRUE
+)
+
+OmsDensityFeatures <- fst::read_fst(
+  here("output/OmsDensityFeatures.fst"),
+  as.data.table = TRUE
+)
+
+ZoneCodesRef <-
+  fread(here("raw-data/taxi_zone_lookup.csv"),
+        select = c("LocationID" = "integer",
+                   "Borough" = "character",
+                   "service_zone" = "character"))
+
+TrainingSample <-
+  here("output/take-trip-fst") |>
+  list.files(full.names = TRUE) |>
+  (\(x) data.table(full_path = x,
+                   n_char = nchar(basename(x)),
+                   name = basename(x)))() |>
+  (\(dt) dt[order(n_char, name), full_path])() |>
+  head(12L) |>
+  lapply(FUN = fst::read_fst,
+         as.data.table = TRUE) |>
+  rbindlist() |>
+  tibble::as_tibble() |>
+  mutate(take_current_trip =
+           fifelse(take_current_trip == 1L, "yes", "no") |> 
+           factor(levels = c("yes", "no")))
+```
+
+
+## Data preparation
+
+Before training the models we need to create a recipe that integrate all the additional fills we can add based on domain knowledge, but keeping important columns for trip identification.
+
+```{r}
+AllFeaturesRecipe <-
+  
+  # Starting Recipe
+  recipe(take_current_trip ~ PULocationID + DOLocationID + wav_match_flag + hvfhs_license_num + trip_miles + trip_time + request_datetime + trip_id + performance_per_hour + percentile_75_performance, 
+         data = TrainingSample) |>
+  
+  # Updating roles of variables important for trip identification
+  update_role(trip_id, 
+              performance_per_hour,
+              percentile_75_performance,
+              new_role = "additional info") |>
+  
+  # Selecting variables over 2 min
+  step_filter(trip_time >= (60 * 2)) |>
+  
+  # Renaming variables to join
+  step_rename(PU_LocationID = PULocationID,
+              DO_LocationID = DOLocationID) |>
+  
+  # Adding Geospatial Data
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = ZoneCodesRef,
+                                col_prefix = c("DO_", "PU_")) |>
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = AcsVariablesByZoneId,
+                                col_prefix = c("DO_", "PU_")) |>
+  step_join_geospatial_features(ends_with("LocationID"),
+                                spatial_features = OmsDensityFeatures,
+                                col_prefix = c("DO_", "PU_")) |>
+  
+  # Transforming strings to factors
+  step_string2factor(all_string_predictors()) |>
+  
+  # Daily cycle
+  step_harmonic(request_datetime, 
+                frequency = 1,
+                cycle_size = 3600*24, 
+                keep_original_cols = TRUE) |>
+  step_rename(request_datetime_sin_daily = request_datetime_sin_1,
+              request_datetime_cos_daily = request_datetime_cos_1) |>
+  
+  # Weekly cycle
+  step_harmonic(request_datetime, 
+                frequency = 1, 
+                cycle_size = 3600*24*7, 
+                keep_original_cols = TRUE) %>%
+  step_rename(request_datetime_sin_weekly = request_datetime_sin_1,
+              request_datetime_cos_weekly = request_datetime_cos_1) |>
+  
+  # Extracting additional information
+  step_date(request_datetime,
+            features = c("year",
+                         "week",
+                         "decimal",
+                         "semester", 
+                         "quarter",
+                         "doy",
+                         "dow",
+                         "mday",
+                         "month")) |>
+  
+  step_holiday(request_datetime,
+               holidays = c('USChristmasDay',
+                            'USColumbusDay',
+                            'USCPulaskisBirthday',
+                            'USDecorationMemorialDay',
+                            'USElectionDay',
+                            'USGoodFriday',
+                            'USInaugurationDay',
+                            'USIndependenceDay',
+                            'USJuneteenthNationalIndependenceDay',
+                            'USLaborDay',
+                            'USLincolnsBirthday',
+                            'USMemorialDay',
+                            'USMLKingsBirthday',
+                            'USNewYearsDay',
+                            'USPresidentsDay',
+                            'USThanksgivingDay',
+                            'USVeteransDay',
+                            'USWashingtonsBirthday')) |>
+  
+  step_mutate(.pkgs = c("data.table", "lubridate", "timeDate"),
+              
+              company = fcase(hvfhs_license_num == "HV0002", "Juno",
+                              hvfhs_license_num == "HV0003", "Uber",
+                              hvfhs_license_num == "HV0004", "Via",
+                              hvfhs_license_num == "HV0005", "Lyft",
+                              default = "New") |> as.factor(),
+              
+              request_datetime_am = am(request_datetime) |> as.integer(),
+              request_datetime_pm = pm(request_datetime) |> as.integer(),
+              
+              `Days to USChristmasDay` = difftime(USChristmasDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USColumbusDay` = difftime(USColumbusDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USCPulaskisBirthday` = difftime(USCPulaskisBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USDecorationMemorialDay` = difftime(USDecorationMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USElectionDay` = difftime(USElectionDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USGoodFriday` = difftime(USGoodFriday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USInaugurationDay` = difftime(USInaugurationDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USIndependenceDay` = difftime(USIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USJuneteenthNationalIndependenceDay` = difftime(USJuneteenthNationalIndependenceDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLaborDay` = difftime(USLaborDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USLincolnsBirthday` = difftime(USLincolnsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMemorialDay` = difftime(USMemorialDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USMLKingsBirthday` = difftime(USMLKingsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USNewYearsDay` = difftime(USNewYearsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USPresidentsDay` = difftime(USPresidentsDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USThanksgivingDay` = difftime(USThanksgivingDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USVeteransDay` = difftime(USVeteransDay(year(request_datetime)), request_datetime, units = 'days') |> as.integer(),
+              `Days to USWashingtonsBirthday` = difftime(USWashingtonsBirthday(year(request_datetime)), request_datetime, units = 'days') |> as.integer()) |>
+  
+  
+  # Removing variables
+  step_rm(ends_with(c("LocationID","request_datetime", "hvfhs_license_num"))) |>
+  
+  # Imputing the data
+  step_impute_median(all_numeric_predictors())
+
+```
+
+## Defining models to train
+
+```{r}
+# Logistic regression via glmnet
+GlmnetSpec <- 
+  logistic_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("classification") |> 
+  set_engine("glmnet")
+
+# Polynomial support vector machines (SVMs) via kernlab
+KernlabPolySpec <- 
+  svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("kernlab")
+
+# Radial basis function support vector machines (SVMs) via kernlab
+KernlabRbfSpec <- 
+  svm_rbf(cost = tune(), rbf_sigma = tune()) |> 
+  set_mode("classification")|> 
+  set_engine("kernlab")
+
+# Bagged trees via rpart
+RpartBagSpec <- 
+  bag_tree(tree_depth = tune(), min_n = tune(), cost_complexity = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("rpart")
+
+# Random forests via ranger
+RangerSpec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) |> 
+  set_mode("classification") |> 
+  set_engine("ranger") 
+
+# Boosted trees via xgboost
+XgboostSpec <- 
+  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(), 
+    loss_reduction = tune(), sample_size = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("xgboost") 
+
+# RuleFit models via xrf
+XrfSpec <- 
+  rule_fit(mtry = tune(), trees = tune(), min_n = tune(), tree_depth = tune(), 
+    learn_rate = tune(), loss_reduction = tune(), sample_size = tune(), penalty = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("xrf")
+```
+
+## Defining recipes to use
+
+### Defining basic recipies
+
+
+```{r}
+NormalizedRecipe <-
+  AllFeaturesRecipe |>
+  step_YeoJohnson(all_numeric_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_nzv(all_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
+BasicTreeRecipe <-
+  AllFeaturesRecipe |>
+  step_nzv(all_predictors()) |>
+  step_novel(all_nominal_predictors())
+```
+
+### Making preprossessing prior tunning
+
+```{r}
+#| echo: false
+#| output: false
+
+TrainingSampleNormalizedFilePath <- here("output/cache-data/09-data-preparation/TrainingSampleNormalized.qs")
+TrainingSampleForTreesFilePath <- here("output/cache-data/09-data-preparation/TrainingSampleForTrees.qs")
+
+if(file.exists(TrainingSampleNormalizedFilePath)) {
+  TrainingSampleNormalized <- qs2::qs_read(TrainingSampleNormalizedFilePath)
+}
+
+if(file.exists(TrainingSampleForTreesFilePath)) {
+  TrainingSampleForTrees <- qs2::qs_read(TrainingSampleForTreesFilePath)
+}
+```
+
+
+```{r}
+#| eval: false
+
+TrainingSampleNormalized <-
+  prep(NormalizedRecipe) |>
+  bake(new_data = NULL)
+
+TrainingSampleForTrees <-
+  prep(BasicTreeRecipe) |>
+  bake(new_data = NULL)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(TrainingSampleNormalized, TrainingSampleNormalizedFilePath)
+qs2::qs_save(TrainingSampleForTrees, TrainingSampleForTreesFilePath)
+```
+
+
+### Defining resamples
+
+```{r}
+set.seed(5878)
+TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
+
+set.seed(1245)
+TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
+```
+
+### Defining recipes to tune
+
+```{r}
+start_recipe <- function(df) {
+  new_recipe = 
+    recipe(take_current_trip ~ ., data = df) |>
+    update_role(trip_id, 
+                performance_per_hour,
+                percentile_75_performance,
+                new_role = "additional info")
+}
+
+NormalizedCorrRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_corr(all_numeric_predictors(), threshold = tune())
+
+NormalizedPcaRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_pca(all_numeric_predictors(), num_comp = tune()) |>
+  step_normalize(all_numeric_predictors())
+
+NormalizedPlsRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_pls(all_numeric_predictors(), num_comp = tune()) |>
+  step_normalize(all_numeric_predictors())
+
+XgboostRecipe <-
+  start_recipe(TrainingSampleForTrees) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
+
+XrfRecipe <-
+  XgboostRecipe |>
+  step_normalize(all_numeric_predictors())
+```
+
+
+## Defining workflows to tune
+
+```{r}
+#| echo: false
+#| output: false
+
+NormalizedWorkFlowToTuneFilePath <- here("output/cache-data/09-data-preparation/NormalizedWorkFlowToTune.qs")
+TreeWorkFlowsToTuneFilePath <- here("output/cache-data/09-data-preparation/TreeWorkFlowsToTune.qs")
+
+if(file.exists(NormalizedWorkFlowToTuneFilePath)) {
+  NormalizedWorkFlowToTune <- qs2::qs_read(NormalizedWorkFlowToTuneFilePath)
+}
+
+if(file.exists(TreeWorkFlowsToTuneFilePath)) {
+  TreeWorkFlowsToTune <- qs2::qs_read(TreeWorkFlowsToTuneFilePath)
+}
+```
+
+```{r}
+#| eval: false
+
+NormalizedWorkFlowToTune <- workflow_set(
+  preproc = list(rm_corr = NormalizedCorrRecipe,
+                 pca = NormalizedPcaRecipe,
+                 pls = NormalizedPlsRecipe), 
+  models = list(logistic = GlmnetSpec,
+                svm_rbf = KernlabRbfSpec,
+                svm_poly = KernlabPolySpec)
+)
+
+TreeWorkFlowsToTune <- bind_rows(
+    workflow_set(
+      preproc = list(reduce_levels = BasicTreeRecipe), 
+      models = list(bag_tree = RpartBagSpec,
+                    random_forest = RangerSpec)
+    ),
+    as_workflow_set(
+      xgboost = workflow(
+        preprocessor = XgboostRecipe,
+        spec = XgboostSpec
+      ),
+      rulefit = workflow(
+        preprocessor = XrfRecipe,
+        spec = XrfSpec
+      )
+    )
+  )
+```
+
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+
+qs2::qs_save(NormalizedWorkFlowToTune, NormalizedWorkFlowToTuneFilePath)
+qs2::qs_save(TreeWorkFlowsToTune, TreeWorkFlowsToTuneFilePath)
+```
+
+
+## Tuning grid for each workflow
+
+```{r}
+#| echo: false
+#| output: false
+
+NormalizedWorkFlowTunedFilePath <- here("output/cache-data/09-data-preparation/NormalizedWorkFlowTuned.qs")
+TreeWorkFlowsTunedFilePath <- here("output/cache-data/09-data-preparation/TreeWorkFlowsTuned.qs")
+
+if(file.exists(NormalizedWorkFlowTunedFilePath)) {
+  NormalizedWorkFlowTuned <- qs2::qs_read(NormalizedWorkFlowTunedFilePath)
+}
+if(file.exists(TreeWorkFlowsTunedFilePath)) {
+  TreeWorkFlowsTuned <- qs2::qs_read(TreeWorkFlowsTunedFilePath)
+}
+```
+
+
+```{r}
+#| file: multicore-scripts/03-tunning-initial-grid.R
+
+```
+
+```{r}
+NormalizedWorkFlowTuned$option[[1L]][["initial"]] |>
+  collect_metrics() |>
+  filter(.metric == "roc_auc") |>
+  arrange(desc(mean))
+
+mean(TrainingSample$take_current_trip == "yes")
+
+file.mtime(NormalizedWorkFlowTunedFilePath)
+```
+
+
+
+
+## Defining workflows to tune
+
+```{r}
+ControlGrid <-
+  control_bayes(
+    no_improve = 4L,
+    seed = 15898,
+    pkgs = c("data.table", "lubridate", "timeDate", "baguette", "rules"),
+    save_workflow = TRUE,
+    event_level = "second"
+  )
+
+TuneResults <-
+   AllWorkflowsToTune |>
+   workflow_map(
+      seed = 1503,
+      fn = "tune_bayes",
+      resamples = TrainingSampleResamples,
+      metrics = MetricsToEval,
+      iter = 20,
+      control = ControlGrid
+   )
+
+TuneResults$result[[1L]]
+```
+
+
+
+
