@@ -28,12 +28,12 @@ COPY default.nix .
 # We now build the environment
 RUN nix-build
 
-# Crear usuario y configurar contraseñas
-RUN echo "root:r" | chpasswd
-
-# Installing direnv
+# Installing direnv to use the nix-shell in Positron
 RUN nix-env -f '<nixpkgs>' -iA direnv && \
     nix-env -f '<nixpkgs>' -iA nix-direnv
+
+# Creating a password for root
+RUN echo "root:r" | chpasswd
 
 # Configuración de SSH
 RUN mkdir /var/run/sshd && \
