@@ -13,13 +13,13 @@ knitr::opts_chunk$set(
 
 In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:
 
-1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I addapted the next script to install docker on **debian 12** by running it as super user.
+1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I addapted the next script to install docker on **debian 13** by running it as super user.
 
 ```bash
 apt update
 sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
 curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
-add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian" bookworm stable
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian" trixie stable
 apt update
 apt-cache policy docker-ce
 apt install docker-ce
@@ -52,17 +52,15 @@ git clone https://github.com/AngelFelizR/NycTaxi
 docker run --rm -tid \
   --name nyc-taxi-container \
   -p 2222:22 \
-  -v <parent-dir-path>/NycTaxi:/home/proyecto \
+  -v <parent-dir-path>/NycTaxi:/root/NycTaxi \
   angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-6. 
+6. Access to thhe container by ssh by the defined port and use "amo_r" to access to the project as a root user.
 
 ```bash
 ssh root@localhost -p 2222
 ```
-
-7. Type the password: amo_r
 
 9. Then open the **NycTaxi** project from Rstudio.
 

@@ -29,10 +29,11 @@ COPY default.nix .
 RUN nix-build
 
 # Crear usuario y configurar contraseñas
-RUN useradd -m -s /bin/bash angelfeliz && \
-    echo "angelfeliz:amo_r" | chpasswd && \
-    echo "root:amo_r" | chpasswd && \
-    usermod -aG sudo angelfeliz
+RUN echo "root:r" | chpasswd
+
+# Installing direnv
+RUN nix-env -f '<nixpkgs>' -iA direnv && \
+    nix-env -f '<nixpkgs>' -iA nix-direnv
 
 # Configuración de SSH
 RUN mkdir /var/run/sshd && \

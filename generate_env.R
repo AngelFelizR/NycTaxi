@@ -87,8 +87,7 @@ rix(
   
   # System dependencies
   system_pkgs = c(
-    "quarto",  # Document publishing system
-    "git"
+    "quarto"
   ),
   
   # Specifies that no specific IDE is required for the environment.
