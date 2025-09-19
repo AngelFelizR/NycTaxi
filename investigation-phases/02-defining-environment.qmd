@@ -13,50 +13,56 @@ knitr::opts_chunk$set(
 
 In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:
 
-1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I used [this article](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-debian-10) as a guide to complete the task on **debian 12**.
-
-2. Install [git](https://git-scm.com/downloads).
+1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I addapted the next script to install docker on **debian 12** by running it as super user.
 
 ```bash
-sudo apt install git
+apt update
+sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian" bookworm stable
+apt update
+apt-cache policy docker-ce
+apt install docker-ce
+systemctl status docker
+/usr/sbin/usermod -aG docker <YOUR-USER>
+su - <YOUR-USER>
 ```
 
-3. Download the image related with this project.
+2. Download the image related with this project.
 
 ```bash
-docker pull rocker/geospatial:4.4.2
+docker pull angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-4. Go the parent directory under you want to clone the project.
+3. Go the parent directory under you want to clone the project.
 
 ```bash
 cd <parent-dir-path>
 ```
 
-5. Create a directory to cache installed packages.
-
-```bash
-mkdir pkg_cache_r_4.4
-```
-
-6. Download the repo by running.
+4. Download the repo by running.
 
 ```bash
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
-7. The run the next command to run Rstudio Server from a new container.
+5. The run the next command to run Rstudio Server from a new container.
 
 ```bash
-docker run --rm -tid --name rstudio \
-  -e DISABLE_AUTH=true \
-  -p 8787:8787 \
-  -v <parent-dir-path>:/home/rstudio \
-  -v <parent-dir-path>/pkg_cache_r_4.4:/opt/r-cache \
-  rocker/geospatial:4.4.2
+docker run --rm -tid \
+  --name nyc-taxi-container \
+  -p 2222:22 \
+  -v <parent-dir-path>/NycTaxi:/home/proyecto \
+  angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-8. Then you can go to your favorite browser and go to [localhost:8787](http://localhost:8787/). This address is used to access the RStudio Server interface running in the Docker container.
+6. 
+
+```bash
+ssh root@localhost -p 2222
+```
+
+7. Type the password: amo_r
 
 9. Then open the **NycTaxi** project from Rstudio.
 
