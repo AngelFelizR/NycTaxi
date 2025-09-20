@@ -26,3 +26,5 @@ Thumbs.db
 # Nix
 result
 *.lock
+
+/.quarto/

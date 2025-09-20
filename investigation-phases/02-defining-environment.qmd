@@ -11,67 +11,94 @@ knitr::opts_chunk$set(
 )
 ```
 
-In order to reproduce the results of this project we need to follow the following steps to run the code using the same environment:
+To reproduce the results of this project, follow these steps to set up the same environment:
 
-1. Install **docker** by installing [Docker Desktop](https://www.docker.com/products/docker-desktop/) or just the [Docker Engine](https://docs.docker.com/engine/install/) if Linux is your operating system. I addapted the next script to install docker on **debian 13** by running it as super user.
+### 1. Install Docker
+
+You'll need to install **Docker**. Choose the appropriate installation method for your operating system:
+
+  * **Windows or macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+  * **Linux**: Install the [Docker Engine](https://docs.docker.com/engine/install/).
+
+For Debian 13:
+
+The following script is an adapted version for **Debian 13**. Run it as a superuser to install Docker Engine:
 
 ```bash
 apt update
-sudo apt install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+apt install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
 curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
-add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian" trixie stable
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian trixie stable"
 apt update
 apt-cache policy docker-ce
-apt install docker-ce
+apt install -y docker-ce
 systemctl status docker
-/usr/sbin/usermod -aG docker <YOUR-USER>
+usermod -aG docker <YOUR-USER>
 su - <YOUR-USER>
 ```
 
-2. Download the image related with this project.
+**Note:** Replace `<YOUR-USER>` with your actual username.
+
+
+### 2. Download the Project Image
+
+Pull the Docker image associated with this project using the following command:
 
 ```bash
 docker pull angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-3. Go the parent directory under you want to clone the project.
+
+
+### 3. Clone the Repository
+
+Navigate to the parent directory where you want to store the project. Then, clone the repository:
 
 ```bash
 cd <parent-dir-path>
-```
-
-4. Download the repo by running.
-
-```bash
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
-5. The run the next command to run Rstudio Server from a new container.
+
+
+### 4. Run the Docker Container
+
+Execute the command below to run the container based on the `angelfelizr/nyc-taxi-nix:4.5.1` image. This command will:
+
+  * Remove the container when you exit (`--rm`).
+  * Give the container a name for easy identification (`--name nyc-taxi-container`).
+  * Publish port 2222 on the host and map it to port 22 inside the container, enabling SSH access.
+  * Mount the cloned repository to the `/root/NycTaxi` directory within the container (`-v <parent-dir-path>/NycTaxi:/root/NycTaxi`).
+
 
 ```bash
-docker run --rm -tid \
+docker run -tid --rm \
   --name nyc-taxi-container \
   -p 2222:22 \
   -v <parent-dir-path>/NycTaxi:/root/NycTaxi \
   angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-6. Access to thhe container by ssh by the defined port and use "amo_r" to access to the project as a root user.
+
+
+### 5. Access the Container
+
+You have two options to access the container:
+
+1.  **Using the Terminal**: Run the following command and use `"r"` as the password to SSH into the container:
 
 ```bash
 ssh root@localhost -p 2222
 ```
 
-9. Then open the **NycTaxi** project from Rstudio.
+2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `root@localhost:2222` with `"r"` as the password.
 
-10. Go to the R console and restore all packages listed on the `renv.lock` file.
 
-```r
-renv::restore()
-```
+### 6. Start the Nix Shell
 
-11. After creating both folders we can run our container by running the next command based on your working directory.
+Once inside the container, navigate to the `NycTaxi` folder and start the Nix shell by running the following command:
 
 ```bash
-docker stop rstudio
+cd NycTaxi
+nix-shell
 ```
