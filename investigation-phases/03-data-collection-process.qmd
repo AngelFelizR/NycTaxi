@@ -11,26 +11,39 @@ knitr::opts_chunk$set(
 )
 ```
 
-For most projects the data collection process can be done manually and later attache the file in a folder but that isn't a option when we are working with **big data**.
+For most projects, data collection can be done manually by downloading files and placing them in a folder. However, this approach isn't feasible when working with **big data**.  To handle the large volume of the NYC TLC Trip Record dataset, we've developed the following script to automate the entire data collection process.  This ensures the project can be easily and reliably reproduced by simply running the code. 
 
-To solve this problem, we have created the next script to automate the data collection process so the project could be reproduced easily just by running the code below.
+## Web Scraping Data Links
 
+First, we need to obtain the download links for the required data files. To ensure we always have an up-to-date list, we will programmatically scrape the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) website.  This process extracts the direct links for all the **High Volume For-Hire Vehicles** documents from 2022 and 2023 using the `rvest` library in R, which is a powerful tool for web scraping. 
 
-## Web Scraping
+### Downloading the Source Page
 
-To always have a updated list of 2022 and 2023 links of **High Volume For-Hire Vehicles** documents let's scrape the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) by using the `rvest` library.
-
-### Downloading source page
+The first step is to download the HTML content of the target webpage. This gives us the raw source code that we can parse to find the data links. 
 
 ```{r SourcePage}
 SourcePage <-
   rvest::read_html("https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page")
 ```
 
+### Extracting Data Links
 
-### Getting links for taxi trips
+With the webpage downloaded, we can now parse its content to isolate the specific links we need.
+
+#### High-Volume Trip Data
+
+The following code block extracts the download links for the monthly High-Volume For-Hire Vehicle trip data. It works by:
+
+1.  Finding all hyperlink (`<a>`) elements on the page.
+2.  Extracting the `href` attribute (the actual URL) from each element.
+3.  Using a regular expression (`grep`) to filter this list, keeping only the links for `.parquet` files from the years 2022 and 2023. 
+4.  Cleaning up and sorting the resulting list of URLs. 
+
+<!-- end list -->
 
 ```{r getting-trip-links}
+#| eval: false
+
 TripLinks <-
   SourcePage |>
   rvest::html_elements(xpath = '//div[@class="faq-answers"]//li/a') |>
@@ -42,11 +55,27 @@ TripLinks <-
 FileNames <- basename(TripLinks)
 
 FileNames
+#>  [1] "fhvhv_tripdata_2022-01.parquet" "fhvhv_tripdata_2022-02.parquet"
+#>  [3] "fhvhv_tripdata_2022-03.parquet" "fhvhv_tripdata_2022-04.parquet"
+#>  [5] "fhvhv_tripdata_2022-05.parquet" "fhvhv_tripdata_2022-06.parquet"
+#>  [7] "fhvhv_tripdata_2022-07.parquet" "fhvhv_tripdata_2022-08.parquet"
+#>  [9] "fhvhv_tripdata_2022-09.parquet" "fhvhv_tripdata_2022-10.parquet"
+#> [11] "fhvhv_tripdata_2022-11.parquet" "fhvhv_tripdata_2022-12.parquet"
+#> [13] "fhvhv_tripdata_2023-01.parquet" "fhvhv_tripdata_2023-02.parquet"
+#> [15] "fhvhv_tripdata_2023-03.parquet" "fhvhv_tripdata_2023-04.parquet"
+#> [17] "fhvhv_tripdata_2023-05.parquet" "fhvhv_tripdata_2023-06.parquet"
+#> [19] "fhvhv_tripdata_2023-07.parquet" "fhvhv_tripdata_2023-08.parquet"
+#> [21] "fhvhv_tripdata_2023-09.parquet" "fhvhv_tripdata_2023-10.parquet"
+#> [23] "fhvhv_tripdata_2023-11.parquet" "fhvhv_tripdata_2023-12.parquet"
 ```
 
-### Getting link for trip zones.
+#### Location and Shapefile Data
+
+Next, we extract the links for two supplementary files: the **Taxi Zone Lookup Table** (a CSV file mapping location IDs to borough and zone names) and the **Taxi Zone Shapefile** (a ZIP file containing geographic data for mapping). [cite: 6, 7] The code below targets the links specifically by their text content.
 
 ```{r getting-taxi-zone-link}
+#| eval: false
+
 TaxiZoneLink <-
   SourcePage |>
   rvest::html_elements(xpath = '//ul/li/a[text()="Taxi Zone Lookup Table"]')  |>
@@ -54,9 +83,12 @@ TaxiZoneLink <-
   trimws()
 
 TaxiZoneLink
+#> [1] "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 ```
 
 ```{r getting-taxi-zone-shapes-link}
+#| eval: false
+
 TaxiZoneShapesLink <-
   SourcePage |>
   rvest::html_elements(xpath = '//ul/li/a[text()="Taxi Zone Shapefile"]')  |>
@@ -64,19 +96,24 @@ TaxiZoneShapesLink <-
   trimws()
 
 TaxiZoneShapesLink
+#> [1] "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zones.zip"
 ```
 
-## Saving trips data
+-----
 
-To take advantage of the best capacities of `Duckdb` we need save a each parquet file in folder with useful information to filter later, that why we will have one folder level related to years the next sub-folders related to a month with each parquet with the name `part-0.parquet` by following process.
+## Organizing and Saving Data Files
 
-### Defining folder paths
+To effectively query this large dataset, we need a smart storage strategy. We will save the parquet files in a partitioned folder structure, organized by year and month (e.g., `year=2022/month=01/`). This format is highly optimized for query engines like `DuckDB`, as it allows the database to quickly filter and read only the necessary data partitions, significantly speeding up performance.
 
-```{r data-paths}
+### Defining the Folder Structure
+
+The code below programmatically defines the required directory paths. It starts with a base `raw-data` folder and then generates a list of nested year and month subfolders based on the filenames we extracted earlier. 
+
+```{r}
+#| eval: false
+
 SourcePath <- here::here()
-
 RawDataPath <- file.path(SourcePath, "raw-data")
-
 ParquetFolderPath <- file.path(RawDataPath, "trip-data")
 
 YearFoldersPath <- 
@@ -87,12 +124,49 @@ YearFoldersPath <-
   unique() |>
   file.path(ParquetFolderPath, a = _)
 
+MonthFoldersPath <- 
+  gsub(x = FileNames,
+       pattern = "^fhvhv_tripdata_\\d{4}-|\\.parquet$",
+       replacement = "") |>
+  paste0("month=", a = _) |>
+  file.path(ParquetFolderPath, basename(YearFoldersPath), a = _) |>
+  sort()
+
+MonthFoldersPath
+#>  [1] "/root/NycTaxi/raw-data/trip-data/year=2022/month=01"
+#>  [2] "/root/NycTaxi/raw-data/trip-data/year=2022/month=01"
+#>  [3] "/root/NycTaxi/raw-data/trip-data/year=2022/month=03"
+#>  [4] "/root/NycTaxi/raw-data/trip-data/year=2022/month=03"
+#>  [5] "/root/NycTaxi/raw-data/trip-data/year=2022/month=05"
+#>  [6] "/root/NycTaxi/raw-data/trip-data/year=2022/month=05"
+#>  [7] "/root/NycTaxi/raw-data/trip-data/year=2022/month=07"
+#>  [8] "/root/NycTaxi/raw--data/trip-data/year=2022/month=07"
+#>  [9] "/root/NycTaxi/raw-data/trip-data/year=2022/month=09"
+#> [10] "/root/NycTaxi/raw-data/trip-data/year=2022/month=09"
+#> [11] "/root/NycTaxi/raw-data/trip-data/year=2022/month=11"
+#> [12] "/root/NycTaxi/raw-data/trip-data/year=2022/month=11"
+#> [13] "/root/NycTaxi/raw-data/trip-data/year=2023/month=02"
+#> [14] "/root/NycTaxi/raw-data/trip-data/year=2023/month=02"
+#> [15] "/root/NycTaxi/raw-data/trip-data/year=2023/month=04"
+#> [16] "/root/NycTaxi/raw-data/trip-data/year=2023/month=04"
+#> [17] "/root/NycTaxi/raw-data/trip-data/year=2023/month=06"
+#> [18] "/root/NycTaxi/raw-data/trip-data/year=2023/month=06"
+#> [19] "/root/NycTaxi/raw-data/trip-data/year=2023/month=08"
+#> [20] "/root/NycTaxi/raw-data/trip-data/year=2023/month=08"
+#> [21] "/root/NycTaxi/raw-data/trip-data/year=2023/month=10"
+#> [22] "/root/NycTaxi/raw-data/trip-data/year=2023/month=10"
+#> [23] "/root/NycTaxi/raw-data/trip-data/year=2023/month=12"
+#> [24] "/root/NycTaxi/raw-data/trip-data/year=2023/month=12"
 ```
 
-### Creating folders to use
+### Creating the Folders
+
+This loop iterates through the defined paths and creates the necessary directories if they don't already exist. 
 
 ```{r creating-folders}
-for(paths in c(RawDataPath, ParquetFolderPath, YearFoldersPath)) {
+#| eval: false
+
+for(paths in c(RawDataPath, ParquetFolderPath, YearFoldersPath, MonthFoldersPath)) {
   
   if(!file.exists(paths)){
     dir.create(paths)
@@ -101,30 +175,18 @@ for(paths in c(RawDataPath, ParquetFolderPath, YearFoldersPath)) {
 }
 ```
 
-### Defining the sub-folders to split the files based on year.
+### Downloading and Storing the Files
 
-```{r parsermd-chunk-5, eval=FALSE}
-for(year_i in YearFoldersPath) dir.create(year_i, showWarnings = FALSE)
-```
+Now, we download each file and save it to the correct location.
 
-### Creating a folder for each month
+  * The Parquet trip files are downloaded into their respective `year=/month=` subfolders and named `part-0.parquet`. 
+  * The taxi zone CSV and shapefile ZIP are saved directly into the `raw-data` folder. [cite: 11, 12]
 
-```{r parsermd-chunk-6, eval=FALSE}
-MonthFolders <- gsub(
-  x = FileNames,
-  pattern = "^fhvhv_tripdata_\\d{4}-|\\.parquet$",
-  replacement = ""
-) |>
-  paste0("month=", a = _)
+Since downloading large Parquet files can take time, the timeout limit is increased to 30 minutes (1800 seconds). 
 
-MonthFoldersPath <- file.path(ParquetFolderPath, YearFolders, MonthFolders)
+```{r}
+#| eval: false
 
-for(month_i in MonthFoldersPath) dir.create(month_i, showWarnings = FALSE)
-```
-
-### Downloading each file on each folder
-
-```{r eval=FALSE}
 # Parquet files might time a longer time to be downloaded
 options(timeout = 1800)
 
@@ -150,9 +212,13 @@ download.file(TaxiZoneShapesLink,
               mode = "wb")
 ```
 
-### Unziping zone shapes
+### Unzipping the Shapefile
 
-```{r eval=FALSE}
+Finally, we unzip the `taxi_zones.zip` file into a new `taxi_zones` directory and then remove the original ZIP file to keep our project folder clean. 
+
+```{r}
+#| eval: false
+
 unzip(
   zipfile = file.path(RawDataPath,"taxi_zones.zip"),
   exdir = file.path(RawDataPath,"taxi_zones")
@@ -161,35 +227,50 @@ unzip(
 file.remove(file.path(RawDataPath,"taxi_zones.zip"))
 ```
 
+-----
 
-## Saving results in a database
+## Consolidating Data into a Database
 
-Despite that parquet files are great for sharing big data files keeping save the format for each format, it presents problems if we need to apply **sampling operations**.
+While Parquet files are excellent for storing and sharing large datasets, they can be inefficient for operations like random sampling. To enable fast and memory-efficient analysis on data that is larger than RAM, we will consolidate all our Parquet files into a `DuckDB` database.  DuckDB is a high-performance analytical database that runs directly within R.
 
-To work with data large than RAM, we will need to create a simple data base with `duckdb` by following the next simple steps.
+The process involves five simple steps:
 
-1. Listing all files to read.
+#### 1. Listing All Parquet Files for Import
+
+First, we create a formatted string that lists all the individual `part-0.parquet` file paths. This string will be used directly in a SQL query to tell DuckDB to read all the files as a single, unified dataset. 
 
 ```{r}
+#| eval: false
+
 ParquetSource <-
-  list.files(ParquetFolderPath,
-             recursive = TRUE,
-             full.names = TRUE) |>
+  file.path(MonthFoldersPath,"part-0.parquet") |>
   paste0("'", a = _ ,"'") |> 
   paste0(collapse = ", ") |>
   paste0("read_parquet([", a = _ ,"])")
 
 ParquetSource
+#> [1] "read_parquet(['/root/NycTaxi/raw-data/trip-data/year=2022/month=01/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=01/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=03/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=03/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=05/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=05/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=07/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=07/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=09/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=09/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=11/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=11/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=02/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=02/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=04/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=04/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=06/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=06/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=08/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=08/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=10/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=10/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=12/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=12/part-0.parquet'])"
 ```
 
-2. Creating a connection.
+#### 2. Creating a Database Connection
+
+Next, we establish a connection to our DuckDB database file, which will be stored at `output/my-db.duckdb`. If the file does not exist, DuckDB will create it automatically. 
 
 ```r
 con <- DBI::dbConnect(duckdb::duckdb(), 
                       dbdir = here::here("output/my-db.duckdb"))
 ```
 
-3. Saving all files in the database after adding an id to differentiate between trips and adding the performance per our each trips.
+#### 3. Creating and Populating the Trips Table
+
+This is the core step where the data is imported and transformed. We execute a single SQL command that:
+
+  * Creates a new table named `NycTrips`.
+  * Reads all the data from the Parquet files specified in `ParquetSource`.
+  * Adds a unique `trip_id` to each record using the `ROW_NUMBER()` function.
+  * Calculates a new field, `performance_per_hour`, to measure driver earnings per hour. 
+
+<!-- end list -->
 
 ```r
 NycTripsCreateTable <- glue::glue_safe("
@@ -204,7 +285,9 @@ CREATE TABLE NycTrips AS
 DBI::dbExecute(con, NycTripsCreateTable)
 ```
 
-4. Disconnecting the data base.
+#### 4\. Disconnecting from the Database
+
+Once the table is created, it's good practice to close the database connection to free up resources. 
 
 ```r
 DBI::dbDisconnect(con, shutdown = TRUE)
@@ -212,13 +295,14 @@ DBI::dbDisconnect(con, shutdown = TRUE)
 rm(con)
 ```
 
+#### 5\. Confirming the Final Database Size
 
-5. After saving the data in the data base we can confirm its final size.
+As a final check, we can inspect the size of the resulting database file on disk. This confirms that all the data has been successfully imported and saved. 
 
-```{r}
+```r
 here::here("output/my-db.duckdb") |>
   file.size() |>
   structure(class = "object_size") |>
   format(units = "auto")
+#> [1] "55.8 Gb"
 ```
-

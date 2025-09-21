@@ -91,7 +91,7 @@ You have two options to access the container:
 ssh root@localhost -p 2222
 ```
 
-2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `root@localhost:2222` with `"r"` as the password.
+2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `root@localhost:2222` with `"r"` as the password. Then we just need to install the [direnv](https://open-vsx.org/vscode/item?itemName=mkhl.direnv) extention by **mkhl**.
 
 
 ### 6. Start the Nix Shell
