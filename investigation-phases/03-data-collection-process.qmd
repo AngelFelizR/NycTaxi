@@ -1,5 +1,7 @@
 ---
 title: "Data Collection Process"
+execute:
+  eval: false
 editor_options: 
   chunk_output_type: console
 ---
@@ -42,8 +44,6 @@ The following code block extracts the download links for the monthly High-Volume
 <!-- end list -->
 
 ```{r getting-trip-links}
-#| eval: false
-
 TripLinks <-
   SourcePage |>
   rvest::html_elements(xpath = '//div[@class="faq-answers"]//li/a') |>
@@ -74,8 +74,6 @@ FileNames
 Next, we extract the links for two supplementary files: the **Taxi Zone Lookup Table** (a CSV file mapping location IDs to borough and zone names) and the **Taxi Zone Shapefile** (a ZIP file containing geographic data for mapping). [cite: 6, 7] The code below targets the links specifically by their text content.
 
 ```{r getting-taxi-zone-link}
-#| eval: false
-
 TaxiZoneLink <-
   SourcePage |>
   rvest::html_elements(xpath = '//ul/li/a[text()="Taxi Zone Lookup Table"]')  |>
@@ -87,8 +85,6 @@ TaxiZoneLink
 ```
 
 ```{r getting-taxi-zone-shapes-link}
-#| eval: false
-
 TaxiZoneShapesLink <-
   SourcePage |>
   rvest::html_elements(xpath = '//ul/li/a[text()="Taxi Zone Shapefile"]')  |>
@@ -110,11 +106,9 @@ To effectively query this large dataset, we need a smart storage strategy. We wi
 The code below programmatically defines the required directory paths. It starts with a base `raw-data` folder and then generates a list of nested year and month subfolders based on the filenames we extracted earlier. 
 
 ```{r}
-#| eval: false
-
-SourcePath <- here::here()
-RawDataPath <- file.path(SourcePath, "raw-data")
-ParquetFolderPath <- file.path(RawDataPath, "trip-data")
+RawDataPath <- here::here("raw-data")
+BigFilesPath <- here::here("../NycTaxiBigFiles")
+ParquetFolderPath <- file.path(BigFilesPath, "trip-data")
 
 YearFoldersPath <- 
   gsub(x = FileNames,
@@ -125,38 +119,19 @@ YearFoldersPath <-
   file.path(ParquetFolderPath, a = _)
 
 MonthFoldersPath <- 
-  gsub(x = FileNames,
-       pattern = "^fhvhv_tripdata_\\d{4}-|\\.parquet$",
-       replacement = "") |>
-  paste0("month=", a = _) |>
-  file.path(ParquetFolderPath, basename(YearFoldersPath), a = _) |>
+  paste(
+    gsub(x = FileNames,
+         pattern = "^fhvhv_tripdata_|-\\d{2}\\.parquet$",
+         replacement = "") |>
+        paste0("year=", a = _),
+    gsub(x = FileNames,
+         pattern = "^fhvhv_tripdata_\\d{4}-|\\.parquet$",
+         replacement = "") |>
+        paste0("month=", a = _),
+    sep = "/"
+  ) |>
+  file.path(ParquetFolderPath, a = _) |>
   sort()
-
-MonthFoldersPath
-#>  [1] "/root/NycTaxi/raw-data/trip-data/year=2022/month=01"
-#>  [2] "/root/NycTaxi/raw-data/trip-data/year=2022/month=01"
-#>  [3] "/root/NycTaxi/raw-data/trip-data/year=2022/month=03"
-#>  [4] "/root/NycTaxi/raw-data/trip-data/year=2022/month=03"
-#>  [5] "/root/NycTaxi/raw-data/trip-data/year=2022/month=05"
-#>  [6] "/root/NycTaxi/raw-data/trip-data/year=2022/month=05"
-#>  [7] "/root/NycTaxi/raw-data/trip-data/year=2022/month=07"
-#>  [8] "/root/NycTaxi/raw--data/trip-data/year=2022/month=07"
-#>  [9] "/root/NycTaxi/raw-data/trip-data/year=2022/month=09"
-#> [10] "/root/NycTaxi/raw-data/trip-data/year=2022/month=09"
-#> [11] "/root/NycTaxi/raw-data/trip-data/year=2022/month=11"
-#> [12] "/root/NycTaxi/raw-data/trip-data/year=2022/month=11"
-#> [13] "/root/NycTaxi/raw-data/trip-data/year=2023/month=02"
-#> [14] "/root/NycTaxi/raw-data/trip-data/year=2023/month=02"
-#> [15] "/root/NycTaxi/raw-data/trip-data/year=2023/month=04"
-#> [16] "/root/NycTaxi/raw-data/trip-data/year=2023/month=04"
-#> [17] "/root/NycTaxi/raw-data/trip-data/year=2023/month=06"
-#> [18] "/root/NycTaxi/raw-data/trip-data/year=2023/month=06"
-#> [19] "/root/NycTaxi/raw-data/trip-data/year=2023/month=08"
-#> [20] "/root/NycTaxi/raw-data/trip-data/year=2023/month=08"
-#> [21] "/root/NycTaxi/raw-data/trip-data/year=2023/month=10"
-#> [22] "/root/NycTaxi/raw-data/trip-data/year=2023/month=10"
-#> [23] "/root/NycTaxi/raw-data/trip-data/year=2023/month=12"
-#> [24] "/root/NycTaxi/raw-data/trip-data/year=2023/month=12"
 ```
 
 ### Creating the Folders
@@ -164,15 +139,43 @@ MonthFoldersPath
 This loop iterates through the defined paths and creates the necessary directories if they don't already exist. 
 
 ```{r creating-folders}
-#| eval: false
+FoldersToCreate <- c(RawDataPath, BigFilesPath, ParquetFolderPath,
+                     YearFoldersPath, MonthFoldersPath)
 
-for(paths in c(RawDataPath, ParquetFolderPath, YearFoldersPath, MonthFoldersPath)) {
-  
-  if(!file.exists(paths)){
-    dir.create(paths)
-  }
-  
+for(paths in FoldersToCreate) {
+  if(!file.exists(paths)) dir.create(paths)
 }
+
+FoldersToCreate
+#>  [1] "/root/NycTaxi/raw-data"                                       
+#>  [2] "/root/NycTaxi/../NycTaxiBigFiles"                             
+#>  [3] "/root/NycTaxi/../NycTaxiBigFiles/trip-data"                   
+#>  [4] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022"         
+#>  [5] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023"         
+#>  [6] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=01"
+#>  [7] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=02"
+#>  [8] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=03"
+#>  [9] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=04"
+#> [10] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=05"
+#> [11] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=06"
+#> [12] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=07"
+#> [13] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=08"
+#> [14] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=09"
+#> [15] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=10"
+#> [16] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=11"
+#> [17] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=12"
+#> [18] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=01"
+#> [19] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=02"
+#> [20] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=03"
+#> [21] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=04"
+#> [22] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=05"
+#> [23] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=06"
+#> [24] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=07"
+#> [25] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=08"
+#> [26] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=09"
+#> [27] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=10"
+#> [28] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=11"
+#> [29] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=12"
 ```
 
 ### Downloading and Storing the Files
@@ -240,8 +243,6 @@ The process involves five simple steps:
 First, we create a formatted string that lists all the individual `part-0.parquet` file paths. This string will be used directly in a SQL query to tell DuckDB to read all the files as a single, unified dataset. 
 
 ```{r}
-#| eval: false
-
 ParquetSource <-
   file.path(MonthFoldersPath,"part-0.parquet") |>
   paste0("'", a = _ ,"'") |> 
@@ -249,16 +250,16 @@ ParquetSource <-
   paste0("read_parquet([", a = _ ,"])")
 
 ParquetSource
-#> [1] "read_parquet(['/root/NycTaxi/raw-data/trip-data/year=2022/month=01/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=01/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=03/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=03/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=05/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=05/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=07/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=07/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=09/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=09/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=11/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2022/month=11/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=02/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=02/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=04/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=04/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=06/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=06/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=08/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=08/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=10/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=10/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=12/part-0.parquet', '/root/NycTaxi/raw-data/trip-data/year=2023/month=12/part-0.parquet'])"
+#> [1] "read_parquet(['/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=01/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=02/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=03/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=04/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=05/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=06/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=07/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=08/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=09/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=10/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=11/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=12/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=01/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=02/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=03/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=04/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=05/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=06/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=07/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=08/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=09/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=10/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=11/part-0.parquet', '/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=12/part-0.parquet'])"
 ```
 
 #### 2. Creating a Database Connection
 
-Next, we establish a connection to our DuckDB database file, which will be stored at `output/my-db.duckdb`. If the file does not exist, DuckDB will create it automatically. 
+Next, we establish a connection to our DuckDB database file, which will be stored at `../NycTaxiBigFiles/my-db.duckdb`. If the file does not exist, DuckDB will create it automatically. 
 
 ```r
 con <- DBI::dbConnect(duckdb::duckdb(), 
-                      dbdir = here::here("output/my-db.duckdb"))
+                      dbdir = file.path(BigFilesPath, "my-db.duckdb"))
 ```
 
 #### 3. Creating and Populating the Trips Table
@@ -285,7 +286,7 @@ CREATE TABLE NycTrips AS
 DBI::dbExecute(con, NycTripsCreateTable)
 ```
 
-#### 4\. Disconnecting from the Database
+#### 4. Disconnecting from the Database
 
 Once the table is created, it's good practice to close the database connection to free up resources. 
 
@@ -295,14 +296,18 @@ DBI::dbDisconnect(con, shutdown = TRUE)
 rm(con)
 ```
 
-#### 5\. Confirming the Final Database Size
+#### 5. Confirming the Final Database Size
 
 As a final check, we can inspect the size of the resulting database file on disk. This confirms that all the data has been successfully imported and saved. 
 
-```r
-here::here("output/my-db.duckdb") |>
+```{r}
+file.path(BigFilesPath, "my-db.duckdb") |>
   file.size() |>
   structure(class = "object_size") |>
   format(units = "auto")
 #> [1] "55.8 Gb"
 ```
+
+### Retaining the Full Dataset for R Package Development
+
+This project is not only a data analysis workflow but also structured as an R package, which includes unit tests in the `tests/` directory to verify that the code works correctly and reliably. These tests often need to interact with the full dataset to check functions like data processing, simulations, or geospatial operations. To enable running `devtools::check()`—a command that builds the package, runs all tests, and checks for issues—we keep the large data files in the `../NycTaxiBigFiles/` directory. This way, the tests can access the complete data without needing to redownload or recreate it each time, making development and validation straightforward and efficient. While this results in a large storage footprint (around 67 GB), it ensures the package's integrity and reproducibility.

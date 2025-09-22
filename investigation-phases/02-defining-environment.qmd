@@ -48,18 +48,15 @@ Pull the Docker image associated with this project using the following command:
 docker pull angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
-
-
 ### 3. Clone the Repository
 
-Navigate to the parent directory where you want to store the project. Then, clone the repository:
+Navigate to the parent directory where you want to store the project and another folder to store big data files. Then, clone the repository:
 
 ```bash
 cd <parent-dir-path>
+mkdir NycTaxiBigFiles
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
-
-
 
 ### 4. Run the Docker Container
 
@@ -76,10 +73,9 @@ docker run -tid --rm \
   --name nyc-taxi-container \
   -p 2222:22 \
   -v <parent-dir-path>/NycTaxi:/root/NycTaxi \
+  -v <parent-dir-path>/NycTaxiBigFiles:/root/NycTaxiBigFiles \
   angelfelizr/nyc-taxi-nix:4.5.1
 ```
-
-
 
 ### 5. Access the Container
 
