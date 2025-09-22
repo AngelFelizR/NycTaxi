@@ -54,6 +54,8 @@ The simulation will be based on the following **assumptions** related to the tax
 1.  Loading the functions to use.
 
 ```{r warning = FALSE, message = FALSE}
+#| label: env packages
+
 library(here)
 library(scales)
 library(ggplot2)
@@ -70,23 +72,17 @@ devtools::load_all()
 options(datatable.print.nrows = 15)
 ```
 
-2.  Creating folders to save data on disk.
-
-```{r}
-if(!dir.exists(here("output"))) dir.create(here("output"))
-if(!dir.exists(here("output/take-trip-fst"))) dir.create(here("output/take-trip-fst"))
-if(!dir.exists(here("output/cache-data"))) dir.create(here("output/cache-data"))
-```
-
-3.  Creating a connection with DuckDB.
+2.  Creating a connection with DuckDB.
 
 ``` r
-con <- dbConnect(duckdb(), dbdir = here("output/my-db.duckdb"))
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 ```
 
 4.  Importing the definition of each code zone.
 
 ```{r}
+#| label: import zones
+
 ZoneCodesRef <-
   fread(here("raw-data/taxi_zone_lookup.csv"),
         colClasses = c("integer",
@@ -98,6 +94,8 @@ ZoneCodesRef <-
 5.  As most of the trips take place between **Manhattan**, **Brooklyn** and **Queens**, let's list all possible combinations of related locations to use it as filter later.
 
 ```{r}
+#| label: selecting zones
+
 ZoneCodesFilter <-
   ZoneCodesRef[c("Manhattan", "Brooklyn", "Queens"), 
                on = "Borough",
@@ -125,14 +123,16 @@ SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
 setDT(SimulationStartDay)
 
 # Saving results
-fst::write_fst(SimulationStartDay, here("output/cache-data/SimulationStartDay.fst"))
+fst::write_fst(SimulationStartDay, here("cache-data/04-base-line/SimulationStartDay.fst"))
 
 pillar::glimpse(SimulationStartDay)
 ```
 
 ```{r echo=FALSE}
+#| label: Simulation start date
+
 SimulationStartDay <-
-  here("output/cache-data/SimulationStartDay.fst") |>
+  here("cache-data/04-base-line/SimulationStartDay.fst") |>
   fst::read_fst(as.data.table = TRUE)
 
 pillar::glimpse(SimulationStartDay)
@@ -143,12 +143,16 @@ We can also confirm that the sample satisfy the initial restrictions:
 -   All trips are from 2023.
 
 ```{r}
+#| label: Year distribution
+
 SimulationStartDay[, .N, year]
 ```
 
 -   The trips begin on the expected boroughs.
 
 ```{r}
+#| label: Start Zone distribution
+
 ZoneCodesRef[SimulationStartDay, 
              on = c("LocationID" = "PULocationID"),
              .N,
@@ -158,6 +162,8 @@ ZoneCodesRef[SimulationStartDay,
 -   The trips end on the expected boroughs.
 
 ```{r}
+#| label: End Zone distribution
+
 ZoneCodesRef[SimulationStartDay, 
              on = c("LocationID" = "DOLocationID"),
              .N,
@@ -232,7 +238,7 @@ dbExecute(con, MeanDistanceQuery)
 
 # Saving the table as a file
 PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
-fst::write_fst(PointMeanDistance,here("output/cache-data/PointMeanDistance.fst"))
+fst::write_fst(PointMeanDistance,here("cache-data/04-base-line/PointMeanDistance.fst"))
 ```
 
 7.  Running the simulation.
@@ -242,11 +248,13 @@ SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
 ```
 
 ```{r echo=FALSE}
+#| label: Getting simulation results
+
 if(exists("SimulationHourlyWage")){
-  fst::write_fst(SimulationHourlyWage, here("output/cache-data/SimulationHourlyWage.fst"))
+  fst::write_fst(SimulationHourlyWage, here("cache-data/04-base-line/SimulationHourlyWage.fst"))
 }else{
   SimulationHourlyWage <- fst::read_fst(
-    here("output/cache-data/SimulationHourlyWage.fst"),
+    here("cache-data/04-base-line/SimulationHourlyWage.fst"),
     as.data.table = TRUE
   )
 }
@@ -261,6 +269,8 @@ dbDisconnect(con, shutdown = TRUE)
 9.  Showing simulation results.
 
 ```{r}
+#| label: Showing results
+
 DailyHourlyWage <-
   SimulationHourlyWage[, .(`Daily Hourly Wage` = 
                              sum(sim_driver_pay + sim_tips) /
@@ -284,7 +294,9 @@ After simulating 60 days, we can use **bootstrap** to infer the distribution of 
 
 1.  Resample with replacement a new 60 days hourly wage 3,000 times and calculate the mean of each resample.
 
-```{r parsermd-chunk-11}
+```{r}
+#| label: BootstrapHourlyWage
+
 set.seed(1586)
 
 BootstrapHourlyWage <-
@@ -298,7 +310,9 @@ BootstrapHourlyWage
 
 2.  Compute the 95% confident interval.
 
-```{r parsermd-chunk-12}
+```{r}
+#| label: Getting interval
+
 BootstrapInterval <- 
   get_ci(BootstrapHourlyWage, 
          level = 0.95,
@@ -309,7 +323,9 @@ BootstrapInterval
 
 3.  Visualize the estimated distribution.
 
-```{r parsermd-chunk-13}
+```{r}
+#| label: Plotting internval
+
 visualize(BootstrapHourlyWage)+
   shade_ci(endpoints = BootstrapInterval,
            color = "#2c77BF",
@@ -335,6 +351,8 @@ Based on the simulation's results we can confirm that the average earnings for a
 If we can check the simulation results we can confirm that a 25% of the simulated days presented earnings over the 60 dollars per hour.
 
 ```{r}
+#| label: Goal Rate
+
 GoalRate <- 
   DailyHourlyWage$`Daily Hourly Wage` |>
   quantile(probs = 0.75) |>
