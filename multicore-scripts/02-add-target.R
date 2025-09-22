@@ -19,11 +19,11 @@ devtools::load_all()
 # Importing data ----
 
 PointMeanDistance <-
-  here("output/cache-data/PointMeanDistance.fst") |>
+  here("cache-data/04-base-line/PointMeanDistance.fst") |>
   read_fst(as.data.table = TRUE)
 
 ValidZoneSample <-
-  here("output/cache-data/ValidZoneSample.fst") |>
+  here("cache-data/05-data-sampling/ValidZoneSample.fst") |>
   read_fst(as.data.table = TRUE)
 
 
@@ -66,8 +66,7 @@ OneMonthData <-
 
 # Saving results -----
 
-FileToSave <- paste0("output/take_trip_fst/OneMonthData", month_i, ".fst")
+FileToSave <- here(paste0("raw-data/take-trip-fst/OneMonthData", month_i, ".fst"))
 fst::write_fst(OneMonthData, FileToSave)
 
 print(FileToSave)
-

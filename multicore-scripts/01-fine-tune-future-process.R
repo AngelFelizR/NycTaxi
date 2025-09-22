@@ -19,11 +19,11 @@ devtools::load_all()
 # Importing data ----
 
 PointMeanDistance <-
-  here("output/cache-data/PointMeanDistance.fst") |>
+  here("cache-data/04-base-line/PointMeanDistance.fst") |>
   read_fst(as.data.table = TRUE)
 
 ValidZoneSample <-
-  here("output/cache-data/ValidZoneSample.fst") |>
+  here("cache-data/05-data-sampling/ValidZoneSample.fst") |>
   read_fst(as.data.table = TRUE)
 
 

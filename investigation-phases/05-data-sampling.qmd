@@ -48,7 +48,7 @@ Selecting the 0.20% of the data, aiming for around 500K samples for training and
 
 ``` r
 ## Establishing a connection with the database
-con <- DBI::dbConnect(duckdb::duckdb(), dbdir = here("output/my-db.duckdb"))
+con <- DBI::dbConnect(duckdb::duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 
 ## Defining query to sample
 ValidZoneSampleQuery <- glue::glue("
@@ -68,13 +68,13 @@ DBI::dbDisconnect(con, shutdown = TRUE)
 
 ## Saving results to disk
 write_fst(ValidZoneSample,
-          here("output/cache-data/ValidZoneSample.fst"))
+          here("cache-data/05-data-sampling/ValidZoneSample.fst"))
 ```
 
 ```{r echo=FALSE}
 if(!exists("ValidZoneSample")){
   ValidZoneSample <- fst::read_fst(
-    here("output/cache-data/ValidZoneSample.fst"),
+    here("cache-data/05-data-sampling/ValidZoneSample.fst"),
     as.data.table = TRUE
   )
 }
@@ -130,12 +130,10 @@ In our case we focus in defining best values for:
 
 -   Scheduling used by `future`
 
-For that reason we have created the `R/01-fine-tune-future-process.R` script, which print the time needed for each process on the terminal after completing each one.
+For that reason we have created the `multicore-scripts/01-fine-tune-future-process.R` script, which print the time needed for each process on the terminal after completing each one.
 
 ``` bash
-docker exec -ti Rstudio bash
-cd home/rstudio/NycTaxi
-Rscript R/01-fine-tune-future-process.R
+Rscript ~/NycTaxi/multicore-scripts/01-fine-tune-future-process.R
 ```
 
 The below plot summaries the obtained results.
@@ -204,19 +202,17 @@ As this process was very demanding for my computer so we preferred to run each m
 
 ```{bash}
 #| eval: false
-#| file: ../R/run_add_target.sh
+#| file: ../multicore-scripts/run_add_target.sh
 ```
 
 Once defined the bash script we can use it by running the next command in the terminal.
 
 ```bash
-docker exec -ti Rstudio bash
-cd home/rstudio/NycTaxi
-bash R/run_add_target.sh R/02-add-target.R  1 24
+bash multicore-scripts/run_add_target.sh multicore-scripts/02-add-target.R  1 24
 ```
 
 Here we can see that the 24 files have been saved as fst binnary files.
 
-```{bash}
-ls -lh ../output/take-trip-fst
+```{r}
+dir(here::here("raw-data/take-trip-fst/")) |> sort()
 ```
