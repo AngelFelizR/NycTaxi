@@ -62,7 +62,7 @@ devtools::load_all()
 
 ```{r}
 TrainingSample <-
-  here("output/take-trip-fst") |>
+  here("raw-data/take-trip-fst") |>
   list.files(full.names = TRUE) |>
   (\(x) data.table(full_path = x,
                    n_char = nchar(basename(x)),
