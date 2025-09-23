@@ -1367,3 +1367,8 @@ fst::write_fst(
 
 ## Conclusion
 
+This phase of the project has successfully transformed our dataset, moving beyond simple geography to capture the underlying socioeconomic drivers of urban mobility. By navigating the vast landscape of nearly 160,000 US Census variables, we employed a systematic, data-driven approach using **Natural Language Processing** and **graph-based clustering** to unearth the most potent predictors of taxi demand.
+
+Our analysis validated the initial hypothesis: key indicators of **economic activity** (like household income and earnings), **employment density**, and **commuting behavior** (such as means of transportation and travel time to work) are strongly correlated with whether a taxi trip is taken. The process of performing a spatial join, using an area-weighted mean to accurately aggregate census tract data into taxi zones, has enriched our features with crucial context about the communities within them.
+
+With these high-impact socioeconomic and transportation features now validated and extracted, we are poised for the next critical phase: preparing the complete dataset for model training. The insights gained here will be instrumental in building a more accurate and nuanced model to predict taxi trip demand across New York City.
