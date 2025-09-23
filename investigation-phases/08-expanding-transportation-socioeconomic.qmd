@@ -95,7 +95,7 @@ ZonesShapes <-
   st_cast(to = "MULTIPOLYGON")
 
 TrainingSample <-
-  here("output/take-trip-fst") |>
+  here("raw-data/take-trip-fst") |>
   list.files(full.names = TRUE) |>
   (\(x) data.table(full_path = x,
                    n_char = nchar(basename(x)),
@@ -141,7 +141,7 @@ To solve that question, we only need to scrap the table available in [https://ap
 #| echo: false
 #| output: false
 
-ValidTablesYearsFilePath = here("output/cache-data/08-expanding-transportation-socioeconomic/ValidTablesYears.fst")
+ValidTablesYearsFilePath = here("cache-data/08-expanding-transportation-socioeconomic/ValidTablesYears.fst")
 
 
 if(file.exists(ValidTablesYearsFilePath)) {
@@ -213,7 +213,7 @@ Now that we have the years related to each table, let's apply `tidycensus::load_
 #| echo: false
 #| output: false
 
-ValidTablesLastYearFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/ValidTablesLastYear.fst")
+ValidTablesLastYearFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ValidTablesLastYear.fst")
 
 
 if(file.exists(ValidTablesLastYearFilePath)) {
@@ -456,7 +456,7 @@ With this inter-concept distance we can use the `edge_betweenness` argoritm to d
 #| output: false
 
 ConceptsToExploreByDistanceFilePath <-
-  here("output/cache-data/08-expanding-transportation-socioeconomic/ConceptsToExploreByDistance.fst")
+  here("cache-data/08-expanding-transportation-socioeconomic/ConceptsToExploreByDistance.fst")
 
 if(file.exists(ConceptsToExploreByDistanceFilePath)) {
   ConceptsToExploreByDistance <-
@@ -822,13 +822,13 @@ As we are getting also the geometry information is much efficient to change the 
 #| echo: false
 #| output: false
 
-AcsVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/AcsVariableTracts.qs")
+AcsVariableTractsFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/AcsVariableTracts.qs")
 
 if(file.exists(ValidTablesLastYearFilePath)) {
   AcsVariableTracts <- qs2::qs_read(AcsVariableTractsFilePath)
 }
 
-DecVariableTractsFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
+DecVariableTractsFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
 
 if(file.exists(ValidTablesLastYearFilePath)) {
   DecVariableTracts <- qs2::qs_read(DecVariableTractsFilePath)
@@ -912,7 +912,7 @@ Now we need to go over each of the original zone shapes and cut the tracts parts
 #| echo: false
 #| output: false
 
-ConsolidatedVariableTractsJoinedFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsJoined.qs")
+ConsolidatedVariableTractsJoinedFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsJoined.qs")
 
 
 if(file.exists(ConsolidatedVariableTractsJoinedFilePath)) {
@@ -977,7 +977,7 @@ Perfect, we have joined the to shapes, but we still need to have only one estima
 #| echo: false
 #| output: false
 
-ConsolidatedVariableTractsByZoneIdFilePath <- here("output/cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsByZoneId.fst")
+ConsolidatedVariableTractsByZoneIdFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsByZoneId.fst")
 
 
 if(file.exists(ConsolidatedVariableTractsByZoneIdFilePath)) {
@@ -1058,10 +1058,10 @@ dim(ConsolidatedVariableTractsByZoneId)
 #| output: false
 
 PuVariableTractsMeanDiffFilePath <-
-  here("output/cache-data/08-expanding-transportation-socioeconomic/PuVariableTractsMeanDiff.fst")
+  here("cache-data/08-expanding-transportation-socioeconomic/PuVariableTractsMeanDiff.fst")
 
 DoVariableTractsMeanDiffFilePath <-
-  here("output/cache-data/08-expanding-transportation-socioeconomic/DoVariableTractsMeanDiff.fst")
+  here("cache-data/08-expanding-transportation-socioeconomic/DoVariableTractsMeanDiff.fst")
 
 
 if(file.exists(PuVariableTractsMeanDiffFilePath)) {
@@ -1361,7 +1361,7 @@ fst::write_fst(
   ConsolidatedVariableTractsByZoneId[, .SD, 
                                      .SDcols = c("LocationID",
                                                  TopVariableTractsMeanDiff)], 
-  path = here("output/AcsVariablesByZoneId.fst")
+  path = here("raw-data/AcsVariablesByZoneId.fst")
 )
 ```
 
