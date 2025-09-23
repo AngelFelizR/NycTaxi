@@ -131,7 +131,7 @@ ZonesShapes <-
   transform(Shape_Area = st_area(geometry))
 
 TrainingSample <-
-  here("output/take-trip-fst") |>
+  here("raw-data/take-trip-fst") |>
   list.files(full.names = TRUE) |>
   (\(x) data.table(full_path = x,
                    n_char = nchar(basename(x)),
@@ -154,7 +154,7 @@ Now we can create a bounding box that encompasses the selected boroughs to effic
 #| echo: false
 #| output: false
 
-bb_boxFilePath <- here("output/cache-data/07-expanding-geospatial-data/bb_box.qs")
+bb_boxFilePath <- here("cache-data/07-expanding-geospatial-data/bb_box.qs")
 
 if(file.exists(bb_boxFilePath)) {
   bb_box <- qs2::qs_read(bb_boxFilePath)
@@ -193,7 +193,7 @@ plot_box(bb_box) +
 
 ### Getting data from API
 
-This section retrieves geospatial data from OpenStreetMap (OSM) for the features listed in `FeaturesToGet` and save it in RDS files in the `output/cache-data/ directory` to **speed up the development process** of this portfolio.
+This section retrieves geospatial data from OpenStreetMap (OSM) for the features listed in `FeaturesToGet` and save it in RDS files in the `cache-data/07-expanding-geospatial-data/ directory` to **speed up the development process** of this portfolio.
 
 :::{.callout-note}
 By caching the results of computationally intensive operations, we can avoid re-running the entire workflow every time the page is updated or changes are made.
@@ -243,7 +243,7 @@ for(feature_i in FeaturesToGet){
     keep_feature_value(feature_i)
   
   saveRDS(OsmData, 
-          here(sprintf("output/cache-data/feature_%s.rds", feature_i)), 
+          here(sprintf("cache-data/07-expanding-geospatial-data/feature_%s.rds", feature_i)), 
           compress = "xz")
 }
 ```
@@ -283,7 +283,7 @@ tidy_osm_data <- function(osm_sf, crs = NULL) {
 
 OsmDataComplete <-
   FeaturesToGet |>
-  sapply(FUN = \(x) here(sprintf("output/cache-data/feature_%s.rds", x))) |>
+  sapply(FUN = \(x) here(sprintf("cache-data/07-expanding-geospatial-data/feature_%s.rds", x))) |>
   lapply(FUN = readRDS) |>
   do.call(what = "c") |>
   tidy_osm_data(crs = st_crs(ZonesShapes)$epsg)
@@ -295,14 +295,14 @@ I opted to use the `qs2` package for saving and reading R objects throughout thi
 
 ```r
 qs2::qs_save(OsmDataComplete, 
-             here("output/cache-data/OsmDataComplete.qs"))
+             here("cache-data/07-expanding-geospatial-data/OsmDataComplete.qs"))
 ```
 
 
 ```{r}
 #| echo: FALSE
 
-OsmDataComplete <- qs2::qs_read(here("output/cache-data/OsmDataComplete.qs"))
+OsmDataComplete <- qs2::qs_read(here("cache-data/07-expanding-geospatial-data/OsmDataComplete.qs"))
 
 OsmDataComplete
 ```
@@ -351,19 +351,19 @@ MultiPolygonWithinZones <-
 #| echo: false
 
 PointsWithinZones <-
-  qs2::qs_read(here("output/cache-data/PointsWithinZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PointsWithinZones.qs"))
 
 LinesWithinZones <-
-  qs2::qs_read(here("output/cache-data/LinesWithinZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/LinesWithinZones.qs"))
 
 MultiLinesWithinZones <-
-  qs2::qs_read(here("output/cache-data/MultiLinesWithinZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiLinesWithinZones.qs"))
 
 PolygonWithinZones <-
-  qs2::qs_read(here("output/cache-data/PolygonWithinZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PolygonWithinZones.qs"))
 
 MultiPolygonWithinZones <-
-  qs2::qs_read(here("output/cache-data/MultiPolygonWithinZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiPolygonWithinZones.qs"))
 ```
 
 To ensure the accuracy of our spatial joins, we first want to visually inspect the features that were identified as being *fully contained* within a specific taxi zone. We'll start by examining zone with `LocationID` 191.
@@ -391,19 +391,19 @@ Now we can save the save the results.
 
 ```r
 qs2::qs_save(PointsWithinZones, 
-             here("output/cache-data/PointsWithinZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/PointsWithinZones.qs"))
 
 qs2::qs_save(LinesWithinZones, 
-             here("output/cache-data/LinesWithinZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/LinesWithinZones.qs"))
 
 qs2::qs_save(MultiLinesWithinZones, 
-             here("output/cache-data/MultiLinesWithinZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiLinesWithinZones.qs"))
 
 qs2::qs_save(PolygonWithinZones, 
-             here("output/cache-data/PolygonWithinZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/PolygonWithinZones.qs"))
 
 qs2::qs_save(MultiPolygonWithinZones, 
-             here("output/cache-data/MultiPolygonWithinZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiPolygonWithinZones.qs"))
 ```
 
 
@@ -442,16 +442,16 @@ MultiPolygonInSeveralZones <-
 #| echo: false
 
 LinesInSeveralZones <-
-  qs2::qs_read(here("output/cache-data/LinesInSeveralZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/LinesInSeveralZones.qs"))
 
 MultiLinesInSeveralZones <-
-  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiLinesInSeveralZones.qs"))
 
 PolygonInSeveralZones <-
-  qs2::qs_read(here("output/cache-data/PolygonInSeveralZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PolygonInSeveralZones.qs"))
 
 MultiPolygonInSeveralZones <-
-  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiPolygonInSeveralZones.qs"))
 ```
 
 By visualizing these features, we can confirm that our `st_crosses` and `st_overlaps` operations **correctly identified the lines and polygons that only partially interact** with the selected taxi zone. This is a crucial step before we proceed with the cropping process in the subsequent section, ensuring we only apply the cropping to the features that actually extend beyond the zone boundaries.
@@ -474,16 +474,16 @@ Let's save the data for future use.
 
 ```r
 qs2::qs_save(LinesInSeveralZones, 
-             here("output/cache-data/LinesInSeveralZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/LinesInSeveralZones.qs"))
 
 qs2::qs_save(MultiLinesInSeveralZones, 
-             here("output/cache-data/MultiLinesInSeveralZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiLinesInSeveralZones.qs"))
              
 qs2::qs_save(PolygonInSeveralZones, 
-             here("output/cache-data/PolygonInSeveralZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/PolygonInSeveralZones.qs"))
 
 qs2::qs_save(MultiPolygonInSeveralZones, 
-             here("output/cache-data/MultiPolygonInSeveralZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiPolygonInSeveralZones.qs"))
 ```
 
 #### Cropping features overlapping multiple zones
@@ -537,16 +537,16 @@ MultiPolygonInSeveralZonesCropped <-
 #| echo: false
 
 LinesInSeveralZonesCropped <-
-  qs2::qs_read(here("output/cache-data/LinesInSeveralZonesCropped.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/LinesInSeveralZonesCropped.qs"))
 
 MultiLinesInSeveralZonesCropped <-
-  qs2::qs_read(here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiLinesInSeveralZonesCropped.qs"))
 
 PolygonInSeveralZonesCropped <-
-  qs2::qs_read(here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PolygonInSeveralZonesCropped.qs"))
 
 MultiPolygonInSeveralZonesCropped <-
-  qs2::qs_read(here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/MultiPolygonInSeveralZonesCropped.qs"))
 ```
 
 
@@ -574,16 +574,16 @@ After performing those operations, we can save the data for future use.
 
 ```r
 qs2::qs_save(LinesInSeveralZonesCropped, 
-             here("output/cache-data/LinesInSeveralZonesCropped.qs"))
+             here("cache-data/07-expanding-geospatial-data/LinesInSeveralZonesCropped.qs"))
 
 qs2::qs_save(MultiLinesInSeveralZonesCropped, 
-             here("output/cache-data/MultiLinesInSeveralZonesCropped.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiLinesInSeveralZonesCropped.qs"))
 
 qs2::qs_save(PolygonInSeveralZonesCropped, 
-             here("output/cache-data/PolygonInSeveralZonesCropped.qs"))
+             here("cache-data/07-expanding-geospatial-data/PolygonInSeveralZonesCropped.qs"))
 
 qs2::qs_save(MultiPolygonInSeveralZonesCropped, 
-             here("output/cache-data/MultiPolygonInSeveralZonesCropped.qs"))
+             here("cache-data/07-expanding-geospatial-data/MultiPolygonInSeveralZonesCropped.qs"))
 ```
 
 
@@ -599,13 +599,13 @@ After making those changes, we can consolidate all the data to use into 3 **geom
 #| echo: false
 
 AllPointsZones <-
-  qs2::qs_read(here("output/cache-data/AllPointsZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/AllPointsZones.qs"))
 
 AllLinesZones <-
-  qs2::qs_read(here("output/cache-data/AllLinesZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/AllLinesZones.qs"))
 
 AllPolygonZones <-
-  qs2::qs_read(here("output/cache-data/AllPolygonZones.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/AllPolygonZones.qs"))
 ```
 
 
@@ -634,13 +634,13 @@ AllPolygonZones <-
 #| echo: false
 
 qs2::qs_save(AllPointsZones, 
-             here("output/cache-data/AllPointsZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/AllPointsZones.qs"))
 
 qs2::qs_save(AllLinesZones, 
-             here("output/cache-data/AllLinesZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/AllLinesZones.qs"))
 
 qs2::qs_save(AllPolygonZones, 
-             here("output/cache-data/AllPolygonZones.qs"))
+             here("cache-data/07-expanding-geospatial-data/AllPolygonZones.qs"))
 ```
 
 ## Extract new features
@@ -649,13 +649,13 @@ qs2::qs_save(AllPolygonZones,
 #| echo: false
 
 PointDensityFeatures <-
-  qs2::qs_read(here("output/cache-data/PointDensityFeatures.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PointDensityFeatures.qs"))
 
 LineDensityFeatures <-
-  qs2::qs_read(here("output/cache-data/LineDensityFeatures.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/LineDensityFeatures.qs"))
 
 PolygonDensityFeatures <-
-  qs2::qs_read(here("output/cache-data/PolygonDensityFeatures.qs"))
+  qs2::qs_read(here("cache-data/07-expanding-geospatial-data/PolygonDensityFeatures.qs"))
 ```
 
 
@@ -707,13 +707,13 @@ PolygonDensityFeatures <-
 #| echo: false
 
 qs2::qs_save(PointDensityFeatures, 
-             here("output/cache-data/PointDensityFeatures.qs"))
+             here("cache-data/07-expanding-geospatial-data/PointDensityFeatures.qs"))
 
 qs2::qs_save(LineDensityFeatures, 
-             here("output/cache-data/LineDensityFeatures.qs"))
+             here("cache-data/07-expanding-geospatial-data/LineDensityFeatures.qs"))
 
 qs2::qs_save(PolygonDensityFeatures, 
-             here("output/cache-data/PolygonDensityFeatures.qs"))
+             here("cache-data/07-expanding-geospatial-data/PolygonDensityFeatures.qs"))
 ```
 
 
@@ -756,7 +756,7 @@ Let's explore the correlated features.
 ```{r}
 #| echo: false
 
-CorMatrix = qs2::qs_read(here("output/cache-data/CorMatrix.qs"))
+CorMatrix = qs2::qs_read(here("cache-data/07-expanding-geospatial-data/CorMatrix.qs"))
 ```
 
 
@@ -771,7 +771,7 @@ CorMatrix <- cor(TrainingSampleOmsDensityFeatures[, !c("trip_id")])
 #| echo: false
 
 qs2::qs_save(CorMatrix, 
-             here("output/cache-data/CorMatrix.qs"))
+             here("cache-data/07-expanding-geospatial-data/CorMatrix.qs"))
 ```
 
 As we can see, the variables **don't show a strong correlation** (<11% for the top cases) with the variable to predict, so we will need to go deeper on feature engineering before using these variables for modeling.
@@ -779,7 +779,7 @@ As we can see, the variables **don't show a strong correlation** (<11% for the t
 ```{r}
 #| echo: false
 
-TopOsmCorrelations = qs2::qs_read(here("output/cache-data/TopOsmCorrelations.qs"))
+TopOsmCorrelations = qs2::qs_read(here("cache-data/07-expanding-geospatial-data/TopOsmCorrelations.qs"))
 ```
 
 ```r
@@ -799,7 +799,7 @@ TopOsmCorrelations <-
 #| echo: false
 
 qs2::qs_save(TopOsmCorrelations, 
-             here("output/cache-data/TopOsmCorrelations.qs"))
+             here("cache-data/07-expanding-geospatial-data/TopOsmCorrelations.qs"))
 ```
 
 
@@ -831,7 +831,7 @@ On the other hand, we can also explore in the target variable is correlated with
 rm(list = setdiff(ls(), c("OmsDensityFeatures","TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
 gc()
 
-OsmMedianDiff = qs2::qs_read(here("output/cache-data/OsmMedianDiff.qs"))
+OsmMedianDiff = qs2::qs_read(here("cache-data/07-expanding-geospatial-data/OsmMedianDiff.qs"))
 ```
 
 ```r
@@ -851,7 +851,7 @@ OsmMedianDiff <-
 #| echo: false
 
 qs2::qs_save(OsmMedianDiff, 
-             here("output/cache-data/OsmMedianDiff.qs"))
+             here("cache-data/07-expanding-geospatial-data/OsmMedianDiff.qs"))
 ```
 
 In the below chart we can see that for majority of the variables the difference of medians is 0, probably because the feature are **near zero variance** as doesn't show very often in many zones, but on the other hand we can see that some features present some $|\text{med}(x)| > 0.1$ that would be important to see in more detail.
@@ -878,7 +878,7 @@ ggplot(OsmMedianDiff) +
 rm(list = setdiff(ls(), c("OmsDensityFeatures","OsmMedianDiff", "TrainingSampleOmsDensityFeatures", "ColorHighlight", "ColorGray")))
 gc()
 
-TopOsmMedianDiff = qs2::qs_read(here("output/cache-data/TopOsmMedianDiff.qs"))
+TopOsmMedianDiff = qs2::qs_read(here("cache-data/07-expanding-geospatial-data/TopOsmMedianDiff.qs"))
 TopOsmMedianDiffFeatures = OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
 ```
 
@@ -904,7 +904,7 @@ TopOsmMedianDiff <-
 #| echo: false
 
 qs2::qs_save(TopOsmMedianDiff, 
-             here("output/cache-data/TopOsmMedianDiff.qs"))
+             here("cache-data/07-expanding-geospatial-data/TopOsmMedianDiff.qs"))
 ```
 
 Based on the next chart, we can see that the median change based on different factors like:
@@ -948,7 +948,7 @@ FeaturesToKeep <-
   unique()
 
 fst::write_fst(OmsDensityFeatures[, ..FeaturesToKeep], 
-               path = here("output/OmsDensityFeatures.fst"))
+               path = here("raw-data/OmsDensityFeatures.fst"))
 ```
 
 
