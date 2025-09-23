@@ -84,6 +84,13 @@ rix(
     "devtools",      # Development tools
     "testthat"       # Unit testing
   ),
+
+  # Getting packages from github
+  git_pkgs = list(
+    package_name = "corrcat",
+    repo_url = "https://github.com/AngelFelizR/corrcat/",
+    commit = "d20b6ad6a01d3b5a605037dbffbca3a18e97ac00"
+  ),  
   
   # System dependencies
   system_pkgs = c(
