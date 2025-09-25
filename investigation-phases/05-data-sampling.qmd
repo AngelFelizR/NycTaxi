@@ -41,6 +41,8 @@ devtools::load_all()
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
+
+# Defining the pin boards to use
 BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
@@ -213,5 +215,5 @@ bash multicore-scripts/run_add_target.sh multicore-scripts/02-add-target.R  1 24
 Here we can see that the 24 files have been saved as fst binnary files.
 
 ```{r}
-dir(here::here("raw-data/take-trip-fst/")) |> sort()
+BoardRemote |> pin_list() |> grep(pattern = "OneMonth", value = TRUE) |> sort()
 ```

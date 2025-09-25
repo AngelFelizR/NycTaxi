@@ -1,4 +1,3 @@
-
 # Loading Packages ----
 
 ## To transform data that fits in RAM
@@ -7,7 +6,7 @@ library(lubridate)
 library(future)
 
 ## To import and export data frames as binary files
-library(fst)
+library(pins)
 
 ## To manage relative paths
 library(here)
@@ -15,16 +14,15 @@ library(here)
 ## Custom functions
 devtools::load_all()
 
+# Defining the pin boards to use
+BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
 
 # Importing data ----
 
-PointMeanDistance <-
-  here("cache-data/04-base-line/PointMeanDistance.fst") |>
-  read_fst(as.data.table = TRUE)
-
-ValidZoneSample <-
-  here("cache-data/05-data-sampling/ValidZoneSample.fst") |>
-  read_fst(as.data.table = TRUE)
+PointMeanDistance <- BoardRemote |> pin_read("PointMeanDistance")
+ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
 
 
 # Selecting the data to use -----
@@ -41,7 +39,7 @@ ValidZoneSampleByMonth <-
     .SDcols = !c("request_datetime_extra")
     
   ## Adding parquet files for each month
-  ][, source_path := dir(here("raw-data/trip-data"), recursive = TRUE, full.names = TRUE)]
+  ][, source_path := dir(here("../NycTaxiBigFiles/trip-data/"), recursive = TRUE, full.names = TRUE)]
 
 
 # Running parallel process
@@ -65,8 +63,11 @@ OneMonthData <-
   )
 
 # Saving results -----
+if(nchar(month_i) == 1L) {
+  month_i = paste0("0", month_i)
+}
 
-FileToSave <- here(paste0("raw-data/take-trip-fst/OneMonthData", month_i, ".fst"))
-fst::write_fst(OneMonthData, FileToSave)
+FileName <- paste0("OneMonthData",month_i)
+BoardLocal |> pin_write(OneMonthData, paste0(OneMonthData,month_i), type = "qs2")
 
-print(FileToSave)
+print(FileName)

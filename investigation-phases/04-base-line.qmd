@@ -66,11 +66,17 @@ library(DBI)
 library(duckdb)
 library(glue)
 library(pins)
+library(qs2)
 
 ## Custom functions
 devtools::load_all()
 
-options(datatable.print.nrows = 15)
+## Defining the print params to use in the report
+options(datatable.print.nrows = 15, digits = 4)
+
+# Defining the pin boards to use
+BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
 2.  Creating a connection with DuckDB.
@@ -84,12 +90,9 @@ con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 ```{r}
 #| label: import zones
 
-ZoneCodesRef <-
-  fread(here("raw-data/taxi_zone_lookup.csv"),
-        colClasses = c("integer",
-                       "character",
-                       "character",
-                       "character"))
+ZoneCodesRef <- BoardRemote |> pin_read("ZoneCodesRef")
+
+ZoneCodesRef[, LocationID := as.integer(LocationID)]
 ```
 
 5.  As most of the trips take place between **Manhattan**, **Brooklyn** and **Queens**, let's list all possible combinations of related locations to use it as filter later.
@@ -124,7 +127,7 @@ SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
 setDT(SimulationStartDay)
 
 # Saving results
-fst::write_fst(SimulationStartDay, here("cache-data/04-base-line/SimulationStartDay.fst"))
+BoardLocal |> pin_write(SimulationStartDay, "SimulationStartDay", type = "qs2")
 
 pillar::glimpse(SimulationStartDay)
 ```
@@ -132,11 +135,11 @@ pillar::glimpse(SimulationStartDay)
 ```{r echo=FALSE}
 #| label: Simulation start date
 
-SimulationStartDay <-
-  here("cache-data/04-base-line/SimulationStartDay.fst") |>
-  fst::read_fst(as.data.table = TRUE)
+if(!exists("SimulationStartDay")){
+  SimulationStartDay <- BoardRemote |> pin_read("SimulationStartDay")
 
-pillar::glimpse(SimulationStartDay)
+  pillar::glimpse(SimulationStartDay)
+}
 ```
 
 We can also confirm that the sample satisfy the initial restrictions:
@@ -238,26 +241,26 @@ ORDER BY PULocationID, trip_miles_mean;
 dbExecute(con, MeanDistanceQuery)
 
 # Saving the table as a file
-PointMeanDistance <- dbGetQuery(con, "SELECT * FROM PointMeanDistance")
-fst::write_fst(PointMeanDistance,here("cache-data/04-base-line/PointMeanDistance.fst"))
+PointMeanDistance <- 
+  dbGetQuery(con, "SELECT * FROM PointMeanDistance") |>
+  data.table::as.data.table()
+
+BoardLocal |> pin_write(PointMeanDistance, "PointMeanDistance", type = "qs2")
 ```
 
 7.  Running the simulation.
 
 ``` r
 SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
+
+BoardLocal |> pin_write(SimulationHourlyWage, "SimulationHourlyWage", type = "qs2")
 ```
 
 ```{r echo=FALSE}
 #| label: Getting simulation results
 
-if(exists("SimulationHourlyWage")){
-  fst::write_fst(SimulationHourlyWage, here("cache-data/04-base-line/SimulationHourlyWage.fst"))
-}else{
-  SimulationHourlyWage <- fst::read_fst(
-    here("cache-data/04-base-line/SimulationHourlyWage.fst"),
-    as.data.table = TRUE
-  )
+if(!exists("SimulationHourlyWage")){
+  SimulationHourlyWage <- BoardRemote |> pin_read("SimulationHourlyWage")
 }
 ```
 
