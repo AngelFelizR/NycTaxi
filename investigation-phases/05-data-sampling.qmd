@@ -25,7 +25,8 @@ This will help us to have more meaningful results during the *Data Understanding
 library(here)
 
 ## To import and export data frames as binary files
-library(fst)
+library(qs2)
+library(pins)
 
 ## To transform data that fits in RAM
 library(data.table)
@@ -40,6 +41,8 @@ devtools::load_all()
 
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
+BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
 ## Sampling data to use
@@ -67,16 +70,12 @@ ValidZoneSample <- DBI::dbGetQuery(con, ValidZoneSampleQuery)
 DBI::dbDisconnect(con, shutdown = TRUE)
 
 ## Saving results to disk
-write_fst(ValidZoneSample,
-          here("cache-data/05-data-sampling/ValidZoneSample.fst"))
+BoardLocal |> pin_write(ValidZoneSample, "ValidZoneSample", type = "qs2")
 ```
 
 ```{r echo=FALSE}
 if(!exists("ValidZoneSample")){
-  ValidZoneSample <- fst::read_fst(
-    here("cache-data/05-data-sampling/ValidZoneSample.fst"),
-    as.data.table = TRUE
-  )
+  ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
 }
 ```
 

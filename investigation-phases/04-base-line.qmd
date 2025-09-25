@@ -65,6 +65,7 @@ library(infer)
 library(DBI)
 library(duckdb)
 library(glue)
+library(pins)
 
 ## Custom functions
 devtools::load_all()

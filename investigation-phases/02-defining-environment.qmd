@@ -55,6 +55,8 @@ Navigate to the parent directory where you want to store the project and another
 ```bash
 cd <parent-dir-path>
 mkdir NycTaxiBigFiles
+mkdir NycTaxiPins
+mkdir NycTaxiBoardCache
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
@@ -74,6 +76,8 @@ docker run -tid --rm \
   -p 2222:22 \
   -v <parent-dir-path>/NycTaxi:/root/NycTaxi \
   -v <parent-dir-path>/NycTaxiBigFiles:/root/NycTaxiBigFiles \
+  -v <parent-dir-path>/NycTaxiPins:/root/NycTaxiPins \
+  -v <parent-dir-path>/NycTaxiBoardCache:/root/NycTaxiBoardCache \
   angelfelizr/nyc-taxi-nix:4.5.1
 ```
 
