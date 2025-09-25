@@ -8,7 +8,7 @@ library(rix)
 # Call the 'rix' function to configure and generate the Nix environment files.
 rix(
   # Relatively fresh packages and have a stable environment for production
-  r_ver = "latest-upstream",
+  date = "2025-09-22",
   
   # R Packages
   r_pkgs = c(
@@ -87,10 +87,13 @@ rix(
 
   # Getting packages from github
   git_pkgs = list(
-    package_name = "corrcat",
-    repo_url = "https://github.com/AngelFelizR/corrcat/",
-    commit = "d20b6ad6a01d3b5a605037dbffbca3a18e97ac00"
-  ),  
+    list(package_name = "corrcat",
+         repo_url = "https://github.com/AngelFelizR/corrcat/",
+         commit = "d20b6ad6a01d3b5a605037dbffbca3a18e97ac00"),
+    list(package_name = "pins",
+         repo_url = "https://github.com/rstudio/pins-r/",
+         commit = "a6de9732c2dded36688b6b27c58bfd2b45854e2a")
+     ),  
   
   # System dependencies
   system_pkgs = c(
