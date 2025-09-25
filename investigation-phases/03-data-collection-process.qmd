@@ -106,7 +106,6 @@ To effectively query this large dataset, we need a smart storage strategy. We wi
 The code below programmatically defines the required directory paths. It starts with a base `raw-data` folder and then generates a list of nested year and month subfolders based on the filenames we extracted earlier. 
 
 ```{r}
-RawDataPath <- here::here("raw-data")
 BigFilesPath <- here::here("../NycTaxiBigFiles")
 ParquetFolderPath <- file.path(BigFilesPath, "trip-data")
 
@@ -139,7 +138,7 @@ MonthFoldersPath <-
 This loop iterates through the defined paths and creates the necessary directories if they don't already exist. 
 
 ```{r creating-folders}
-FoldersToCreate <- c(RawDataPath, BigFilesPath, ParquetFolderPath,
+FoldersToCreate <- c(BigFilesPath, ParquetFolderPath,
                      YearFoldersPath, MonthFoldersPath)
 
 for(paths in FoldersToCreate) {
@@ -147,35 +146,34 @@ for(paths in FoldersToCreate) {
 }
 
 FoldersToCreate
-#>  [1] "/root/NycTaxi/raw-data"                                       
-#>  [2] "/root/NycTaxi/../NycTaxiBigFiles"                             
-#>  [3] "/root/NycTaxi/../NycTaxiBigFiles/trip-data"                   
-#>  [4] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022"         
-#>  [5] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023"         
-#>  [6] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=01"
-#>  [7] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=02"
-#>  [8] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=03"
-#>  [9] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=04"
-#> [10] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=05"
-#> [11] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=06"
-#> [12] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=07"
-#> [13] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=08"
-#> [14] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=09"
-#> [15] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=10"
-#> [16] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=11"
-#> [17] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=12"
-#> [18] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=01"
-#> [19] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=02"
-#> [20] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=03"
-#> [21] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=04"
-#> [22] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=05"
-#> [23] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=06"
-#> [24] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=07"
-#> [25] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=08"
-#> [26] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=09"
-#> [27] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=10"
-#> [28] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=11"
-#> [29] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=12"
+#>  [1] "/root/NycTaxi/../NycTaxiBigFiles"                             
+#>  [2] "/root/NycTaxi/../NycTaxiBigFiles/trip-data"                   
+#>  [3] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022"         
+#>  [4] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023"         
+#>  [5] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=01"
+#>  [6] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=02"
+#>  [7] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=03"
+#>  [8] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=04"
+#>  [9] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=05"
+#> [10] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=06"
+#> [11] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=07"
+#> [12] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=08"
+#> [13] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=09"
+#> [14] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=10"
+#> [15] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=11"
+#> [16] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2022/month=12"
+#> [17] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=01"
+#> [18] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=02"
+#> [19] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=03"
+#> [20] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=04"
+#> [21] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=05"
+#> [22] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=06"
+#> [23] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=07"
+#> [24] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=08"
+#> [25] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=09"
+#> [26] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=10"
+#> [27] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=11"
+#> [28] "/root/NycTaxi/../NycTaxiBigFiles/trip-data/year=2023/month=12"
 ```
 
 ### Downloading and Storing the Files
@@ -206,31 +204,49 @@ for(link_i in seq_along(TripLinks)){
 
 # Taxi Zone CSV
 download.file(TaxiZoneLink,
-              destfile = file.path(RawDataPath,"taxi_zone_lookup.csv"),
+              destfile = file.path(BigFilesPath,"taxi_zone_lookup.csv"),
               mode = "wb")
 
 # Taxi Zone Shapes
 download.file(TaxiZoneShapesLink,
-              destfile = file.path(RawDataPath,"taxi_zones.zip"),
+              destfile = file.path(BigFilesPath,"taxi_zones.zip"),
               mode = "wb")
 ```
 
-### Unzipping the Shapefile
+### Saving zone shapes
 
-Finally, we unzip the `taxi_zones.zip` file into a new `taxi_zones` directory and then remove the original ZIP file to keep our project folder clean. 
+Now we can unzip the `taxi_zones.zip` file into a new `taxi_zones` directory and remove the original ZIP file.
 
 ```{r}
 #| eval: false
 
 unzip(
-  zipfile = file.path(RawDataPath,"taxi_zones.zip"),
-  exdir = file.path(RawDataPath,"taxi_zones")
+  zipfile = file.path(BigFilesPath,"taxi_zones.zip"),
+  exdir = file.path(BigFilesPath,"taxi_zones")
 )
 
-file.remove(file.path(RawDataPath,"taxi_zones.zip"))
+file.remove(file.path(BigFilesPath,"taxi_zones.zip"))
 ```
 
------
+### Adding zone information to the board
+
+To have this information available later we can sabe zone information as pins.
+
+```{r}
+#| eval: false
+
+BoardLocal <- pins::board_folder(here::here("../NycTaxiPins/Board"))
+
+ZoneCodesRef <-
+  data.table::fread(file.path(BigFilesPath,"taxi_zone_lookup.csv"),
+                    colClasses = "character")
+
+ZonesShapes <-
+  sf::read_sf(file.path(BigFilesPath,"taxi_zones/taxi_zones.shp"))
+
+BoardLocal |> pins::pin_write(ZoneCodesRef, "ZoneCodesRef", type = "qs2")
+BoardLocal |> pins::pin_write(ZonesShapes, "ZonesShapes", type = "qs2")
+```
 
 ## Consolidating Data into a Database
 
@@ -270,8 +286,6 @@ This is the core step where the data is imported and transformed. We execute a s
   * Reads all the data from the Parquet files specified in `ParquetSource`.
   * Adds a unique `trip_id` to each record using the `ROW_NUMBER()` function.
   * Calculates a new field, `performance_per_hour`, to measure driver earnings per hour. 
-
-<!-- end list -->
 
 ```r
 NycTripsCreateTable <- glue::glue_safe("
