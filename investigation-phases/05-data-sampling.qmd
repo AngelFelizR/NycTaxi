@@ -24,9 +24,9 @@ This will help us to have more meaningful results during the *Data Understanding
 ## To manage relative paths
 library(here)
 
-## To import and export data frames as binary files
-library(qs2)
+## Publish data sets, models, and other R objects
 library(pins)
+library(qs2)
 
 ## To transform data that fits in RAM
 library(data.table)

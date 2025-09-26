@@ -38,9 +38,9 @@ ColorGray <- "gray80"
 ## To manage relative paths
 library(here)
 
-## To import and export data frames as binary files
-library(fst)
-library(fstcore)
+## Publish data sets, models, and other R objects
+library(pins)
+library(qs2)
 
 ## To transform data that fits in RAM
 library(data.table)
@@ -56,34 +56,30 @@ options(datatable.print.nrows = 15, digits = 4)
 
 ## Custom functions
 devtools::load_all()
+
+# Defining the pin boards to use
+BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
 ### Importing training sample
 
 ```{r}
 TrainingSample <-
-  here("raw-data/take-trip-fst") |>
-  list.files(full.names = TRUE) |>
-  (\(x) data.table(full_path = x,
-                   n_char = nchar(basename(x)),
-                   name = basename(x)))() |>
-  (\(dt) dt[order(n_char, name), full_path])() |>
+  pin_list(BoardRemote) |>
+  grep(pattern = "^OneMonthData", value = TRUE) |>
+  sort() |>
   head(12L) |>
-  lapply(FUN = read_fst, as.data.table = TRUE) |>
+  lapply(FUN = pin_read,
+         board = BoardRemote) |>
   rbindlist()
 ```
 
 ### Importing geospatial information
 
 ```{r}
-ZoneCodesRef <-
-  fread(here("raw-data/taxi_zone_lookup.csv"),
-        select = c("LocationID" = "character",
-                   "Borough" = "character",
-                   "service_zone" = "character"))
+ZoneCodesRef <- pin_read(BoardRemote, "ZoneCodesRef")
 ```
-
-
 
 ### Adding features for exploration
 
