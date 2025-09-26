@@ -15,7 +15,10 @@ library(here)
 devtools::load_all()
 
 # Defining the pin boards to use
-BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here("../NycTaxiBoardCache")
+)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 
@@ -28,18 +31,24 @@ ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
 # Selecting the data to use -----
 
 ValidZoneSampleByMonth <-
-  
   ## Excluding trips that took place in the last 15 min minutes
   ## to be able to run this process month by month as solution
   ## to avoid running the process on disk which can be really slow
-  ValidZoneSample[, request_datetime_extra := request_datetime + minutes(15)
-  ][floor_date(request_datetime_extra, unit = "month") == floor_date(request_datetime, unit = "month"),
-    .(data = list(.SD)), 
+  ValidZoneSample[, request_datetime_extra := request_datetime + minutes(15)][
+    floor_date(request_datetime_extra, unit = "month") ==
+      floor_date(request_datetime, unit = "month"),
+    .(data = list(.SD)),
     keyby = c("year", "month"),
     .SDcols = !c("request_datetime_extra")
-    
-  ## Adding parquet files for each month
-  ][, source_path := dir(here("../NycTaxiBigFiles/trip-data/"), recursive = TRUE, full.names = TRUE)]
+
+    ## Adding parquet files for each month
+  ][,
+    source_path := dir(
+      here("../NycTaxiBigFiles/trip-data/"),
+      recursive = TRUE,
+      full.names = TRUE
+    )
+  ]
 
 
 # Running parallel process
@@ -63,11 +72,12 @@ OneMonthData <-
   )
 
 # Saving results -----
-if(nchar(month_i) == 1L) {
+if (nchar(month_i) == 1L) {
   month_i = paste0("0", month_i)
 }
 
-FileName <- paste0("OneMonthData",month_i)
-BoardLocal |> pin_write(OneMonthData, paste0(OneMonthData,month_i), type = "qs2")
+FileName <- paste0("OneMonthData", month_i)
+BoardLocal |>
+  pin_write(OneMonthData, paste0(OneMonthData, month_i), type = "qs2")
 
 print(FileName)

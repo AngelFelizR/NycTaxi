@@ -1,8 +1,7 @@
 describe("add_take_current_trip", {
-
   # Defining times to use
   start_time <- as.POSIXct("2023-10-01 09:00:00")
-  secs_to_check <- seq(from = 30, to = 20*60, by = 30)
+  secs_to_check <- seq(from = 30, to = 20 * 60, by = 30)
   future_time <- start_time + lubridate::seconds(secs_to_check)
 
   # The keep the example simple the defining the id for points
@@ -14,7 +13,7 @@ describe("add_take_current_trip", {
   )
 
   # Listing a sequence of destinations
-  future_dist <- floor(secs_to_check/60)
+  future_dist <- floor(secs_to_check / 60)
 
   # Setup: Create mock data for testing
   # 1. The first trip must be taken
@@ -38,9 +37,11 @@ describe("add_take_current_trip", {
     wav_request_flag = c(rep("Y", 10), rep("N", 30)),
     wav_match_flag = c(rep("Y", 10), rep("N", 30)),
     DOLocationID = future_dist,
-    driver_pay = c(rnorm(10, mean = 150, sd = 10),
-                   rnorm(20, mean = 50, sd = 30),
-                   rnorm(10, mean = 150, sd = 10)),
+    driver_pay = c(
+      rnorm(10, mean = 150, sd = 10),
+      rnorm(20, mean = 50, sd = 30),
+      rnorm(10, mean = 150, sd = 10)
+    ),
     tips = 0,
     trip_time = 3600
   )
@@ -51,7 +52,14 @@ describe("add_take_current_trip", {
   parquet_path <- tempfile(fileext = ".parquet")
   con <- DBI::dbConnect(duckdb::duckdb())
   DBI::dbWriteTable(con, "all_trips", all_trips)
-  DBI::dbExecute(con, paste0("COPY (SELECT * FROM all_trips) TO '",parquet_path,"' (FORMAT 'parquet');"))
+  DBI::dbExecute(
+    con,
+    paste0(
+      "COPY (SELECT * FROM all_trips) TO '",
+      parquet_path,
+      "' (FORMAT 'parquet');"
+    )
+  )
   DBI::dbDisconnect(con, shutdown = TRUE)
   on.exit(file.remove(parquet_path), add = TRUE)
 
@@ -69,19 +77,44 @@ describe("add_take_current_trip", {
     expect_equal(result$take_current_trip, c(1L, 0L))
 
     # Getting all expected columns
-    expect_true(all(c("trip_id", "take_current_trip", "performance_per_hour", "percentile_75_performance") %in% names(result)))
+    expect_true(all(
+      c(
+        "trip_id",
+        "take_current_trip",
+        "performance_per_hour",
+        "percentile_75_performance"
+      ) %in%
+        names(result)
+    ))
   })
 
   it("handles invalid input gracefully", {
-    expect_error(add_take_current_trip(data.frame(), mean_distance, parquet_path), "trip_sample must be a non-empty data frame")
-    expect_error(add_take_current_trip(trip_sample, data.frame(), parquet_path), "point_mean_distance must be a non-empty data frame")
-    expect_error(add_take_current_trip(trip_sample, mean_distance, "non_existent_file.parquet"), "parquet_path does not exist")
+    expect_error(
+      add_take_current_trip(data.frame(), mean_distance, parquet_path),
+      "trip_sample must be a non-empty data frame"
+    )
+    expect_error(
+      add_take_current_trip(trip_sample, data.frame(), parquet_path),
+      "point_mean_distance must be a non-empty data frame"
+    )
+    expect_error(
+      add_take_current_trip(
+        trip_sample,
+        mean_distance,
+        "non_existent_file.parquet"
+      ),
+      "parquet_path does not exist"
+    )
   })
 
   it("handles edge cases correctly", {
     # Test with a single trip
     single_trip <- trip_sample[1]
-    result_single <- add_take_current_trip(single_trip, mean_distance, parquet_path)
+    result_single <- add_take_current_trip(
+      single_trip,
+      mean_distance,
+      parquet_path
+    )
     expect_equal(nrow(result_single), 1)
 
     # Test with no matching future trips
@@ -94,7 +127,11 @@ describe("add_take_current_trip", {
       PULocationID = 0,
       performance_per_hour = 100
     )
-    result_no_match <- add_take_current_trip(no_match_trip, mean_distance, parquet_path)
-    expect_equal(result_no_match$take_current_trip, 1L)  # Should take current trip if no alternatives
+    result_no_match <- add_take_current_trip(
+      no_match_trip,
+      mean_distance,
+      parquet_path
+    )
+    expect_equal(result_no_match$take_current_trip, 1L) # Should take current trip if no alternatives
   })
 })

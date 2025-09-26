@@ -29,3 +29,5 @@
 ^\.quarto/
 ^NycTaxi\.Rproj$
 ^\.Rproj\.user$
+^\.vscode$
+^[.]?air[.]toml$

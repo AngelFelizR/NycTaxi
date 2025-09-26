@@ -6,17 +6,13 @@
 #'
 #' @return A data.table.
 #' @export
-simulate_trips = function(conn,
-                          start_points,
-                          model = NULL) {
-
+simulate_trips = function(conn, start_points, model = NULL) {
   validate_simulation_data(conn, start_points)
 
   # START simulation
 
   all_simulations_table =
-    lapply(1:nrow(start_points),\(simulation_i){
-
+    lapply(1:nrow(start_points), \(simulation_i) {
       # 1. CONSTANT FOR THE SIMULATIONS
       # Defining initial trip
       simulated_trips = start_points[simulation_i, ]
@@ -26,9 +22,9 @@ simulate_trips = function(conn,
 
       # Defining valid wav trip for this simulation
       can_take_wav =
-        if(start_points$wav_match_flag[simulation_i] == "Y"){
+        if (start_points$wav_match_flag[simulation_i] == "Y") {
           "('Y', 'N')"
-        }else{
+        } else {
           "('N')"
         }
 
@@ -38,7 +34,6 @@ simulate_trips = function(conn,
         lubridate::hours(8) +
         lubridate::minutes(30)
 
-
       # 2. CHANGES ONCE PER SIMULATION
       # Confirms if the break was take it
       break_taken = FALSE
@@ -46,7 +41,6 @@ simulate_trips = function(conn,
       time_to_take_break =
         start_points$request_datetime[simulation_i] +
         lubridate::hours(4)
-
 
       # 3. CHANGES EVERY TIME WE CHECK FOR A NEW TRIP
       # After ending the first trip this is the current times
@@ -66,12 +60,11 @@ simulate_trips = function(conn,
       # Defines the max distance to find a trip
       trip_dist_limit = 1
 
-
       # 4. LOOP FOR GETTINGG ALL TRIPS
-      while(current_time < last_time_to_take_trips) {
-
+      while (current_time < last_time_to_take_trips) {
         # The query to extract information from DB
-        query_to_find_trips = glue::glue("
+        query_to_find_trips = glue::glue(
+          "
         SELECT t1.*
         FROM NycTrips t1
         INNER JOIN (
@@ -84,23 +77,25 @@ simulate_trips = function(conn,
         AND t1.request_datetime <= '{trip_time_limit}'
         AND t2.trip_miles_mean <= {trip_dist_limit}
         ORDER BY t1.request_datetime
-      ")
+      "
+        )
 
         # Running the query
         trips_found = DBI::dbGetQuery(conn, query_to_find_trips)
         data.table::setDT(trips_found)
 
         # Confirming if we found trips
-        if(nrow(trips_found) > 0){
-
+        if (nrow(trips_found) > 0) {
           # PENDING - FILTER BASED ON PREDICTIONS
 
           # Accepting the first requested trip
           simulated_trips =
-            rbind(simulated_trips,
-                  trips_found[1L, ],
-                  use.names = TRUE,
-                  fill = TRUE)
+            rbind(
+              simulated_trips,
+              trips_found[1L, ],
+              use.names = TRUE,
+              fill = TRUE
+            )
 
           # Getting ready for a new search
           current_time =
@@ -114,61 +109,52 @@ simulate_trips = function(conn,
 
           trip_time_limit = current_time + lubridate::minutes(1)
           trip_dist_limit = 1
-
-        }else{
-
+        } else {
           # Getting ready for a new search
-          if(n_search_iteration == 0){
+          if (n_search_iteration == 0) {
             current_time = current_time + lubridate::minutes(1)
-          }else{
+          } else {
             current_time = current_time + lubridate::minutes(2)
           }
           n_search_iteration = n_search_iteration + 1
           trip_dist_limit = 1 + n_search_iteration * 2
           trip_time_limit = current_time + lubridate::minutes(2)
-
         }
-
 
         # USEFULL FOR TESTING THE SIMULATION
         # if(length(simulated_trips$trip_id) == 4L && n_search_iteration == 2) {
         #   browser()
         # }
 
-
         # Confirming if is time to take the break
-        if(break_taken == FALSE && current_time >= time_to_take_break){
-
+        if (break_taken == FALSE && current_time >= time_to_take_break) {
           break_taken = TRUE
           current_time = current_time + lubridate::minutes(30)
-
         }
-
-
       }
-      
+
       data.table::setDT(simulated_trips)
 
       # Returning the data in the expected shape
       shaped_table =
-        simulated_trips[, list(simulation_id = trip_id[1L],
-                               sim_trip_id = trip_id,
-                               sim_hvfhs_license_num = hvfhs_license_num,
-                               sim_wav_match_flag = wav_match_flag,
-                               sim_PULocationID = PULocationID,
-                               sim_DOLocationID = DOLocationID,
-                               sim_request_datetime = request_datetime,
-                               sim_dropoff_datetime = dropoff_datetime,
-                               sim_trip_time = trip_time,
-                               sim_driver_pay = driver_pay,
-                               sim_tips = tips)]
+        simulated_trips[, list(
+          simulation_id = trip_id[1L],
+          sim_trip_id = trip_id,
+          sim_hvfhs_license_num = hvfhs_license_num,
+          sim_wav_match_flag = wav_match_flag,
+          sim_PULocationID = PULocationID,
+          sim_DOLocationID = DOLocationID,
+          sim_request_datetime = request_datetime,
+          sim_dropoff_datetime = dropoff_datetime,
+          sim_trip_time = trip_time,
+          sim_driver_pay = driver_pay,
+          sim_tips = tips
+        )]
 
       return(shaped_table)
-
     }) |>
     data.table::rbindlist()
 
-# Returning final table
-return(all_simulations_table)
-
+  # Returning final table
+  return(all_simulations_table)
 }

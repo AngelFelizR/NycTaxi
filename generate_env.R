@@ -9,103 +9,107 @@ library(rix)
 rix(
   # Relatively fresh packages and have a stable environment for production
   date = "2025-09-22",
-  
+
   # R Packages
   r_pkgs = c(
     # Data manipulation & structures
-    "data.table",    # High-performance data manipulation
-    "lubridate",     # To work with dates and datetimes
-    "stringr",       # To work with the text
-    "tibble",        # Modern data frames
-    "timeDate",      # Financial time/date handling
-    
+    "data.table", # High-performance data manipulation
+    "lubridate", # To work with dates and datetimes
+    "stringr", # To work with the text
+    "tibble", # Modern data frames
+    "timeDate", # Financial time/date handling
+
     # Import/export & storage
-    "fst",           # Fast serialization of data
-    "qs2",           # High-performance serialization
-    "rvest",         # Web scraping
-    "here",          # Reproducible file paths
+    "fst", # Fast serialization of data
+    "qs2", # High-performance serialization
+    "rvest", # Web scraping
+    "here", # Reproducible file paths
 
     # Tools for creating maps
-    "osmdata",       # Import data from Open Street Map
-    "tidycensus",    # Import socioeconomic data from the US Census Bureau
-    "units",         # Tools to manage unit conversion
-    "leaflet",       # Interactive maps
-    "maptiles",      # Basemap tiles for mapping
-    "sf",            # Spatial data handling
-    "tmap",          # Thematic maps
+    "osmdata", # Import data from Open Street Map
+    "tidycensus", # Import socioeconomic data from the US Census Bureau
+    "units", # Tools to manage unit conversion
+    "leaflet", # Interactive maps
+    "maptiles", # Basemap tiles for mapping
+    "sf", # Spatial data handling
+    "tmap", # Thematic maps
 
     # To train ML
-    "tidymodels",    # Framework to create models with good practices
-    "baguette",      # Extending tidymodels
-    "rules",         # Extending tidymodels
-    "corrr",         # To explore correlations
-    "mixOmics",      # Integrative data analysis
-    "glmnet",        # Regularized generalized linear models
-    "kernlab",       # Kernel-based machine learning
-    "ranger",        # Fast implementation of random forests
-    "xgboost",       # Gradient boosting framework
-    
+    "tidymodels", # Framework to create models with good practices
+    "baguette", # Extending tidymodels
+    "rules", # Extending tidymodels
+    "corrr", # To explore correlations
+    "mixOmics", # Integrative data analysis
+    "glmnet", # Regularized generalized linear models
+    "kernlab", # Kernel-based machine learning
+    "ranger", # Fast implementation of random forests
+    "xgboost", # Gradient boosting framework
+
     # Databases
-    "DBI",           # Database interface
-    "duckdb",        # Embedded analytics database
+    "DBI", # Database interface
+    "duckdb", # Embedded analytics database
 
     # To work and plot graphs
-    "tidytext",      # Tools for extracting insight from text
-    "stringdist",    # To compute string distance
-    "hashr",         # To transform text into text hash
-    "igraph",        # Tools for working with the text graphs
-    
+    "tidytext", # Tools for extracting insight from text
+    "stringdist", # To compute string distance
+    "hashr", # To transform text into text hash
+    "igraph", # Tools for working with the text graphs
+
     # String & utilities
-    "glue",          # String interpolation
-    "withr",         # Scoped environment management
-    
+    "glue", # String interpolation
+    "withr", # Scoped environment management
+
     # Visualization
-    "ggplot2",       # Core plotting system
-    "scales",        # Scales for ggplot2
-    "ggiraph",       # Interactive ggplot graphics
-    "DiagrammeR",    # Graphs and diagrams
-    "patchwork",     # Combine ggplot2 plots
-    "gt",            # To create html tables
-    
+    "ggplot2", # Core plotting system
+    "scales", # Scales for ggplot2
+    "ggiraph", # Interactive ggplot graphics
+    "DiagrammeR", # Graphs and diagrams
+    "patchwork", # Combine ggplot2 plots
+    "gt", # To create html tables
+
     # Modeling & statistics
-    "infer",         # Statistical inference
-    "recipes",       # Preprocessing for modeling
-    
+    "infer", # Statistical inference
+    "recipes", # Preprocessing for modeling
+
     # Parallelization & performance
-    "future",        # Parallel execution
-    "future.apply",  # Apply functions in parallel
-    "tictoc",        # Timing operations
-    
+    "future", # Parallel execution
+    "future.apply", # Apply functions in parallel
+    "tictoc", # Timing operations
+
     # Reporting & documentation
-    "knitr",         # Dynamic report generation
-    "rmarkdown",     # Reproducible documents
-    
+    "knitr", # Dynamic report generation
+    "rmarkdown", # Reproducible documents
+
     # Development & testing
-    "devtools",      # Development tools
-    "testthat"       # Unit testing
+    "devtools", # Development tools
+    "testthat" # Unit testing
   ),
 
   # Getting packages from github
   git_pkgs = list(
-    list(package_name = "corrcat",
-         repo_url = "https://github.com/AngelFelizR/corrcat/",
-         commit = "d20b6ad6a01d3b5a605037dbffbca3a18e97ac00"),
-    list(package_name = "pins",
-         repo_url = "https://github.com/rstudio/pins-r/",
-         commit = "a6de9732c2dded36688b6b27c58bfd2b45854e2a")
-     ),  
-  
+    list(
+      package_name = "corrcat",
+      repo_url = "https://github.com/AngelFelizR/corrcat/",
+      commit = "d20b6ad6a01d3b5a605037dbffbca3a18e97ac00"
+    ),
+    list(
+      package_name = "pins",
+      repo_url = "https://github.com/rstudio/pins-r/",
+      commit = "a6de9732c2dded36688b6b27c58bfd2b45854e2a"
+    )
+  ),
+
   # System dependencies
   system_pkgs = c(
     "quarto"
   ),
-  
+
   # Specifies that no specific IDE is required for the environment.
   ide = "none",
-  
+
   # Specifies the project's root directory.
   project_path = ".",
-  
+
   # Specifies whether to overwrite existing 'flake.nix' and 'default.nix' files.
   overwrite = TRUE
 )

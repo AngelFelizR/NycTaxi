@@ -1,4 +1,3 @@
-
 #' Plot Numerical Distribution with Multiple Views
 #'
 #' Creates a comprehensive visualization of numerical distributions using three
@@ -61,22 +60,22 @@
 #' library(data.table)
 #' library(ggplot2)
 #' library(patchwork)
-#' 
+#'
 #' # Basic usage with single variable
 #' dt <- data.table(values = rnorm(1000, mean = 100, sd = 50))
 #' plot_num_distribution(dt, values, title = "Normal Distribution")
-#' 
+#'
 #' # With grouping variable
 #' dt <- data.table(
 #'   values = c(rnorm(500, 50, 20), rnorm(500, 150, 30)),
 #'   group = rep(c("A", "B"), each = 500)
 #' )
-#' plot_num_distribution(dt, values, fill = group, 
+#' plot_num_distribution(dt, values, fill = group,
 #'                       title = "Distribution by Group",
 #'                       manual_fill_values = c("red", "blue"))
-#' 
+#'
 #' # With important points highlighted on ECDF
-#' plot_num_distribution(dt, values, 
+#' plot_num_distribution(dt, values,
 #'                       curve_important_points = c(50, 100, 150),
 #'                       title = "Distribution with Key Points")
 #'
@@ -85,157 +84,163 @@
 #' \code{\link[patchwork]{plot_annotation}}
 #'
 #' @export
-plot_num_distribution <- function(dt,
-                                  x,
-                                  fill = NULL,
-                                  manual_fill_values = NULL,
-                                  title = "",
-                                  title_size = 15,
-                                  hist_binwidth = NULL,
-                                  hist_n_break = NULL,
-                                  log_trans =   scales::new_transform("signed_log2",
-                                                                      transform = function(x) sign(x) * log2(1 + abs(x)),
-                                                                      inverse = function(x) sign(x) * (2^(abs(x)) - 1),
-                                                                      breaks = scales::pretty_breaks()),
-                                  log_binwidth = NULL,
-                                  log_breaks = c(-2^(0:10), 0, 2^(0:10)),
-                                  curve_important_points = NULL,
-                                  curve_nudge_y = 0,
-                                  curve_breaks_x = NULL,
-                                  curve_limits = NULL){
-  
+plot_num_distribution <- function(
+  dt,
+  x,
+  fill = NULL,
+  manual_fill_values = NULL,
+  title = "",
+  title_size = 15,
+  hist_binwidth = NULL,
+  hist_n_break = NULL,
+  log_trans = scales::new_transform(
+    "signed_log2",
+    transform = function(x) sign(x) * log2(1 + abs(x)),
+    inverse = function(x) sign(x) * (2^(abs(x)) - 1),
+    breaks = scales::pretty_breaks()
+  ),
+  log_binwidth = NULL,
+  log_breaks = c(-2^(0:10), 0, 2^(0:10)),
+  curve_important_points = NULL,
+  curve_nudge_y = 0,
+  curve_breaks_x = NULL,
+  curve_limits = NULL
+) {
   # Lazy evaluation
   x = rlang::enquo(x)
   x_str <- rlang::quo_name(x)
   fill = rlang::enquo(fill)
   fill_str <- rlang::quo_name(fill)
-  
+
   # Confirming correct format
   stopifnot("dt must be data.table" = data.table::is.data.table(dt))
-  
+
   # Histogram 1 ----------------------------------------------------------------
-  
+
   simple_hist =
-    ggplot2::ggplot(dt, ggplot2::aes({{x}})) +
+    ggplot2::ggplot(dt, ggplot2::aes({{ x }})) +
     ggplot2::geom_histogram(binwidth = hist_binwidth)
-  
-  if(fill_str != "NULL") {
+
+  if (fill_str != "NULL") {
     simple_hist =
-      ggplot2::ggplot(dt, ggplot2::aes({{x}}, fill = {{fill}})) +
-      ggplot2::geom_histogram(binwidth = log_binwidth,
-                              alpha=0.5,
-                              position="identity")
+      ggplot2::ggplot(dt, ggplot2::aes({{ x }}, fill = {{ fill }})) +
+      ggplot2::geom_histogram(
+        binwidth = log_binwidth,
+        alpha = 0.5,
+        position = "identity"
+      )
   }
-  
-  simple_hist = 
+
+  simple_hist =
     simple_hist +
     ggplot2::scale_x_continuous(n.breaks = hist_n_break) +
     ggplot2::scale_y_continuous(labels = scales::comma_format()) +
-    ggplot2::labs(x = "",
-                  y = "Count") +
+    ggplot2::labs(x = "", y = "Count") +
     ggplot2::theme_minimal()
-  
-  
-  if(!is.null(manual_fill_values) && fill_str != "NULL") {
-    simple_hist = 
+
+  if (!is.null(manual_fill_values) && fill_str != "NULL") {
+    simple_hist =
       simple_hist +
       ggplot2::scale_fill_manual(values = manual_fill_values)
   }
-  
-  
+
   # Log Histogram --------------------------------------------------------------
-  
+
   log_hist =
-    ggplot2::ggplot(dt, ggplot2::aes({{x}}))+
+    ggplot2::ggplot(dt, ggplot2::aes({{ x }})) +
     ggplot2::geom_histogram(binwidth = log_binwidth)
-  
-  if(fill_str != "NULL") {
+
+  if (fill_str != "NULL") {
     log_hist =
-      ggplot2::ggplot(dt, ggplot2::aes({{x}}, fill = {{fill}}))+
-      ggplot2::geom_histogram(binwidth = log_binwidth,
-                              alpha=0.5,
-                              position="identity") +
+      ggplot2::ggplot(dt, ggplot2::aes({{ x }}, fill = {{ fill }})) +
+      ggplot2::geom_histogram(
+        binwidth = log_binwidth,
+        alpha = 0.5,
+        position = "identity"
+      ) +
       theme(legend.position = "none")
   }
-  
+
   log_hist =
     log_hist +
     ggplot2::scale_y_continuous(labels = scales::comma_format()) +
-    ggplot2::scale_x_continuous(n.breaks = hist_n_break,
-                                transform = log_trans,
-                                breaks = log_breaks,
-                                labels = \(x) round(x, 2)) +
-    ggplot2::labs(x = "",
-                  y = "Count") +
+    ggplot2::scale_x_continuous(
+      n.breaks = hist_n_break,
+      transform = log_trans,
+      breaks = log_breaks,
+      labels = \(x) round(x, 2)
+    ) +
+    ggplot2::labs(x = "", y = "Count") +
     ggplot2::theme_minimal()
-  
-  if(!is.null(manual_fill_values) && fill_str != "NULL") {
-    log_hist = 
+
+  if (!is.null(manual_fill_values) && fill_str != "NULL") {
+    log_hist =
       log_hist +
       ggplot2::scale_fill_manual(values = manual_fill_values)
   }
-  
-  
+
   # ECDF Curve ----------------------------------------------------------------
-  
-  if(fill_str == "NULL") {
-    
+
+  if (fill_str == "NULL") {
     get_prop = stats::ecdf(dt[[x_str]])
-    
+
     ecdf_plot =
-      ggplot2::ggplot(dt, ggplot2::aes({{x}}, get_prop({{x}}))) +
+      ggplot2::ggplot(dt, ggplot2::aes({{ x }}, get_prop({{ x }}))) +
       ggplot2::geom_step(show.legend = FALSE)
-    
-    
-    if(!is.null(curve_important_points)){
-      
+
+    if (!is.null(curve_important_points)) {
       important_df = data.table::data.table(x = curve_important_points)
       setnames(important_df, "x", x_str)
-      
-      
+
       ecdf_plot =
         ecdf_plot +
         ggplot2::geom_point(data = important_df) +
-        ggplot2::geom_text(data = important_df,
-                           ggplot2::aes(label = scales::percent(get_prop(!!x), accuracy = 1)),
-                           nudge_y = curve_nudge_y)
+        ggplot2::geom_text(
+          data = important_df,
+          ggplot2::aes(label = scales::percent(get_prop(!!x), accuracy = 1)),
+          nudge_y = curve_nudge_y
+        )
     }
-    
-  }else{
-    
+  } else {
     ecdf_plot =
-      ggplot2::ggplot(dt, ggplot2::aes({{x}},
-                                       color = {{fill}},
-                                       group = {{fill}})) +
+      ggplot2::ggplot(
+        dt,
+        ggplot2::aes({{ x }}, color = {{ fill }}, group = {{ fill }})
+      ) +
       ggplot2::stat_ecdf(show.legend = FALSE)
-    
   }
-  
+
   ecdf_plot =
     ecdf_plot +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                                breaks = seq(0, 1, by = 0.25)) +
-    ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1),
-                                breaks = if(is.null(curve_breaks_x)) ggplot2::waiver() else curve_breaks_x,
-                                limits = curve_limits) +
-    ggplot2::labs(y = "Prop of trips",
-                  x = "") +
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1),
+      breaks = seq(0, 1, by = 0.25)
+    ) +
+    ggplot2::scale_x_continuous(
+      labels = scales::comma_format(accuracy = 1),
+      breaks = if (is.null(curve_breaks_x)) {
+        ggplot2::waiver()
+      } else {
+        curve_breaks_x
+      },
+      limits = curve_limits
+    ) +
+    ggplot2::labs(y = "Prop of trips", x = "") +
     ggplot2::theme_minimal()
-  
-  
-  if(!is.null(manual_fill_values) && fill_str != "NULL") {
-    ecdf_plot = 
+
+  if (!is.null(manual_fill_values) && fill_str != "NULL") {
+    ecdf_plot =
       ecdf_plot +
       ggplot2::scale_color_manual(values = manual_fill_values)
   }
-  
-  
+
   # Consolidating plots using patchwork
-  
+
   (simple_hist / log_hist / ecdf_plot) +
     patchwork::plot_annotation(title = title) +
-    patchwork::plot_layout(guides = "collect") & 
-    ggplot2::theme(plot.title = element_text(face = "bold", size = title_size),
-                   legend.position = "top")
-  
+    patchwork::plot_layout(guides = "collect") &
+    ggplot2::theme(
+      plot.title = element_text(face = "bold", size = title_size),
+      legend.position = "top"
+    )
 }

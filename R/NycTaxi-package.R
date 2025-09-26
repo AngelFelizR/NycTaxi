@@ -98,11 +98,9 @@
 NULL
 
 
-
 # Solving Global Variables problem
 
 utils::globalVariables(c(
-
   ## From plot_map
   "color_variable",
 
@@ -127,17 +125,15 @@ utils::globalVariables(c(
   "trip_miles_mean",
   "trip_time",
   "waiting_secs",
-  
+
   # plot_bar
   "n_trips",
   "is_top",
   "cat_summary",
-  
+
   # plot_heap_map
   "N",
   "cat1",
   "cat2",
   "prop"
-  
-
 ))

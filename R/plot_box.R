@@ -30,14 +30,18 @@
 #' @export
 plot_box <- function(x) {
   # Input validation
-  if (!is.matrix(x))
+  if (!is.matrix(x)) {
     stop("x must be a matrix")
-  if (nrow(x) != 2)
+  }
+  if (nrow(x) != 2) {
     stop("Input matrix must have exactly 2 rows")
-  if (!is.numeric(x))
+  }
+  if (!is.numeric(x)) {
     stop("Matrix must contain numeric values")
-  if (!all(c("x", "y") %in% rownames(x)))
+  }
+  if (!all(c("x", "y") %in% rownames(x))) {
     stop("Matrix must have rows named 'x' and 'y'")
+  }
 
   # Create polygon geometry
   sf_box <- t(x) |>

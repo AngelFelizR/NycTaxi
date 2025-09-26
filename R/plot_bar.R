@@ -21,40 +21,39 @@
 #'
 #' @export
 
-plot_bar <- function(dt,
-                     var_name,
-                     color_highlight = "lightslateblue",
-                     color_gray = "gray80",
-                     n_top = 4L){
-  
-  dt_summary = dt[ 
-    j = .(is_top = FALSE,
-          n_trips = .N),
+plot_bar <- function(
+  dt,
+  var_name,
+  color_highlight = "lightslateblue",
+  color_gray = "gray80",
+  n_top = 4L
+) {
+  dt_summary = dt[
+    j = .(is_top = FALSE, n_trips = .N),
     by = var_name
   ]
-  
+
   data.table::setnames(dt_summary, var_name, "cat_summary")
-  
-  if(n_top > 0L){
-    dt_summary[order(-n_trips)[seq_len(n_top)], 
-               is_top := TRUE]
+
+  if (n_top > 0L) {
+    dt_summary[order(-n_trips)[seq_len(n_top)], is_top := TRUE]
   }
-  
-  
-  ggplot2::ggplot(dt_summary,
-                  aes(n_trips, factor(cat_summary, sort(cat_summary, decreasing = TRUE)))) +
-    ggplot2::geom_col(aes(fill = is_top),
-                      color = "black",
-                      width = 0.8) +
-    ggplot2::scale_fill_manual(values = c("TRUE" = color_highlight, 
-                                          "FALSE" = color_gray))+
+
+  ggplot2::ggplot(
+    dt_summary,
+    aes(n_trips, factor(cat_summary, sort(cat_summary, decreasing = TRUE)))
+  ) +
+    ggplot2::geom_col(aes(fill = is_top), color = "black", width = 0.8) +
+    ggplot2::scale_fill_manual(
+      values = c("TRUE" = color_highlight, "FALSE" = color_gray)
+    ) +
     ggplot2::scale_x_continuous(labels = scales::comma_format()) +
-    ggplot2::labs(y = "",
-                  x = "Number of Trips") +
+    ggplot2::labs(y = "", x = "Number of Trips") +
     ggplot2::theme_minimal() +
-    ggplot2::theme(legend.position = "none",
-                   panel.grid.major.y = ggplot2::element_blank(),
-                   panel.grid.minor.x = ggplot2::element_blank(),
-                   plot.title = ggplot2::element_text(face = "bold", size = 15))
-  
+    ggplot2::theme(
+      legend.position = "none",
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor.x = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold", size = 15)
+    )
 }
