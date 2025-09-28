@@ -37,7 +37,7 @@ Here are the steps to follow:
 BoroughColors <- c(
   'Manhattan' = '#e41a1c',
   'Queens' = '#377eb8',
-  'Brooklyn'= '#4daf4a'
+  'Brooklyn' = '#4daf4a'
 )
 
 BoroughSelected <- names(BoroughColors)
@@ -55,6 +55,10 @@ library(here)
 
 ## To transform data that fits in RAM
 library(data.table)
+
+## Publish data sets, models, and other R objects
+library(pins)
+library(qs2)
 
 ## To work with spatial data
 library(sf)
@@ -77,6 +81,13 @@ library(gt)
 
 ## Custom functions
 devtools::load_all()
+
+# Defining the pin boards to use
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here("../NycTaxiBoardCache")
+)
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
 :::{.callout-note title="Computational Performance"}
@@ -89,23 +100,22 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 
 ```{r}
 ZonesShapes <-
-  read_sf(here("raw-data/taxi_zones/taxi_zones.shp")) |>
-  (\(df) df[df[["borough"]] %chin% BoroughSelected,
-            c("OBJECTID", "LocationID")])() |>
+  pin_read(BoardRemote, "ZonesShapes") |>
+  (\(df) {
+    df[df[["borough"]] %chin% BoroughSelected, c("OBJECTID", "LocationID")]
+  })() |>
   st_cast(to = "MULTIPOLYGON")
 
 TrainingSample <-
-  here("raw-data/take-trip-fst") |>
-  list.files(full.names = TRUE) |>
-  (\(x) data.table(full_path = x,
-                   n_char = nchar(basename(x)),
-                   name = basename(x)))() |>
-  (\(dt) dt[order(n_char, name), full_path])() |>
+  pin_list(BoardRemote) |>
+  grep(pattern = "^OneMonthData", value = TRUE) |>
+  sort() |>
   head(12L) |>
-  lapply(FUN = fst::read_fst,
-         columns = c("trip_id","PULocationID", "DOLocationID", "take_current_trip"),
-         as.data.table = TRUE) |>
-  rbindlist()
+  lapply(FUN = pin_read, board = BoardRemote) |>
+  rbindlist() |>
+  subset(
+    select = c("trip_id", "PULocationID", "DOLocationID", "take_current_trip")
+  )
 ```
 
 ## Import Census data
@@ -116,18 +126,61 @@ Based on the `tidycensus` documentation we have the below tables available for e
 
 ```{r}
 ValidTables = c(
-  "sf1", "sf2", "sf3", "sf4", "pl", "dhc", "dp", 
-  "ddhca", "ddhcb", "sdhc", "as", "gu", "mp", 
-  "vi", "acsse", "dpas", "dpgu", "dpmp", "dpvi",
-  "dhcvi", "dhcgu", "dhcvi", "dhcas", "acs1", 
-  "acs3", "acs5", "acs1/profile", "acs3/profile",
-  "acs5/profile", "acs1/subject", "acs3/subject",
-  "acs5/subject", "acs1/cprofile", "acs5/cprofile",
-  "sf2profile", "sf3profile", "sf4profile", "aian",
-  "aianprofile", "cd110h", "cd110s", "cd110hprofile",
-  "cd110sprofile", "sldh", "slds", "sldhprofile",
-  "sldsprofile", "cqr", "cd113", "cd113profile",
-  "cd115", "cd115profile", "cd116", "plnat", "cd118"
+  "sf1",
+  "sf2",
+  "sf3",
+  "sf4",
+  "pl",
+  "dhc",
+  "dp",
+  "ddhca",
+  "ddhcb",
+  "sdhc",
+  "as",
+  "gu",
+  "mp",
+  "vi",
+  "acsse",
+  "dpas",
+  "dpgu",
+  "dpmp",
+  "dpvi",
+  "dhcvi",
+  "dhcgu",
+  "dhcvi",
+  "dhcas",
+  "acs1",
+  "acs3",
+  "acs5",
+  "acs1/profile",
+  "acs3/profile",
+  "acs5/profile",
+  "acs1/subject",
+  "acs3/subject",
+  "acs5/subject",
+  "acs1/cprofile",
+  "acs5/cprofile",
+  "sf2profile",
+  "sf3profile",
+  "sf4profile",
+  "aian",
+  "aianprofile",
+  "cd110h",
+  "cd110s",
+  "cd110hprofile",
+  "cd110sprofile",
+  "sldh",
+  "slds",
+  "sldhprofile",
+  "sldsprofile",
+  "cqr",
+  "cd113",
+  "cd113profile",
+  "cd115",
+  "cd115profile",
+  "cd116",
+  "plnat",
+  "cd118"
 )
 
 length(ValidTables)
@@ -137,18 +190,7 @@ That means that we have a lot a data to use, but to be able to get the list of v
 
 To solve that question, we only need to scrap the table available in [https://api.census.gov/data.html](https://api.census.gov/data.html) and apply our particular selection to that huge table. 
 
-```{r}
-#| echo: false
-#| output: false
 
-ValidTablesYearsFilePath = here("cache-data/08-expanding-transportation-socioeconomic/ValidTablesYears.fst")
-
-
-if(file.exists(ValidTablesYearsFilePath)) {
-  ValidTablesYears <- 
-    fst::read_fst(ValidTablesYearsFilePath, as.data.table = TRUE)
-}
-```
 
 ```{r}
 #| eval: false
@@ -158,96 +200,108 @@ CensusTables <-
   rvest::html_table() |>
   (\(x) x[[1L]])() |>
   as.data.table() |>
-  subset(!is.na(`API Base URL`)
-         & Vintage != "N/A",
-         select = c("Title",
-                    "Description",
-                    "Vintage",
-                    "Dataset Type",
-                    "Dataset Name",
-                    "API Base URL"))
+  subset(
+    !is.na(`API Base URL`) & Vintage != "N/A",
+    select = c(
+      "Title",
+      "Description",
+      "Vintage",
+      "Dataset Type",
+      "Dataset Name",
+      "API Base URL"
+    )
+  )
 
-CensusTables[,`:=`(Vintage = as.integer(Vintage),
-                   `Dataset Name` = gsub("› ", "/", `Dataset Name`))]
+CensusTables[, `:=`(
+  Vintage = as.integer(Vintage),
+  `Dataset Name` = gsub("› ", "/", `Dataset Name`)
+)]
 
-CensusTables[, `:=`(survey = fcase(`Dataset Name` %like% "^dec",
-                                   "dec",
-                                   `Dataset Name` %like% "^acs",
-                                   "acs"),
-                    `Dataset Name` = gsub("(dec|acs)/", "", `Dataset Name`))]
+CensusTables[, `:=`(
+  survey = fcase(
+    `Dataset Name` %like% "^dec",
+    "dec",
+    `Dataset Name` %like% "^acs",
+    "acs"
+  ),
+  `Dataset Name` = gsub("(dec|acs)/", "", `Dataset Name`)
+)]
 
 setorder(CensusTables, -Vintage)
 
 ValidTablesYears <-
   CensusTables[
     Vintage %between% c(2020, 2022)
-  ][ValidTables,
+  ][
+    ValidTables,
     on = "Dataset Name",
     nomatch = NULL,
     unique(.SD, by = "Dataset Name"),
-    .SDcols = c("Vintage", "Dataset Name", "survey")]
+    .SDcols = c("Vintage", "Dataset Name", "survey")
+  ]
 
-ValidTablesYears[, head(.SD, 5),
-                 by = "survey"]
+BoardLocal |> pin_write(ValidTablesYears, "ValidTablesYears", type = "qs2")
 
+ValidTablesYears[, head(.SD, 5), by = "survey"]
 ```
-
-```{r}
-#| echo: false
-
-ValidTablesYears[, head(.SD, 5),
-                 by = "survey"]
-```
-
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-fst::write_fst(ValidTablesYears, ValidTablesYearsFilePath)
-```
-
-Now that we have the years related to each table, let's apply `tidycensus::load_variables` for each table and year to see the variables to explore. 
 
 ```{r}
 #| echo: false
 #| output: false
 
-ValidTablesLastYearFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ValidTablesLastYear.fst")
-
-
-if(file.exists(ValidTablesLastYearFilePath)) {
-  ValidTablesLastYear <- 
-    fst::read_fst(ValidTablesLastYearFilePath, as.data.table = TRUE)
+if (!exists("ValidTablesYears")) {
+  ValidTablesYears <- pin_read(BoardRemote, "ValidTablesYears")
 }
 ```
 
 ```{r}
+#| echo: false
+
+ValidTablesYears[, head(.SD, 5), by = "survey"]
+```
+
+Now that we have the years related to each table, let's apply `tidycensus::load_variables` for each table and year to see the variables to explore. 
+
+
+
+```{r}
 #| eval: false
 
-get_all_data = function(x, ref_df){
-  
+get_all_data = function(x, ref_df) {
   imported_data =
-    load_variables(ref_df$Vintage[x],
-                   ref_df$`Dataset Name`[x])
-  
+    load_variables(ref_df$Vintage[x], ref_df$`Dataset Name`[x])
+
   setDT(imported_data)
-  
-  imported_data[, `:=`(year = ref_df$Vintage[x],
-                       dataset = ref_df$`Dataset Name`[x],
-                       survey = ref_df$survey[x])]
-  
+
+  imported_data[, `:=`(
+    year = ref_df$Vintage[x],
+    dataset = ref_df$`Dataset Name`[x],
+    survey = ref_df$survey[x]
+  )]
+
   return(imported_data)
-  
-} 
-  
+}
+
 ValidTablesLastYear <-
-  lapply(seq_along(ValidTablesYears$`Dataset Name`), 
-         get_all_data,
-         ref_df = ValidTablesYears)|>
+  lapply(
+    seq_along(ValidTablesYears$`Dataset Name`),
+    get_all_data,
+    ref_df = ValidTablesYears
+  ) |>
   rbindlist(use.names = TRUE, fill = TRUE)
 
+BoardLocal |> pin_write(ValidTablesLastYear, "ValidTablesLastYear", type = "qs2")
+
 nrow(ValidTablesLastYear) |> comma()
+```
+
+```{r}
+#| echo: false
+#| output: false
+
+if (!exists("ValidTablesLastYear")) {
+  ValidTablesLastYear <- pin_read(BoardRemote, "ValidTablesLastYear")
+}
 ```
 
 ```{r}
@@ -258,14 +312,6 @@ nrow(ValidTablesLastYear) |> comma()
 
 After making that exploration we can see that we have almost **160K variables** to explore.
 
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-fst::write_fst(ValidTablesLastYear, ValidTablesLastYearFilePath)
-```
-
 To understand what have we have let's plot the number of variables by dataset and survey for each year.
 
 ```{r}
@@ -274,26 +320,24 @@ To understand what have we have let's plot the number of variables by dataset an
 #| fig-height: 7.5
 
 VariablesPerDataset <-
-  ValidTablesLastYear[, .N, 
-                      .(year = factor(year), 
-                        dataset,
-                        survey)
-  ][, dataset := reorder(dataset, N, FUN = sum)] 
+  ValidTablesLastYear[, .N, .(year = factor(year), dataset, survey)][,
+    dataset := reorder(dataset, N, FUN = sum)
+  ]
 
 ggplot(VariablesPerDataset) +
-  geom_col(aes(N, dataset, fill = year),
-           color = "black",
-           linewidth = 0.2) +
-  scale_fill_manual(values = c("2022" = ColorHighlight,
-                               "2020" = ColorGray)) +
-  scale_x_continuous(labels = scales::label_comma(scale = 1/1000, suffix = "k"))+
+  geom_col(aes(N, dataset, fill = year), color = "black", linewidth = 0.2) +
+  scale_fill_manual(values = c("2022" = ColorHighlight, "2020" = ColorGray)) +
+  scale_x_continuous(
+    labels = scales::label_comma(scale = 1 / 1000, suffix = "k")
+  ) +
   expand_limits(x = 1e4) +
-  labs(x = "Number of variables",
-       fill = "Last update year")+
+  labs(x = "Number of variables", fill = "Last update year") +
   facet_wrap(vars(survey), scale = "free") +
-  theme_minimal()+
-  theme(panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_blank())
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
 ```
 
 It's clear that **there is one way we can read the variables one by one** and hypothesize the variables to select. Instead, we are going to flow some steps to reduce the number of variable and the classify them in to groups to select.
@@ -317,14 +361,14 @@ VariablesToIgnore <- c(
   "Native Hawaiian",
   "Pacific Islander",
   "Races?",
-  
+
   "Ancestry",
   "Nativity",
   "Citizenship Status",
   "Place of Birth",
   "Naturalization",
   "Current Residence",
-  
+
   "Male",
   "Female",
   "Women",
@@ -337,9 +381,11 @@ As we will join the data based on geography it doesn't make sense to have predic
 
 ```{r}
 ConceptsToExplore <-
-  ValidTablesLastYear[!concept %ilike% paste(VariablesToIgnore, collapse = "|")
-                      & !label %ilike% "Male|Female",
-                      .(concept = unique(concept))]
+  ValidTablesLastYear[
+    !concept %ilike% paste(VariablesToIgnore, collapse = "|") &
+      !label %ilike% "Male|Female",
+    .(concept = unique(concept))
+  ]
 
 nrow(ConceptsToExplore)
 ```
@@ -350,7 +396,11 @@ Another aspect we found out by exploring the data it's that some variables names
 #| echo: false
 #| output: asis
 
-ConceptsToExplore[nchar(concept) == max(nchar(concept)), paste0("> ", concept)] |> cat()
+ConceptsToExplore[
+  nchar(concept) == max(nchar(concept)),
+  paste0("> ", concept)
+] |>
+  cat()
 ```
 
 - Population Measured: 
@@ -370,15 +420,17 @@ By exploring the cumulative distribution we can see that near 50% of the variabl
 
 ConceptsToExplore[, concept_length := nchar(concept)]
 
-ggplot(ConceptsToExplore)+
+ggplot(ConceptsToExplore) +
   stat_ecdf(aes(concept_length)) +
-  scale_x_continuous(breaks = breaks_width(10))+
-  scale_y_continuous(labels = label_percent(accuracy = 1))+
-  labs(title = "Empirical Cumulative Distribution",
-       subtitle = "Number of Character per Variable",
-       x = "Number of Characters",
-       y = "Cumulative Proportion") +
-  theme_minimal()+
+  scale_x_continuous(breaks = breaks_width(10)) +
+  scale_y_continuous(labels = label_percent(accuracy = 1)) +
+  labs(
+    title = "Empirical Cumulative Distribution",
+    subtitle = "Number of Character per Variable",
+    x = "Number of Characters",
+    y = "Cumulative Proportion"
+  ) +
+  theme_minimal() +
   theme(panel.grid.minor = element_blank())
 ```
 
@@ -387,7 +439,7 @@ After applying that change we only have 675 pending variables to explore the cla
 ```{r}
 ConceptsToExploreMaxConceptLength <- 70
 
-ConceptsToExploreValidConceptLength <- 
+ConceptsToExploreValidConceptLength <-
   ConceptsToExplore[concept_length <= ConceptsToExploreMaxConceptLength]
 
 ConceptsToExploreValidConceptLength[, .N]
@@ -399,8 +451,10 @@ To confirm if that action make sense we can print the longer variables and confi
 #| output: asis
 #| echo: false
 
-ConceptsToExploreValidConceptLength[concept_length == max(concept_length), 
-                                    paste0("- `", concept, "`")] |>
+ConceptsToExploreValidConceptLength[
+  concept_length == max(concept_length),
+  paste0("- `", concept, "`")
+] |>
   head() |>
   cat(sep = "\n")
 ```
@@ -410,9 +464,9 @@ Now we can calculate the **pairwise Jaccard string distances** of each of the va
 1. Create word-level hash tokens (not character-level) after case normalization.
 
 ```{r}
-ConceptsToExploreHash <- 
+ConceptsToExploreHash <-
   tolower(ConceptsToExploreValidConceptLength$concept) |>
-  strsplit("\\s+") |> 
+  strsplit("\\s+") |>
   hash()
 ```
 
@@ -420,64 +474,61 @@ ConceptsToExploreHash <-
 
 ```{r}
 ConceptsToExploreWordDistance <-
-  seq_distmatrix(ConceptsToExploreHash, 
-                 ConceptsToExploreHash, 
-                 method = "jaccard", 
-                 q = 1)
+  seq_distmatrix(
+    ConceptsToExploreHash,
+    ConceptsToExploreHash,
+    method = "jaccard",
+    q = 1
+  )
 ```
 
 3. Assign concept names to matrix dimensions for interpretability.
 
 ```{r}
-rownames(ConceptsToExploreWordDistance) <- ConceptsToExploreValidConceptLength$concept
-colnames(ConceptsToExploreWordDistance) <- ConceptsToExploreValidConceptLength$concept
+rownames(
+  ConceptsToExploreWordDistance
+) <- ConceptsToExploreValidConceptLength$concept
+colnames(
+  ConceptsToExploreWordDistance
+) <- ConceptsToExploreValidConceptLength$concept
 ```
 
 4. Transform symmetric matrix to long format, eliminating redundant pairwise comparisons.
 
 ```{r}
-ConceptsToExploreWordDistance[upper.tri(ConceptsToExploreWordDistance, diag = TRUE)] <- NA
+ConceptsToExploreWordDistance[upper.tri(
+  ConceptsToExploreWordDistance,
+  diag = TRUE
+)] <- NA
 
 ConceptsToExploreWordDistanceDt <-
-  as.data.table(ConceptsToExploreWordDistance,
-                keep.rownames = "Variable Name 1") |>
-  melt(id.vars = "Variable Name 1",
-       variable.name = "Variable Name 2",
-       variable.factor = FALSE,
-       value.name = "Jaccard Distance",
-       na.rm = TRUE)
+  as.data.table(
+    ConceptsToExploreWordDistance,
+    keep.rownames = "Variable Name 1"
+  ) |>
+  melt(
+    id.vars = "Variable Name 1",
+    variable.name = "Variable Name 2",
+    variable.factor = FALSE,
+    value.name = "Jaccard Distance",
+    na.rm = TRUE
+  )
 ```
 
 
 With this inter-concept distance we can use the `edge_betweenness` argoritm to define the cluster to use. But as the result for this method will change depending the min Jaccard Distance selected to do the analysis, we need to explore several options before taking a final decision.
 
 ```{r}
-#| echo: false
-#| output: false
-
-ConceptsToExploreByDistanceFilePath <-
-  here("cache-data/08-expanding-transportation-socioeconomic/ConceptsToExploreByDistance.fst")
-
-if(file.exists(ConceptsToExploreByDistanceFilePath)) {
-  ConceptsToExploreByDistance <-
-    fst::read_fst(ConceptsToExploreByDistanceFilePath, as.data.table = TRUE)
-}
-```
-
-
-```{r}
 #| eval: false
 
-define_clusters_by_distance <- function(min_jaccard_distance,
-                                        dt){
-  
+define_clusters_by_distance <- function(min_jaccard_distance, dt) {
   dt_filtered = dt[`Jaccard Distance` <= min_jaccard_distance]
-  
+
   temp_graph =
     graph_from_data_frame(dt_filtered, directed = FALSE)
-  
+
   temp_cluster = cluster_edge_betweenness(temp_graph)
-  
+
   node_results = data.table(
     node = V(temp_graph)$name,
     cluster = temp_cluster$membership,
@@ -485,25 +536,29 @@ define_clusters_by_distance <- function(min_jaccard_distance,
     modularity = max(temp_cluster$modularity),
     n_clusters = max(temp_cluster$membership)
   )
-  
+
   return(node_results)
-  
 }
 
 
 ConceptsToExploreByDistance <-
-  lapply(seq(0.1, 0.8, by = 0.10),
-         FUN = define_clusters_by_distance,
-         dt = ConceptsToExploreWordDistanceDt) |>
+  lapply(
+    seq(0.1, 0.8, by = 0.10),
+    FUN = define_clusters_by_distance,
+    dt = ConceptsToExploreWordDistanceDt
+  ) |>
   rbindlist()
+
+BoardLocal |> pin_write(ConceptsToExploreByDistance, "ConceptsToExploreByDistance", type = "qs2")
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
 #| output: false
 
-fst::write_fst(ConceptsToExploreByDistance, ConceptsToExploreByDistanceFilePath)
+if (!exists("ConceptsToExploreByDistance")) {
+  ConceptsToExploreByDistance <- pin_read(BoardRemote, "ConceptsToExploreByDistance")
+}
 ```
 
 After exploring several configurations we can see that that the as we expand the limit of Jaccard Distance the modularity decrease, but the number of clusters initially increases (peaking around 0.3) and then steadily decreases until 0.7, after which it increases sharply again.
@@ -512,34 +567,48 @@ After exploring several configurations we can see that that the as we expand the
 #| code-fold: true
 #| code-summary: "Show the code"
 
-ConceptsToExploreByDistance[, unique(.SD),
-                            .SDcols = c("Jaccard Distance Threshold",
-                                        "modularity",
-                                        "n_clusters")] |>
-  melt(id.vars = "Jaccard Distance Threshold",
-       variable.name = "cluster_metric") |>
+ConceptsToExploreByDistance[,
+  unique(.SD),
+  .SDcols = c("Jaccard Distance Threshold", "modularity", "n_clusters")
+] |>
+  melt(
+    id.vars = "Jaccard Distance Threshold",
+    variable.name = "cluster_metric"
+  ) |>
   ggplot(aes(`Jaccard Distance Threshold`, value)) +
-  geom_line(linewidth = 1,
-            color = "gray40") +
-  geom_point(size = 3,
-             color = "gray40") +
-  geom_vline(xintercept = 0.5,
-             linetype = "dashed",
-             color = ColorHighlight,
-             linewidth = 0.9) +
+  geom_line(linewidth = 1, color = "gray40") +
+  geom_point(size = 3, color = "gray40") +
+  geom_vline(
+    xintercept = 0.5,
+    linetype = "dashed",
+    color = ColorHighlight,
+    linewidth = 0.9
+  ) +
   # Add the annotation here
-  annotate("text", x = 0.5, y = Inf, label = "0.5 Threshold",
-           color = ColorHighlight, vjust = 1.2, hjust = -0.05, size = 4) +
-  scale_y_continuous(labels = \(x) fifelse(x <= 1 & x > 0,
-                                            label_percent()(x),
-                                            label_comma(accuracy = 1)(x)),
-                     breaks = breaks_pretty(7)) +
+  annotate(
+    "text",
+    x = 0.5,
+    y = Inf,
+    label = "0.5 Threshold",
+    color = ColorHighlight,
+    vjust = 1.2,
+    hjust = -0.05,
+    size = 4
+  ) +
+  scale_y_continuous(
+    labels = \(x) {
+      fifelse(x <= 1 & x > 0, label_percent()(x), label_comma(accuracy = 1)(x))
+    },
+    breaks = breaks_pretty(7)
+  ) +
   scale_x_continuous(breaks = breaks_width(0.10)) +
   expand_limits(y = 0) +
-  facet_wrap(vars(cluster_metric),
-             scale = "free_y",
-             ncol = 1L,
-             strip.position = "top") +
+  facet_wrap(
+    vars(cluster_metric),
+    scale = "free_y",
+    ncol = 1L,
+    strip.position = "top"
+  ) +
   labs(
     title = "Modularity and Number of Clusters vs. Jaccard Distance Threshold",
     subtitle = "Assessing the Trade-off: High Modularity and Low Number of Clusters",
@@ -547,20 +616,21 @@ ConceptsToExploreByDistance[, unique(.SD),
     y = "Value"
   ) +
   theme_minimal() +
-  theme(panel.grid.minor = element_blank(),
-        legend.position = "none",
-        plot.title = element_text(face = "bold"),
-        plot.subtitle = element_text(color = "gray25"),
-        strip.text = element_text(size = 12, face = "bold"),
-        axis.text = element_text(size = 10))
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray25"),
+    strip.text = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10)
+  )
 ```
 
 Based on this information **the best threshold is 0.5 Jaccard Distance** as the modularity is higher than 0.8 and the algorithm found less than 60 clusters. After than point the slope to reduce the number of clusters gets lower as concurrence, we don't see worthy to keep increasing the threshold.
 
 ```{r}
 ConceptsToExploreClusters <-
-  ConceptsToExploreByDistance[.(0.5),
-                              on = "Jaccard Distance Threshold"]
+  ConceptsToExploreByDistance[.(0.5), on = "Jaccard Distance Threshold"]
 ```
 
 
@@ -584,32 +654,38 @@ CustomStopWords <- c(
   "selected",
   "median",
   "level",
-   NA_character_
+  NA_character_
 )
 
 TopWordsByCluster <-
-  ConceptsToExploreClusters[, .(cluster,
-                                concept_lower = tolower(node))
-  ][, unnest_tokens(.SD, word, concept_lower)
-  ][!word %chin% CustomStopWords
-    & !word %like% "^\\d+$",
+  ConceptsToExploreClusters[, .(
+    cluster,
+    concept_lower = tolower(node)
+  )][, unnest_tokens(.SD, word, concept_lower)][
+    !word %chin% CustomStopWords & !word %like% "^\\d+$",
     .N,
     by = c("cluster", "word")
-  ][, dataset_total := sum(N), 
-    by = "cluster"
-  ][, bind_tf_idf(.SD, word, cluster, N)
-  ][order(-tf_idf)
-  ][, .(`Top Words` =
-          head(word, 5L) |> 
-          stringr::str_to_sentence() |>
-          paste0(collapse = ", ")),
+  ][, dataset_total := sum(N), by = "cluster"][, bind_tf_idf(
+    .SD,
+    word,
+    cluster,
+    N
+  )][order(-tf_idf)][,
+    .(
+      `Top Words` = head(word, 5L) |>
+        stringr::str_to_sentence() |>
+        paste0(collapse = ", ")
+    ),
     keyby = "cluster"
-  ][ConceptsToExploreClusters,
+  ][
+    ConceptsToExploreClusters,
     on = "cluster",
-    j = .(`Node Count` = .N), 
+    j = .(`Node Count` = .N),
     by = c("Top Words", "cluster")
-  ][order(- `Node Count`, cluster),
-    .(`Cluster ID` = cluster, `Top Words`, `Node Count`)]
+  ][
+    order(-`Node Count`, cluster),
+    .(`Cluster ID` = cluster, `Top Words`, `Node Count`)
+  ]
 ```
 
 ```{r}
@@ -636,7 +712,7 @@ gt(TopWordsByCluster) |>
       palette = c("white", ColorHighlightLow, ColorHighlight),
       domain = c(0, max(TopWordsByCluster$`Node Count`))
     )
-  )|>
+  ) |>
   fmt_number(
     columns = `Node Count`,
     decimals = 0
@@ -675,22 +751,23 @@ Based on the analysis, the following clusters are selected for inclusion due to 
 
 ```{r}
 ConceptsToExploreCleanConcept <-
-  ConceptsToExploreClusters[.(c(18, 13, 36)),
-                            on = "cluster",
-                            .(concept = stringr::str_to_sentence(node),
-                              cluster)]
+  ConceptsToExploreClusters[
+    .(c(18, 13, 36)),
+    on = "cluster",
+    .(concept = stringr::str_to_sentence(node), cluster)
+  ]
 
 ConceptByDataset <-
-  ValidTablesLastYear[, .(concept = stringr::str_to_sentence(concept),
-                          year,
-                          dataset,
-                          survey)
-  ][, unique(.SD)]
+  ValidTablesLastYear[, .(
+    concept = stringr::str_to_sentence(concept),
+    year,
+    dataset,
+    survey
+  )][, unique(.SD)]
 
 
 ConceptByDatasetToExplore <-
-  ConceptByDataset[ConceptsToExploreCleanConcept,
-                   on = "concept"]
+  ConceptByDataset[ConceptsToExploreCleanConcept, on = "concept"]
 ```
 
 
@@ -701,36 +778,33 @@ Checking the data we can see that some concept are duplicated in some in some da
 #| code-fold: true
 #| code-summary: "Show the code"
 
-ConceptByDatasetToExplore[, .(N = .N, 
-                              dataset = sort(dataset) |> paste(collapse = ", ")), 
-                          by = "concept"
-][N > 1, 
-  .(variables =  .N), 
-  keyby = "dataset"] |>
-  
-  
+ConceptByDatasetToExplore[,
+  .(N = .N, dataset = sort(dataset) |> paste(collapse = ", ")),
+  by = "concept"
+][N > 1, .(variables = .N), keyby = "dataset"] |>
+
   gt() |>
-  
+
   # Header
   tab_header(
     title = md("**Dataset Variable Analysis**"),
     subtitle = "Distribution of shared variables across survey datasets"
   ) |>
-  
+
   # Col Names
   cols_label(
     dataset = "Dataset Collection",
     variables = "Number of Variables"
   ) |>
-  
+
   # Number Format
   fmt_number(columns = variables, decimals = 0) |>
-  
+
   # Colors
   data_color(
     columns = variables,
     colors = scales::col_numeric(
-      palette = c("white",ColorHighlightLow, ColorHighlight),
+      palette = c("white", ColorHighlightLow, ColorHighlight),
       domain = NULL
     )
   ) |>
@@ -742,7 +816,7 @@ ConceptByDatasetToExplore[, .(N = .N,
     style = cell_fill(color = "#2c3e50"),
     locations = cells_title()
   ) |>
-  
+
   # Options
   tab_options(
     table.font.names = "Arial",
@@ -775,9 +849,11 @@ By reading about the differences between each datasets, we are going to focus in
 
 ```{r}
 ConceptByValidDatasetToExplore <-
-  ConceptByDatasetToExplore[c("acs5", "acs5/subject", "dhc"),
-                            on = "dataset",
-                            .(dataset, concept, cluster)]
+  ConceptByDatasetToExplore[
+    c("acs5", "acs5/subject", "dhc"),
+    on = "dataset",
+    .(dataset, concept, cluster)
+  ]
 
 ```
 
@@ -792,20 +868,16 @@ ValidTablesLastYear[, concept := stringr::str_to_sentence(concept)]
 VariablesToUse <-
   ValidTablesLastYear[
     ConceptByValidDatasetToExplore,
-    on = c("dataset","concept")
-    
-  # Only provide information based on sex
-  ][!label %ilike% "Male|Female"
-  ][, concept_count := .N, 
-    by = "concept"
-  ][name == "B08013_001"
-    | concept_count > 2L
-    
-  # Don't have information at tract 
+    on = c("dataset", "concept")
+
+    # Only provide information based on sex
+  ][!label %ilike% "Male|Female"][, concept_count := .N, by = "concept"][
+    name == "B08013_001" | concept_count > 2L
+
+    # Don't have information at tract
   ][fcoalesce(geography, "") != "county"]
 
-VariablesToUse[, .(N = comma(.N)), 
-               by = c("survey", "year")]
+VariablesToUse[, .(N = comma(.N)), by = c("survey", "year")]
 ```
 
 ### Download data for Manhattan, Queens and Brooklyn with geometry
@@ -818,68 +890,64 @@ As we are getting also the geometry information is much efficient to change the 
 **This will make the spatial join independent to the number of variables to query.**
 :::
 
-```{r}
-#| echo: false
-#| output: false
-
-AcsVariableTractsFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/AcsVariableTracts.qs")
-
-if(file.exists(ValidTablesLastYearFilePath)) {
-  AcsVariableTracts <- qs2::qs_read(AcsVariableTractsFilePath)
-}
-
-DecVariableTractsFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/DecVariableTracts.qs")
-
-if(file.exists(ValidTablesLastYearFilePath)) {
-  DecVariableTracts <- qs2::qs_read(DecVariableTractsFilePath)
-}
-```
 
 ```{r}
 #| eval: false
 
 AcsVariableTracts <-
-  get_acs(geography = "tract", 
-          variables = VariablesToUse["acs", on = "survey", name],
-          year = 2022, 
-          state = "NY",
-          # Manhattan, Brooklyn, Queens
-          county =  c("New York", "Kings", "Queens"),
-          geometry = TRUE,
-          survey = "acs5",
-          output = "wide") |>
+  get_acs(
+    geography = "tract",
+    variables = VariablesToUse["acs", on = "survey", name],
+    year = 2022,
+    state = "NY",
+    # Manhattan, Brooklyn, Queens
+    county = c("New York", "Kings", "Queens"),
+    geometry = TRUE,
+    survey = "acs5",
+    output = "wide"
+  ) |>
   st_transform(crs = st_crs(ZonesShapes)$epsg)
 
 DecVariableTracts <-
-  get_decennial(geography = "tract", 
-                variables = VariablesToUse["dec", on = "survey", name],
-                sumfile = "dhc",
-                year = 2020, 
-                state = "NY",
-                # Manhattan, Brooklyn, Queens
-                county =  c("New York", "Kings", "Queens"),
-                geometry = TRUE,
-                output = "wide") |>
+  get_decennial(
+    geography = "tract",
+    variables = VariablesToUse["dec", on = "survey", name],
+    sumfile = "dhc",
+    year = 2020,
+    state = "NY",
+    # Manhattan, Brooklyn, Queens
+    county = c("New York", "Kings", "Queens"),
+    geometry = TRUE,
+    output = "wide"
+  ) |>
   st_transform(crs = st_crs(ZonesShapes)$epsg)
+
+BoardLocal |> pin_write(AcsVariableTracts, "AcsVariableTracts", type = "qs2")
+BoardLocal |> pin_write(DecVariableTracts, "DecVariableTracts", type = "qs2")
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
 #| output: false
 
-qs2::qs_save(AcsVariableTracts, AcsVariableTractsFilePath)
+if (!exists("AcsVariableTracts")) {
+  AcsVariableTracts <- pin_read(BoardRemote, "AcsVariableTracts")
+}
 
-qs2::qs_save(DecVariableTracts, DecVariableTractsFilePath)
+if (!exists("DecVariableTracts")) {
+  DecVariableTracts <- pin_read(BoardRemote, "DecVariableTracts")
+}
 ```
 
 To it's the perfect time to join all variables into one table.
 
 ```{r}
-ConsolidatedVariableTracts <- 
-  dplyr::full_join(AcsVariableTracts, 
-                   st_drop_geometry(DecVariableTracts), 
-                   by = c("GEOID", "NAME"))
+ConsolidatedVariableTracts <-
+  dplyr::full_join(
+    AcsVariableTracts,
+    st_drop_geometry(DecVariableTracts),
+    by = c("GEOID", "NAME")
+  )
 
 dim(ConsolidatedVariableTracts)
 dim(AcsVariableTracts)
@@ -898,94 +966,76 @@ We need to join to the original zones of our training set in to 2 steps:
 #| eval: false
 
 ConsolidatedVariableTractsJoinedList <-
-  lapply(list(within = st_within,
-              overlaps = st_overlaps), 
-         FUN = st_join,
-         x = ConsolidatedVariableTracts,
-         y = ZonesShapes,
-         left = FALSE)
+  lapply(
+    list(within = st_within, overlaps = st_overlaps),
+    FUN = st_join,
+    x = ConsolidatedVariableTracts,
+    y = ZonesShapes,
+    left = FALSE
+  )
 ```
 
 Now we need to go over each of the original zone shapes and cut the tracts parts that are not contained on each zone and consolidate the within and overlaps elements of `TravelTimeToWorkTractJoinedList` into one data frame.
 
-```{r}
-#| echo: false
-#| output: false
 
-ConsolidatedVariableTractsJoinedFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsJoined.qs")
-
-
-if(file.exists(ConsolidatedVariableTractsJoinedFilePath)) {
-  ConsolidatedVariableTractsJoined <-
-    qs2::qs_read(ConsolidatedVariableTractsJoinedFilePath)
-}
-```
 
 ```{r}
 #| eval: false
 
-apply_intersection_by_id <- function(features,
-                                     shapes,
-                                     id_col){
-  
+apply_intersection_by_id <- function(features, shapes, id_col) {
   intersection_by_id = function(id, features, shapes, id_col) {
-    
     features_sub = features[features[[id_col]] == id, ]
     shapes_sub_geo = shapes[shapes[[id_col]] == id, ] |> st_geometry()
-    
-    new_df = 
-      st_intersection(features_sub,
-                      shapes_sub_geo) |>
+
+    new_df =
+      st_intersection(features_sub, shapes_sub_geo) |>
       st_cast(to = "MULTIPOLYGON")
 
     return(new_df)
   }
-  
+
   new_df =
-    lapply(unique(features[[id_col]]),
-           FUN = intersection_by_id,
-           features = features,
-           shapes = shapes,
-           id_col = id_col) |>
+    lapply(
+      unique(features[[id_col]]),
+      FUN = intersection_by_id,
+      features = features,
+      shapes = shapes,
+      id_col = id_col
+    ) |>
     do.call(what = "rbind")
-  
+
   return(new_df)
-  
 }
 
 ConsolidatedVariableTractsJoinedList$overlaps <-
-  apply_intersection_by_id(ConsolidatedVariableTractsJoinedList$overlaps,
-                           ZonesShapes,
-                           id_col = "OBJECTID")
+  apply_intersection_by_id(
+    ConsolidatedVariableTractsJoinedList$overlaps,
+    ZonesShapes,
+    id_col = "OBJECTID"
+  )
 
-ConsolidatedVariableTractsJoined <- 
-  do.call(what = "rbind", 
-          ConsolidatedVariableTractsJoinedList)
+ConsolidatedVariableTractsJoined <-
+  do.call(what = "rbind", ConsolidatedVariableTractsJoinedList)
+
+BoardLocal |> pin_write(
+  ConsolidatedVariableTractsJoined,
+  name = "ConsolidatedVariableTractsJoined",
+  type = "qs2",
+  title = "Consolidated Variable Tracts Joined"
+)
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
 #| output: false
 
-qs2::qs_save(ConsolidatedVariableTractsJoined, ConsolidatedVariableTractsJoinedFilePath)
-```
-
-Perfect, we have joined the to shapes, but we still need to have only one estimate value per original zone shape. To solve this challenge we only need to use the `weighted arithmetic mean` based on the proportion of the area add each tract to the original zone id.
-
-```{r}
-#| echo: false
-#| output: false
-
-ConsolidatedVariableTractsByZoneIdFilePath <- here("cache-data/08-expanding-transportation-socioeconomic/ConsolidatedVariableTractsByZoneId.fst")
-
-
-if(file.exists(ConsolidatedVariableTractsByZoneIdFilePath)) {
-  ConsolidatedVariableTractsByZoneId <-
-    fst::read_fst(ConsolidatedVariableTractsByZoneIdFilePath,
-                  as.data.table = TRUE)
+if (!exists("ConsolidatedVariableTractsJoined")) {
+  ConsolidatedVariableTractsJoined <- pin_read(BoardRemote, "ConsolidatedVariableTractsJoined")
 }
 ```
+
+
+Perfect, we have joined the to shapes, but we still need to have only one estimate value per original zone shape. To solve this challenge we only need to use the `weighted arithmetic mean` based on the proportion of the area add each tract to the original zone id.
 
 ```{r}
 #| eval: false
@@ -998,55 +1048,68 @@ ConsolidatedVariableTractsJoinedDt <-
   setDT()
 
 IdColumns <-
-  c("GEOID", 
-    "NAME", 
-    "tract_area",
-    "LocationID", 
-    "OBJECTID")
+  c("GEOID", "NAME", "tract_area", "LocationID", "OBJECTID")
 
 ConsolidatedVariableTidy <-
-  melt(ConsolidatedVariableTractsJoinedDt,
-       id.var = IdColumns,
-       variable.factor = FALSE
-  )[,`:=`(variable_type = fifelse(variable %like% "\\dM$", "moe", "estimate"),
-          variable = sub("(E|M)$", "", variable))
-  ][, dcast(.SD,
-            formula = as.formula(paste0(paste0(c(IdColumns, "variable"), collapse = " + "), "~ variable_type")),
-            value.var = "value")
-  ][, `:=`(NAME = NULL,
-           OBJECTID = NULL,
-           moe = NULL,
-           estimate_low = estimate - fcoalesce(moe, 0),
-           estimate_high = estimate + fcoalesce(moe, 0))
-  ][estimate_low < 0, 
-    estimate_low := 0
-  ][, area_prop :=  as.double(tract_area / sum(tract_area, na.rm = TRUE)),
-    by = c("LocationID", "variable")]
+  melt(
+    ConsolidatedVariableTractsJoinedDt,
+    id.var = IdColumns,
+    variable.factor = FALSE
+  )[, `:=`(
+    variable_type = fifelse(variable %like% "\\dM$", "moe", "estimate"),
+    variable = sub("(E|M)$", "", variable)
+  )][, dcast(
+    .SD,
+    formula = as.formula(paste0(
+      paste0(c(IdColumns, "variable"), collapse = " + "),
+      "~ variable_type"
+    )),
+    value.var = "value"
+  )][, `:=`(
+    NAME = NULL,
+    OBJECTID = NULL,
+    moe = NULL,
+    estimate_low = estimate - fcoalesce(moe, 0),
+    estimate_high = estimate + fcoalesce(moe, 0)
+  )][estimate_low < 0, estimate_low := 0][,
+    area_prop := as.double(tract_area / sum(tract_area, na.rm = TRUE)),
+    by = c("LocationID", "variable")
+  ]
 
 
 ConsolidatedVariableTractsByZoneId <-
   ConsolidatedVariableTidy[
-    j = .(estimate  = sum(estimate * area_prop, na.rm = TRUE),
-          estimate_low  = sum(estimate_low * area_prop, na.rm = TRUE),
-          estimate_high  = sum(estimate_high * area_prop, na.rm = TRUE)),
+    j = .(
+      estimate = sum(estimate * area_prop, na.rm = TRUE),
+      estimate_low = sum(estimate_low * area_prop, na.rm = TRUE),
+      estimate_high = sum(estimate_high * area_prop, na.rm = TRUE)
+    ),
     by = c("LocationID", "variable")
-  ][, melt(.SD,
-           measure.vars = c("estimate", "estimate_low", "estimate_high"),
-           variable.factor = FALSE,
-           variable.name = "variable_type")
-  ][, dcast(.SD, LocationID ~ variable + variable_type, value.var = "value")]
+  ][, melt(
+    .SD,
+    measure.vars = c("estimate", "estimate_low", "estimate_high"),
+    variable.factor = FALSE,
+    variable.name = "variable_type"
+  )][, dcast(.SD, LocationID ~ variable + variable_type, value.var = "value")]
+
+
+BoardLocal |> pin_write(
+  ConsolidatedVariableTractsByZoneId,
+  name = "ConsolidatedVariableTractsByZoneId",
+  type = "qs2",
+  title = "Consolidated Variable Tracts By Zone Id"
+)
+
+dim(ConsolidatedVariableTractsByZoneId)
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
-#| output: false
 
-fst::write_fst(ConsolidatedVariableTractsByZoneId, ConsolidatedVariableTractsByZoneIdFilePath)
-```
+if (!exists("ConsolidatedVariableTractsByZoneId")) {
+  ConsolidatedVariableTractsByZoneId <- pin_read(BoardLocal, "ConsolidatedVariableTractsByZoneId")
+}
 
-
-```{r}
 dim(ConsolidatedVariableTractsByZoneId)
 ```
 
@@ -1054,76 +1117,80 @@ dim(ConsolidatedVariableTractsByZoneId)
 ## Validation
 
 ```{r}
-#| echo: false
-#| output: false
-
-PuVariableTractsMeanDiffFilePath <-
-  here("cache-data/08-expanding-transportation-socioeconomic/PuVariableTractsMeanDiff.fst")
-
-DoVariableTractsMeanDiffFilePath <-
-  here("cache-data/08-expanding-transportation-socioeconomic/DoVariableTractsMeanDiff.fst")
-
-
-if(file.exists(PuVariableTractsMeanDiffFilePath)) {
-  PuVariableTractsMeanDiff <-
-    fst::read_fst(PuVariableTractsMeanDiffFilePath,
-                  as.data.table = TRUE)
-}
-
-if(file.exists(DoVariableTractsMeanDiffFilePath)) {
-  DoVariableTractsMeanDiff <-
-    fst::read_fst(DoVariableTractsMeanDiffFilePath,
-                  as.data.table = TRUE)
-}
-```
-
-```{r}
 #| eval: false
 
 PuVariableTractsMeanDiff <-
-  ConsolidatedVariableTractsByZoneId[TrainingSample[, .(LocationID = PULocationID, 
-                                                        take_current_trip)], 
-                                     on = "LocationID"
-  ][, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else x[!is.na(x)] |> scale(center = FALSE) |> median()),
+  ConsolidatedVariableTractsByZoneId[
+    TrainingSample[, .(LocationID = PULocationID, take_current_trip)],
+    on = "LocationID"
+  ][,
+    lapply(.SD, \(x) {
+      if (uniqueN(x) == 1L) {
+        x[1L]
+      } else {
+        x[!is.na(x)] |> scale(center = FALSE) |> median()
+      }
+    }),
     .SDcols = !c("LocationID"),
     by = "take_current_trip"
-  ][, melt(.SD,
-           id.vars = "take_current_trip",
-           variable.factor = FALSE)
-  ][, .(not_take_vs_take = diff(value)),
+  ][, melt(.SD, id.vars = "take_current_trip", variable.factor = FALSE)][,
+    .(not_take_vs_take = diff(value)),
     by = "variable"
   ][order(-abs(not_take_vs_take))]
 
 
 DoVariableTractsMeanDiff <-
-  ConsolidatedVariableTractsByZoneId[TrainingSample[, .(LocationID = DOLocationID,
-                                                        take_current_trip)], 
-                                     on = "LocationID"
-  ][, lapply(.SD, \(x) if(uniqueN(x) == 1L) x[1L] else x[!is.na(x)] |> scale(center = FALSE) |> median()),
+  ConsolidatedVariableTractsByZoneId[
+    TrainingSample[, .(LocationID = DOLocationID, take_current_trip)],
+    on = "LocationID"
+  ][,
+    lapply(.SD, \(x) {
+      if (uniqueN(x) == 1L) {
+        x[1L]
+      } else {
+        x[!is.na(x)] |> scale(center = FALSE) |> median()
+      }
+    }),
     .SDcols = !c("LocationID"),
     by = "take_current_trip"
-  ][, melt(.SD,
-           id.vars = "take_current_trip",
-           variable.factor = FALSE)
-  ][, .(not_take_vs_take = diff(value)),
+  ][, melt(.SD, id.vars = "take_current_trip", variable.factor = FALSE)][,
+    .(not_take_vs_take = diff(value)),
     by = "variable"
   ][order(-abs(not_take_vs_take))]
+
+BoardLocal |> pin_write(
+  PuVariableTractsMeanDiff,
+  name = "PuVariableTractsMeanDiff",
+  type = "qs2",
+  title = "PU Variable Tracts Mean Diff"
+)
+
+BoardLocal |> pin_write(
+  DoVariableTractsMeanDiff,
+  name = "DoVariableTractsMeanDiff",
+  type = "qs2",
+  title = "DO Variable Tracts Mean Diff"
+)
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
 #| output: false
 
-fst::write_fst(PuVariableTractsMeanDiff, PuVariableTractsMeanDiffFilePath)
-fst::write_fst(DoVariableTractsMeanDiff, DoVariableTractsMeanDiffFilePath)
+if (!exists("PuVariableTractsMeanDiff")) {
+  PuVariableTractsMeanDiff <- pin_read(BoardRemote, "PuVariableTractsMeanDiff")
+}
+
+if (!exists("DoVariableTractsMeanDiff")) {
+  DoVariableTractsMeanDiff <- pin_read(BoardRemote, "DoVariableTractsMeanDiff")
+}
 ```
 
 ```{r}
 VariableTractsMeanDiff <-
-  rbindlist(list(PuVariableTractsMeanDiff,
-                 DoVariableTractsMeanDiff)
-  )[!is.na(not_take_vs_take)]
+  rbindlist(list(PuVariableTractsMeanDiff, DoVariableTractsMeanDiff))[
+    !is.na(not_take_vs_take)
+  ]
 ```
 
 
@@ -1133,19 +1200,26 @@ VariableTractsMeanDiff <-
 
 ggplot(VariableTractsMeanDiff) +
   geom_histogram(aes(not_take_vs_take)) +
-  scale_y_continuous(transform = scales::new_transform("signed_log10",
-                                                       transform = function(x) sign(x) * log10(1 + abs(x)),
-                                                       inverse = function(x) sign(x) * (10^(abs(x)) - 1),
-                                                       breaks = scales::pretty_breaks()),
-                     breaks = c(0, 10^(1:4))) +
+  scale_y_continuous(
+    transform = scales::new_transform(
+      "signed_log10",
+      transform = function(x) sign(x) * log10(1 + abs(x)),
+      inverse = function(x) sign(x) * (10^(abs(x)) - 1),
+      breaks = scales::pretty_breaks()
+    ),
+    breaks = c(0, 10^(1:4))
+  ) +
   scale_x_continuous(breaks = breaks_width(0.1)) +
-  labs(y = "count on log10 scale")+
+  labs(y = "count on log10 scale") +
   theme_minimal()
 ```
 
 
 ```{r}
-TopVariableTractsMeanDiff <- VariableTractsMeanDiff[abs(not_take_vs_take) > 0.30, unique(variable)]
+TopVariableTractsMeanDiff <- VariableTractsMeanDiff[
+  abs(not_take_vs_take) > 0.30,
+  unique(variable)
+]
 ```
 
 ```{r}
@@ -1153,215 +1227,227 @@ TopVariableTractsMeanDiff <- VariableTractsMeanDiff[abs(not_take_vs_take) > 0.30
 #| code-summary: "Show the code"
 
 # Enhanced contest-winning gt table with improved styling
-VariablesToUse[.(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()), 
-               on = "name",
-               c("dataset",
-                 "concept",
-                 "label",
-                 "name")
-][order(concept, name)
+VariablesToUse[
+  .(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()),
+  on = "name",
+  c("dataset", "concept", "label", "name")
+][
+  order(concept, name)
   # Add improved row groups with better categorization
-][, category := fcase(
-  grepl("Earnings|Income|Poverty", concept, ignore.case = TRUE), "💰 Economic Indicators",
-  grepl("Industry|Occupation|Employment", concept, ignore.case = TRUE), "🏭 Employment & Industry", 
-  grepl("Transportation|Commuting|Vehicle", concept, ignore.case = TRUE), "🚗 Transportation & Mobility",
-  default = "📊 Other Variables"
-)] |>
+][,
+  category := fcase(
+    grepl("Earnings|Income|Poverty", concept, ignore.case = TRUE),
+    "💰 Economic Indicators",
+    grepl("Industry|Occupation|Employment", concept, ignore.case = TRUE),
+    "🏭 Employment & Industry",
+    grepl("Transportation|Commuting|Vehicle", concept, ignore.case = TRUE),
+    "🚗 Transportation & Mobility",
+    default = "📊 Other Variables"
+  )
+] |>
 
-gt(groupname_col = "category") |>
+  gt(groupname_col = "category") |>
 
-# Enhanced header with better typography
-tab_header(
-  title = md("**🏆 Key Census Variables Analysis**"),
-  subtitle = md("*Critical demographic and socioeconomic indicators across geographic clusters*")
-) |>
+  # Enhanced header with better typography
+  tab_header(
+    title = md("**🏆 Key Census Variables Analysis**"),
+    subtitle = md(
+      "*Critical demographic and socioeconomic indicators across geographic clusters*"
+    )
+  ) |>
 
-# Improved column headers with icons and better descriptions
-cols_label(
-  dataset = md("**📋 Dataset**"),
-  concept = md("**🎯 Concept Category**"),
-  label = md("**📝 Variable Description**"),
-  name = md("**🔖 Variable ID**")
-) |>
+  # Improved column headers with icons and better descriptions
+  cols_label(
+    dataset = md("**📋 Dataset**"),
+    concept = md("**🎯 Concept Category**"),
+    label = md("**📝 Variable Description**"),
+    name = md("**🔖 Variable ID**")
+  ) |>
 
-# Hide the grouping column
-cols_hide(category) |>
+  # Hide the grouping column
+  cols_hide(category) |>
 
-# Enhanced header styling with gradient effect
-tab_style(
-  style = list(
-    cell_fill(color = ColorHighlight),
-    cell_text(color = "white", weight = "bold", size = px(13)),
-    cell_borders(sides = "bottom", color = "white", weight = px(2))
-  ),
-  locations = cells_column_labels()
-) |>
+  # Enhanced header styling with gradient effect
+  tab_style(
+    style = list(
+      cell_fill(color = ColorHighlight),
+      cell_text(color = "white", weight = "bold", size = px(13)),
+      cell_borders(sides = "bottom", color = "white", weight = px(2))
+    ),
+    locations = cells_column_labels()
+  ) |>
 
-# Stunning group headers with enhanced styling
-tab_style(
-  style = list(
-    cell_fill(color = ColorHighlightLow),
-    cell_text(
-      weight = "bold", 
-      size = px(15),
+  # Stunning group headers with enhanced styling
+  tab_style(
+    style = list(
+      cell_fill(color = ColorHighlightLow),
+      cell_text(
+        weight = "bold",
+        size = px(15),
+        color = "#2c3e50"
+      ),
+      cell_borders(
+        sides = c("top", "bottom"),
+        color = ColorHighlight,
+        weight = px(2)
+      )
+    ),
+    locations = cells_row_groups()
+  ) |>
+
+  # Enhanced title styling
+  tab_style(
+    style = list(
+      cell_text(
+        color = "white",
+        weight = "bold",
+        size = px(22)
+      ),
+      cell_fill(color = "#2c3e50")
+    ),
+    locations = cells_title(groups = "title")
+  ) |>
+
+  tab_style(
+    style = list(
+      cell_text(
+        color = "#ecf0f1",
+        style = "italic",
+        size = px(16)
+      ),
+      cell_fill(color = "#34495e")
+    ),
+    locations = cells_title(groups = "subtitle")
+  ) |>
+
+  # Variable ID styling with better monospace presentation
+  tab_style(
+    style = list(
+      cell_text(
+        font = "Consolas, Monaco, monospace",
+        size = px(11)
+      )
+    ),
+    locations = cells_body(columns = name)
+  ) |>
+
+  # Dataset column styling
+  tab_style(
+    style = cell_text(
+      weight = "bold",
+      size = px(11)
+    ),
+    locations = cells_body(columns = dataset)
+  ) |>
+
+  # Concept column styling
+  tab_style(
+    style = cell_text(
+      size = px(11),
+      weight = "bold"
+    ),
+    locations = cells_body(columns = concept)
+  ) |>
+
+  # Label column with improved readability
+  tab_style(
+    style = cell_text(
+      size = px(11),
       color = "#2c3e50"
     ),
-    cell_borders(
-      sides = c("top", "bottom"), 
-      color = ColorHighlight, 
-      weight = px(2)
-    )
-  ),
-  locations = cells_row_groups()
-) |>
+    locations = cells_body(columns = label)
+  ) |>
 
-# Enhanced title styling
-tab_style(
-  style = list(
-    cell_text(
-      color = "white", 
-      weight = "bold",
-      size = px(22)
+  # Optimized column widths for better content display
+  cols_width(
+    dataset ~ px(100),
+    concept ~ px(180),
+    label ~ px(350),
+    name ~ px(140)
+  ) |>
+
+  # Comprehensive table options for professional appearance
+  tab_options(
+    # Typography
+    table.font.names = c("Segoe UI", "Arial", "sans-serif"),
+    table.font.size = px(12),
+    heading.title.font.size = px(22),
+    heading.subtitle.font.size = px(16),
+    row_group.font.size = px(15),
+
+    # Background and colors
+    table.background.color = "#fdfdfd",
+
+    # Borders and lines
+    table.border.top.style = "solid",
+    table.border.top.width = px(4),
+    table.border.top.color = ColorHighlight,
+    table.border.bottom.style = "solid",
+    table.border.bottom.width = px(4),
+    table.border.bottom.color = ColorHighlight,
+
+    # Column labels
+    column_labels.border.bottom.style = "solid",
+    column_labels.border.bottom.width = px(3),
+    column_labels.border.bottom.color = ColorHighlight,
+    column_labels.background.color = ColorHighlight,
+
+    # Row groups
+    row_group.border.top.style = "solid",
+    row_group.border.top.width = px(2),
+    row_group.border.top.color = ColorHighlight,
+    row_group.border.bottom.style = "solid",
+    row_group.border.bottom.width = px(1),
+    row_group.border.bottom.color = ColorHighlightLow,
+
+    # Striping and spacing
+    #row.striping.include_table_body = TRUE,
+    #row.striping.background_color = "#f8f9fa",
+    table_body.hlines.style = "solid",
+    table_body.hlines.width = px(1),
+    table_body.hlines.color = "#dee2e6",
+
+    # Layout
+    # table.width = pct(100),
+    # container.overflow.x = TRUE,
+    # container.overflow.y = TRUE,
+    # container.height = px(600),
+
+    quarto.disable_processing = TRUE
+  ) |>
+
+  # Enhanced source note with better formatting
+  tab_source_note(
+    source_note = md(
+      "**📊 Data Source:** U.S. Census Bureau, American Community Survey (ACS) 5-Year Estimates | **📅 Analysis Period:** 2018-2022"
+    )
+  ) |>
+
+  # Style the source note
+  tab_style(
+    style = list(
+      cell_text(
+        size = px(12),
+        color = "#7f8c8d",
+        style = "italic"
+      )
     ),
-    cell_fill(color = "#2c3e50")
-  ),
-  locations = cells_title(groups = "title")
-) |>
-
-tab_style(
-  style = list(
-    cell_text(
-      color = "#ecf0f1", 
-      style = "italic",
-      size = px(16)
-    ),
-    cell_fill(color = "#34495e")
-  ),
-  locations = cells_title(groups = "subtitle")
-) |>
-
-# Variable ID styling with better monospace presentation
-tab_style(
-  style = list(
-    cell_text(
-      font = "Consolas, Monaco, monospace", 
-      size = px(11)
-    )
-  ),
-  locations = cells_body(columns = name)
-) |>
-
-# Dataset column styling
-tab_style(
-  style = cell_text(
-    weight = "bold",
-    size = px(11)
-  ),
-  locations = cells_body(columns = dataset)
-) |>
-
-# Concept column styling
-tab_style(
-  style = cell_text(
-    size = px(11),
-    weight = "bold"
-  ),
-  locations = cells_body(columns = concept)
-) |>
-
-# Label column with improved readability
-tab_style(
-  style = cell_text(
-    size = px(11),
-    color = "#2c3e50"
-  ),
-  locations = cells_body(columns = label)
-) |>
-
-# Optimized column widths for better content display
-cols_width(
-  dataset ~ px(100),
-  concept ~ px(180),
-  label ~ px(350),
-  name ~ px(140)
-) |>
-
-# Comprehensive table options for professional appearance
-tab_options(
-  # Typography
-  table.font.names = c("Segoe UI", "Arial", "sans-serif"),
-  table.font.size = px(12),
-  heading.title.font.size = px(22),
-  heading.subtitle.font.size = px(16),
-  row_group.font.size = px(15),
-  
-  # Background and colors
-  table.background.color = "#fdfdfd",
-  
-  # Borders and lines
-  table.border.top.style = "solid",
-  table.border.top.width = px(4),
-  table.border.top.color = ColorHighlight,
-  table.border.bottom.style = "solid",
-  table.border.bottom.width = px(4),
-  table.border.bottom.color = ColorHighlight,
-  
-  # Column labels
-  column_labels.border.bottom.style = "solid",
-  column_labels.border.bottom.width = px(3),
-  column_labels.border.bottom.color = ColorHighlight,
-  column_labels.background.color = ColorHighlight,
-  
-  # Row groups
-  row_group.border.top.style = "solid",
-  row_group.border.top.width = px(2),
-  row_group.border.top.color = ColorHighlight,
-  row_group.border.bottom.style = "solid",
-  row_group.border.bottom.width = px(1),
-  row_group.border.bottom.color = ColorHighlightLow,
-  
-  # Striping and spacing
-  #row.striping.include_table_body = TRUE,
-  #row.striping.background_color = "#f8f9fa",
-  table_body.hlines.style = "solid",
-  table_body.hlines.width = px(1),
-  table_body.hlines.color = "#dee2e6",
-  
-  # Layout
-  # table.width = pct(100),
-  # container.overflow.x = TRUE,
-  # container.overflow.y = TRUE,
-  # container.height = px(600),
-  
-  quarto.disable_processing = TRUE
-) |>
-
-# Enhanced source note with better formatting
-tab_source_note(
-  source_note = md("**📊 Data Source:** U.S. Census Bureau, American Community Survey (ACS) 5-Year Estimates | **📅 Analysis Period:** 2018-2022")
-) |>
-
-# Style the source note
-tab_style(
-  style = list(
-    cell_text(
-      size = px(12),
-      color = "#7f8c8d",
-      style = "italic"
-    )
-  ),
-  locations = cells_source_notes()
-)
+    locations = cells_source_notes()
+  )
 ```
 
 After confirming these promising results we can save the most import features for future use.
 
-```r
-fst::write_fst(
+```{r}
+#| eval: false
+
+BoardLocal |> pin_write(
   ConsolidatedVariableTractsByZoneId[, .SD, 
-                                     .SDcols = c("LocationID",
-                                                 TopVariableTractsMeanDiff)], 
-  path = here("raw-data/AcsVariablesByZoneId.fst")
+                                      .SDcols = c("LocationID",
+                                                  TopVariableTractsMeanDiff)],
+  "AcsVariablesByZoneId",
+  type = "qs2",
+  title = "Acs Variables By Zone Id"
 )
 ```
 
