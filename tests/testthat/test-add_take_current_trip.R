@@ -1,6 +1,6 @@
 describe("add_take_current_trip", {
   # Defining times to use
-  start_time <- as.POSIXct("2023-10-01 09:00:00")
+  start_time <- lubridate::ymd_hms("2023-10-01 09:00:00")
   secs_to_check <- seq(from = 30, to = 20 * 60, by = 30)
   future_time <- start_time + lubridate::seconds(secs_to_check)
 

@@ -83,6 +83,14 @@ add_take_current_trip <- function(
   # Changing table to data.table
   data.table::setDT(all_trips)
 
+  # Explicitly set timezone to UTC
+  trip_sample[,
+    request_datetime := lubridate::as_datetime(
+      request_datetime,
+      tz = "UTC"
+    )
+  ]
+
   # Creating function to select valid future trips
   select_valid_future_trips <- function(n_row) {
     trip_sample_i <- trip_sample[n_row]
