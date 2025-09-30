@@ -8,7 +8,7 @@ library(rix)
 # Call the 'rix' function to configure and generate the Nix environment files.
 rix(
   # Relatively fresh packages and have a stable environment for production
-  date = "2025-09-22",
+  r_ver = "4.5.1",
 
   # R Packages
   r_pkgs = c(
@@ -82,7 +82,8 @@ rix(
 
     # Development & testing
     "devtools", # Development tools
-    "testthat" # Unit testing
+    "testthat", # Unit testing
+    "roxygen2@7.3.2"
   ),
 
   # Getting packages from github

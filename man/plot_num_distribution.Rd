@@ -111,12 +111,12 @@ dt <- data.table(
   values = c(rnorm(500, 50, 20), rnorm(500, 150, 30)),
   group = rep(c("A", "B"), each = 500)
 )
-plot_num_distribution(dt, values, fill = group, 
+plot_num_distribution(dt, values, fill = group,
                       title = "Distribution by Group",
                       manual_fill_values = c("red", "blue"))
 
 # With important points highlighted on ECDF
-plot_num_distribution(dt, values, 
+plot_num_distribution(dt, values,
                       curve_important_points = c(50, 100, 150),
                       title = "Distribution with Key Points")
 

@@ -31,3 +31,4 @@
 ^\.Rproj\.user$
 ^\.vscode$
 ^[.]?air[.]toml$
+^result/$
