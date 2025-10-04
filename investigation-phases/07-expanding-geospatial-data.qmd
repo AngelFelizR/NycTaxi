@@ -141,7 +141,7 @@ ZonesShapes <-
   subset(borough %in% BoroughSelected) |>
   transform(Shape_Area = st_area(geometry))
 
-TrainingSample <-
+SampledData <-
   pin_list(BoardRemote) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
@@ -851,7 +851,7 @@ DoOmsDensityFeatures <-
 
 TrainingSampleOmsDensityFeatures <-
   PuOmsDensityFeatures[
-    TrainingSample,
+    SampledData,
     on = "PULocationID"
   ][, DoOmsDensityFeatures[.SD, on = "DOLocationID"]]
 
@@ -864,7 +864,7 @@ dim(TrainingSampleOmsDensityFeatures) |> scales::comma()
 
 rm(
   list = grep(
-    "OmsDensityFeatures|TrainingSample|Color|Board",
+    "OmsDensityFeatures|SampledData|Color|Board",
     ls(),
     invert = TRUE,
     value = TRUE

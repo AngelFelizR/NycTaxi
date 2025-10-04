@@ -106,7 +106,7 @@ ZonesShapes <-
   })() |>
   st_cast(to = "MULTIPOLYGON")
 
-TrainingSample <-
+SampledData <-
   pin_list(BoardRemote) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
@@ -1121,7 +1121,7 @@ dim(ConsolidatedVariableTractsByZoneId)
 
 PuVariableTractsMeanDiff <-
   ConsolidatedVariableTractsByZoneId[
-    TrainingSample[, .(LocationID = PULocationID, take_current_trip)],
+    SampledData[, .(LocationID = PULocationID, take_current_trip)],
     on = "LocationID"
   ][,
     lapply(.SD, \(x) {
@@ -1141,7 +1141,7 @@ PuVariableTractsMeanDiff <-
 
 DoVariableTractsMeanDiff <-
   ConsolidatedVariableTractsByZoneId[
-    TrainingSample[, .(LocationID = DOLocationID, take_current_trip)],
+    SampledData[, .(LocationID = DOLocationID, take_current_trip)],
     on = "LocationID"
   ][,
     lapply(.SD, \(x) {

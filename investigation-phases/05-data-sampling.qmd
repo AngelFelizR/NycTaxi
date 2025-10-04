@@ -43,7 +43,10 @@ devtools::load_all()
 options(datatable.print.nrows = 15, digits = 4)
 
 # Defining the pin boards to use
-BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here("../NycTaxiBoardCache")
+)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -51,19 +54,26 @@ BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 Selecting the 0.20% of the data, aiming for around 500K samples for training and testing the model and saving the data in a binary file.
 
-``` r
+```{r}
+#| eval: false
+
 ## Establishing a connection with the database
-con <- DBI::dbConnect(duckdb::duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+con <- DBI::dbConnect(
+  duckdb::duckdb(),
+  dbdir = here("../NycTaxiBigFiles/my-db.duckdb")
+)
 
 ## Defining query to sample
-ValidZoneSampleQuery <- glue::glue("
+ValidZoneSampleQuery <- glue::glue(
+  "
 SELECT t1.*
 FROM NycTrips t1
 INNER JOIN ZoneCodesFilter t2
   ON t1.PULocationID = t2.PULocationID AND
      t1.DOLocationID = t2.DOLocationID
 USING SAMPLE 0.20% (system, 547548);
-")
+"
+)
 
 ## Sampling data from db
 ValidZoneSample <- DBI::dbGetQuery(con, ValidZoneSampleQuery)
@@ -76,7 +86,7 @@ BoardLocal |> pin_write(ValidZoneSample, "ValidZoneSample", type = "qs2")
 ```
 
 ```{r echo=FALSE}
-if(!exists("ValidZoneSample")){
+if (!exists("ValidZoneSample")) {
   ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
 }
 ```
@@ -147,36 +157,105 @@ BenchmarkResults <- data.frame(
     rep("Future: 4 and DT: 8 Cores", times = 12L)
   ),
   Scheduling = c(
-    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5,
-    0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6, 0.4, 0.5, 0.6
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.6,
+    0.4,
+    0.5,
+    0.6
   ),
   ChunkSize = c(
-    25, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200,
-    5, 25, 25, 50, 50, 50, 100, 100, 100, 200, 200, 200
+    25,
+    25,
+    25,
+    50,
+    50,
+    50,
+    100,
+    100,
+    100,
+    200,
+    200,
+    5,
+    25,
+    25,
+    50,
+    50,
+    50,
+    100,
+    100,
+    100,
+    200,
+    200,
+    200
   ),
   Duration = c(
-    528.970, 428.321, 407.558, 382.662, 384.741, 380.178, 379.015, 379.000, 377.592, 373.415, 379.463,
-    538.531, 442.395, 458.97, 424.615, 366.119, 361.745, 350.42, 347.733, 346.434, 351.716, 348.664, 358.177
-  ))
+    528.970,
+    428.321,
+    407.558,
+    382.662,
+    384.741,
+    380.178,
+    379.015,
+    379.000,
+    377.592,
+    373.415,
+    379.463,
+    538.531,
+    442.395,
+    458.97,
+    424.615,
+    366.119,
+    361.745,
+    350.42,
+    347.733,
+    346.434,
+    351.716,
+    348.664,
+    358.177
+  )
+)
 
 BenchmarkPlot <-
-  ggplot(BenchmarkResults,
-         aes(x = ChunkSize, 
-             y = Duration, 
-             color = as.character(Scheduling),
-             group = interaction(Scheduling, CoreConfiguration),
-             tooltip = round(Duration,2))) +
+  ggplot(
+    BenchmarkResults,
+    aes(
+      x = ChunkSize,
+      y = Duration,
+      color = as.character(Scheduling),
+      group = interaction(Scheduling, CoreConfiguration),
+      tooltip = round(Duration, 2)
+    )
+  ) +
   geom_line() +
   geom_point_interactive(size = 1.5) +
   scale_y_log10() +
   facet_wrap(vars(CoreConfiguration)) +
-  labs(title = "Future Performance",
-       color = "Scheduling",
-       y = "Duration (s)",
-       x = "Chunk Size") +
+  labs(
+    title = "Future Performance",
+    color = "Scheduling",
+    y = "Duration (s)",
+    x = "Chunk Size"
+  ) +
   theme_minimal() +
-  theme(legend.position = "top",
-        plot.title = element_text(face = "bold"))
+  theme(legend.position = "top", plot.title = element_text(face = "bold"))
 
 girafe(ggobj = BenchmarkPlot)
 ```

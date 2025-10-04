@@ -51,6 +51,9 @@ library(ggplot2)
 library(scales)
 library(patchwork)
 
+## To sample the data
+library(rsample)
+
 ## Defining the print params to use in the report
 options(datatable.print.nrows = 15, digits = 4)
 
@@ -65,7 +68,7 @@ BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ### Importing training sample
 
 ```{r}
-TrainingSample <-
+SampledData <-
   pin_list(BoardRemote) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
@@ -73,6 +76,11 @@ TrainingSample <-
   lapply(FUN = pin_read,
          board = BoardRemote) |>
   rbindlist()
+
+set.seed(2545)
+SampledDataSplit <- initial_split(SampledData)
+
+TrainingSample <- training(SampledDataSplit)
 ```
 
 ### Importing geospatial information
