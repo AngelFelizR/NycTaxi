@@ -5,6 +5,16 @@ library(baguette)
 library(rules)
 library(future)
 library(here)
+library(pins)
+library(qs2)
+
+# Defining the pin boards to use
+
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here("../NycTaxiBoardCache")
+)
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 
 ## Defining source data paths

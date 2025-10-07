@@ -46,15 +46,6 @@ BoardRemote <- board_url(
   cache = here("../NycTaxiBoardCache")
 )
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
-
-# Listing packges needed for modeling
-if (FALSE) {
-  mixOmics::auroc
-  glmnet::glmnet.control
-  kernlab::kernelFast
-  ranger::importance
-  xgboost::slice
-}
 ```
 
 ## Importing data
@@ -62,8 +53,15 @@ if (FALSE) {
 Here we import  de data to use.
 
 ```{r}
-AcsVariablesByZoneId <- pin_read(BoardRemote, "AcsVariablesByZoneId")
-OmsDensityFeatures <- pin_read(BoardRemote, "OmsDensityFeatures")
+AcsVariablesByZoneId <-
+  pin_read(BoardRemote, "AcsVariablesByZoneId")[,
+    LocationID := as.character(LocationID)
+  ]
+
+OmsDensityFeatures <- pin_read(BoardRemote, "OmsDensityFeatures")[,
+  LocationID := as.character(LocationID)
+]
+
 ZoneCodesRef <- pin_read(BoardRemote, "ZoneCodesRef")[, c(
   "LocationID",
   "Borough",
@@ -80,7 +78,9 @@ SampledData <-
   tibble::as_tibble() |>
   mutate(
     take_current_trip = fifelse(take_current_trip == 1L, "yes", "no") |>
-      factor(levels = c("yes", "no"))
+      factor(levels = c("yes", "no")),
+    PULocationID = as.character(PULocationID),
+    DOLocationID = as.character(DOLocationID)
   )
 
 set.seed(2545)
@@ -434,26 +434,6 @@ BasicTreeRecipe <-
 
 ### Making preprossessing prior tunning
 
-```{r}
-#| echo: false
-#| output: false
-
-TrainingSampleNormalizedFilePath <- here(
-  "output/cache-data/09-data-preparation/TrainingSampleNormalized.qs"
-)
-TrainingSampleForTreesFilePath <- here(
-  "output/cache-data/09-data-preparation/TrainingSampleForTrees.qs"
-)
-
-if (file.exists(TrainingSampleNormalizedFilePath)) {
-  TrainingSampleNormalized <- qs2::qs_read(TrainingSampleNormalizedFilePath)
-}
-
-if (file.exists(TrainingSampleForTreesFilePath)) {
-  TrainingSampleForTrees <- qs2::qs_read(TrainingSampleForTreesFilePath)
-}
-```
-
 
 ```{r}
 #| eval: false
@@ -465,7 +445,6 @@ TrainingSampleNormalized <-
 TrainingSampleForTrees <-
   prep(BasicTreeRecipe) |>
   bake(new_data = NULL)
-
 
 pin_write(
   BoardLocal,
@@ -485,18 +464,18 @@ pin_write(
 ```
 
 ```{r}
-#| eval: false
 #| echo: false
 #| output: false
 
-qs2::qs_save(TrainingSampleNormalized, TrainingSampleNormalizedFilePath)
-qs2::qs_save(TrainingSampleForTrees, TrainingSampleForTreesFilePath)
+TrainingSampleNormalized <- pin_read(BoardRemote, "TrainingSampleNormalized")
+TrainingSampleForTrees <- pin_read(BoardRemote, "TrainingSampleForTrees")
 ```
-
 
 ### Defining resamples
 
 ```{r}
+#| eval: false
+
 set.seed(5878)
 TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
 
@@ -507,6 +486,8 @@ TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
 ### Defining recipes to tune
 
 ```{r}
+#| eval: false
+
 start_recipe <- function(df) {
   new_recipe =
     recipe(take_current_trip ~ ., data = df) |>
@@ -547,26 +528,6 @@ XrfRecipe <-
 ## Defining workflows to tune
 
 ```{r}
-#| echo: false
-#| output: false
-
-NormalizedWorkFlowToTuneFilePath <- here(
-  "output/cache-data/09-data-preparation/NormalizedWorkFlowToTune.qs"
-)
-TreeWorkFlowsToTuneFilePath <- here(
-  "output/cache-data/09-data-preparation/TreeWorkFlowsToTune.qs"
-)
-
-if (file.exists(NormalizedWorkFlowToTuneFilePath)) {
-  NormalizedWorkFlowToTune <- qs2::qs_read(NormalizedWorkFlowToTuneFilePath)
-}
-
-if (file.exists(TreeWorkFlowsToTuneFilePath)) {
-  TreeWorkFlowsToTune <- qs2::qs_read(TreeWorkFlowsToTuneFilePath)
-}
-```
-
-```{r}
 #| eval: false
 
 NormalizedWorkFlowToTune <- workflow_set(
@@ -600,37 +561,7 @@ TreeWorkFlowsToTune <- bind_rows(
 )
 ```
 
-```{r}
-#| eval: false
-#| echo: false
-#| output: false
-
-qs2::qs_save(NormalizedWorkFlowToTune, NormalizedWorkFlowToTuneFilePath)
-qs2::qs_save(TreeWorkFlowsToTune, TreeWorkFlowsToTuneFilePath)
-```
-
-
 ## Tuning grid for each workflow
-
-```{r}
-#| echo: false
-#| output: false
-
-NormalizedWorkFlowTunedFilePath <- here(
-  "output/cache-data/09-data-preparation/NormalizedWorkFlowTuned.qs"
-)
-TreeWorkFlowsTunedFilePath <- here(
-  "output/cache-data/09-data-preparation/TreeWorkFlowsTuned.qs"
-)
-
-if (file.exists(NormalizedWorkFlowTunedFilePath)) {
-  NormalizedWorkFlowTuned <- qs2::qs_read(NormalizedWorkFlowTunedFilePath)
-}
-if (file.exists(TreeWorkFlowsTunedFilePath)) {
-  TreeWorkFlowsTuned <- qs2::qs_read(TreeWorkFlowsTunedFilePath)
-}
-```
-
 
 ```{r}
 #| file: multicore-scripts/03-tunning-initial-grid.R
@@ -647,36 +578,6 @@ mean(TrainingSample$take_current_trip == "yes")
 
 file.mtime(NormalizedWorkFlowTunedFilePath)
 ```
-
-
-
-
-## Defining workflows to tune
-
-```{r}
-ControlGrid <-
-  control_bayes(
-    no_improve = 4L,
-    seed = 15898,
-    pkgs = c("data.table", "lubridate", "timeDate", "baguette", "rules"),
-    save_workflow = TRUE,
-    event_level = "second"
-  )
-
-TuneResults <-
-  AllWorkflowsToTune |>
-  workflow_map(
-    seed = 1503,
-    fn = "tune_bayes",
-    resamples = TrainingSampleResamples,
-    metrics = MetricsToEval,
-    iter = 20,
-    control = ControlGrid
-  )
-
-TuneResults$result[[1L]]
-```
-
 
 
 

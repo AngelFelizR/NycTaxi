@@ -49,22 +49,6 @@
 #' - When `col_prefix` is `NULL`, a direct join is performed using the selected
 #'   columns without renaming
 #'
-#' @section Tidying:
-#' When you [`tidy()`][generics::tidy()] this step, a tibble is returned with
-#' columns `terms`, `spatial_features`, and `id`:
-#'
-#' \describe{
-#'   \item{terms}{character, the columns used for joining}
-#'   \item{spatial_features}{character, names of spatial feature columns added}
-#'   \item{id}{character, id of this step}
-#' }
-#'
-#' There is one row for each pair of (join column, spatial feature).
-#'
-#' @section Case weights:
-#' This step performs an inner join. The case weights are not modified by this
-#' step and are assumed to be based on the original data structure.
-#'
 #' @examples
 #' # Create sample data
 #' main_data = data.frame(
@@ -151,7 +135,6 @@ step_join_geospatial_features_new <- function(
     role = role,
     trained = trained,
     col_prefix = col_prefix,
-    role = role,
     skip = skip,
     id = id
   )
@@ -216,8 +199,7 @@ prep.step_join_geospatial_features <- function(
     trained = TRUE,
     col_prefix = x$col_prefix,
     skip = x$skip,
-    id = x$id,
-    info = updated_info
+    id = x$id
   )
 }
 
@@ -270,7 +252,7 @@ bake.step_join_geospatial_features <- function(
 
 #' @export
 required_pkgs.step_join_geospatial_features <- function(x, ...) {
-  c("data.table", "NycTaxi")
+  c("data.table")
 }
 
 
