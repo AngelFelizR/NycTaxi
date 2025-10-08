@@ -207,22 +207,10 @@ test_that("print method works for both unprepared and prepared recipes", {
 })
 
 test_that("required packages are correctly specified", {
-  main_data <- data.frame(
-    region_id = c("A", "B", "C"),
-    value = c(10, 20, 30)
-  )
+  # List packages to validate
+  required_pkgs <- required_pkgs.step_join_geospatial_features()
 
-  spatial_data <- data.frame(
-    region_id = c("A", "B", "C"),
-    latitude = c(40.7, 34.1, 41.9)
-  )
-
-  recipe <- recipes::recipe(value ~ ., data = main_data) |>
-    step_join_geospatial_features(
-      region_id,
-      spatial_features = spatial_data
-    )
-
-  required_pkgs <- required_pkgs(recipe)
-  expect_true("data.table" %in% required_pkgs)
+  # Perfoming validation
+  expect_in("data.table", required_pkgs)
+  expect_in("NycTaxi", required_pkgs)
 })

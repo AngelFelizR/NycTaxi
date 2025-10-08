@@ -101,6 +101,9 @@ step_join_geospatial_features <- function(
   skip = FALSE,
   id = recipes::rand_id("join_geospatial_features")
 ) {
+  # Testing we have the packages to run this step
+  recipes::recipes_pkg_check(required_pkgs.step_discretize_cart())
+
   recipes::add_step(
     recipe,
     step_join_geospatial_features_new(
@@ -252,7 +255,7 @@ bake.step_join_geospatial_features <- function(
 
 #' @export
 required_pkgs.step_join_geospatial_features <- function(x, ...) {
-  c("data.table")
+  c("data.table", "NycTaxi")
 }
 
 
