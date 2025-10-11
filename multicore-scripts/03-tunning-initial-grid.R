@@ -30,10 +30,10 @@ TrainingSampleForTrees <- pin_read(BoardRemote, "TrainingSampleForTrees")
 ## Resample to use -----
 
 set.seed(5878)
-TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
+TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 5)
 
 set.seed(1245)
-TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
+TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 5)
 
 
 ## Metrics to eval -----
@@ -50,18 +50,6 @@ GlmnetSpec <-
   logistic_reg(penalty = tune(), mixture = tune()) |>
   set_mode("classification") |>
   set_engine("glmnet")
-
-# Polynomial support vector machines (SVMs) via kernlab
-KernlabPolySpec <-
-  svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |>
-  set_mode("classification") |>
-  set_engine("kernlab")
-
-# Radial basis function support vector machines (SVMs) via kernlab
-KernlabRbfSpec <-
-  svm_rbf(cost = tune(), rbf_sigma = tune()) |>
-  set_mode("classification") |>
-  set_engine("kernlab")
 
 # Bagged trees via rpart
 RpartBagSpec <-
@@ -102,6 +90,20 @@ XrfSpec <-
   ) |>
   set_mode("classification") |>
   set_engine("xrf")
+
+# We are not using SVM models as the training time is too high for this initial tuning phase.
+# A focused tuning could be performed later if other models are not satisfactory.
+# Polynomial support vector machines (SVMs) via kernlab
+# KernlabPolySpec <-
+#   svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |>
+#   set_mode("classification") |>
+#   set_engine("kernlab")
+
+# Radial basis function support vector machines (SVMs) via kernlab
+# KernlabRbfSpec <-
+#   svm_rbf(cost = tune(), rbf_sigma = tune()) |>
+#   set_mode("classification") |>
+#   set_engine("kernlab")
 
 ## Recipes ----
 
@@ -152,9 +154,9 @@ NormalizedWorkFlowToTune <- workflow_set(
     pls = NormalizedPlsRecipe
   ),
   models = list(
-    logistic = GlmnetSpec,
-    svm_rbf = KernlabRbfSpec,
-    svm_poly = KernlabPolySpec
+    logistic = GlmnetSpec #,
+    # svm_rbf = KernlabRbfSpec,
+    # svm_poly = KernlabPolySpec
   )
 )
 
@@ -206,7 +208,7 @@ for (flow_i in c(
   initial_grid <-
     grid_space_filling(
       wf_param_i,
-      size = 15,
+      size = 5,
       type = "audze_eglais",
       original = FALSE
     )
