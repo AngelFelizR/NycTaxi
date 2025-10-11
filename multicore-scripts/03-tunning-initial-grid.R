@@ -1,4 +1,6 @@
-## Importing libraries
+# Importing ----
+
+## Libraries -----
 
 library(tidymodels)
 library(baguette)
@@ -8,7 +10,7 @@ library(here)
 library(pins)
 library(qs2)
 
-# Defining the pin boards to use
+## Pin boards to use ----
 
 BoardRemote <- board_url(
   "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
@@ -17,36 +19,15 @@ BoardRemote <- board_url(
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 
-## Defining source data paths
+## Formated data ----
 
-TrainingSampleNormalizedFilePath <- here(
-  "output/cache-data/09-data-preparation/TrainingSampleNormalized.qs"
-)
-TrainingSampleForTreesFilePath <- here(
-  "output/cache-data/09-data-preparation/TrainingSampleForTrees.qs"
-)
-NormalizedWorkFlowToTuneFilePath <- here(
-  "output/cache-data/09-data-preparation/NormalizedWorkFlowToTune.qs"
-)
-TreeWorkFlowsToTuneFilePath <- here(
-  "output/cache-data/09-data-preparation/TreeWorkFlowsToTune.qs"
-)
-NormalizedWorkFlowTunedFilePath <- here(
-  "output/cache-data/09-data-preparation/NormalizedWorkFlowTuned.qs"
-)
-TreeWorkFlowsTunedFilePath <- here(
-  "output/cache-data/09-data-preparation/TreeWorkFlowsTuned.qs"
-)
+TrainingSampleNormalized <- pin_read(BoardRemote, "TrainingSampleNormalized")
+TrainingSampleForTrees <- pin_read(BoardRemote, "TrainingSampleForTrees")
 
 
-## Importing source data
+# Defining options -----
 
-TrainingSampleNormalized <- qs2::qs_read(TrainingSampleNormalizedFilePath)
-TrainingSampleForTrees <- qs2::qs_read(TrainingSampleForTreesFilePath)
-NormalizedWorkFlowToTune <- qs2::qs_read(NormalizedWorkFlowToTuneFilePath)
-TreeWorkFlowsToTune <- qs2::qs_read(TreeWorkFlowsToTuneFilePath)
-
-## Defining resamples
+## Resample to use -----
 
 set.seed(5878)
 TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
@@ -55,12 +36,147 @@ set.seed(1245)
 TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
 
 
-## Defining metrics to use
+## Metrics to eval -----
 
 MetricsToEval <- metric_set(roc_auc, brier_class)
 
 
-## Saving the outputs
+# Defining workflow ----
+
+## Models ----
+
+# Logistic regression via glmnet
+GlmnetSpec <-
+  logistic_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("classification") |>
+  set_engine("glmnet")
+
+# Polynomial support vector machines (SVMs) via kernlab
+KernlabPolySpec <-
+  svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |>
+  set_mode("classification") |>
+  set_engine("kernlab")
+
+# Radial basis function support vector machines (SVMs) via kernlab
+KernlabRbfSpec <-
+  svm_rbf(cost = tune(), rbf_sigma = tune()) |>
+  set_mode("classification") |>
+  set_engine("kernlab")
+
+# Bagged trees via rpart
+RpartBagSpec <-
+  bag_tree(tree_depth = tune(), min_n = tune(), cost_complexity = tune()) |>
+  set_mode("classification") |>
+  set_engine("rpart")
+
+# Random forests via ranger
+RangerSpec <-
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) |>
+  set_mode("classification") |>
+  set_engine("ranger")
+
+# Boosted trees via xgboost
+XgboostSpec <-
+  boost_tree(
+    trees = tune(),
+    min_n = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    loss_reduction = tune(),
+    sample_size = tune()
+  ) |>
+  set_mode("classification") |>
+  set_engine("xgboost")
+
+# RuleFit models via xrf
+XrfSpec <-
+  rule_fit(
+    mtry = tune(),
+    trees = tune(),
+    min_n = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    loss_reduction = tune(),
+    sample_size = tune(),
+    penalty = tune()
+  ) |>
+  set_mode("classification") |>
+  set_engine("xrf")
+
+## Recipes ----
+
+start_recipe <- function(df) {
+  new_recipe =
+    recipe(take_current_trip ~ ., data = df) |>
+    update_role(
+      trip_id,
+      performance_per_hour,
+      percentile_75_performance,
+      new_role = "additional info"
+    )
+}
+
+NormalizedCorrRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_corr(all_numeric_predictors(), threshold = tune())
+
+NormalizedPcaRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_pca(all_numeric_predictors(), num_comp = tune()) |>
+  step_normalize(all_numeric_predictors())
+
+NormalizedPlsRecipe <-
+  start_recipe(TrainingSampleNormalized) |>
+  step_pls(all_numeric_predictors(), num_comp = tune()) |>
+  step_normalize(all_numeric_predictors())
+
+BasicTreeRecipe <- start_recipe(TrainingSampleForTrees)
+
+XgboostRecipe <-
+  BasicTreeRecipe |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
+
+XrfRecipe <-
+  XgboostRecipe |>
+  step_normalize(all_numeric_predictors())
+
+
+## Consolidate workflow ----
+
+NormalizedWorkFlowToTune <- workflow_set(
+  preproc = list(
+    rm_corr = NormalizedCorrRecipe,
+    pca = NormalizedPcaRecipe,
+    pls = NormalizedPlsRecipe
+  ),
+  models = list(
+    logistic = GlmnetSpec,
+    svm_rbf = KernlabRbfSpec,
+    svm_poly = KernlabPolySpec
+  )
+)
+
+TreeWorkFlowsToTune <- bind_rows(
+  workflow_set(
+    preproc = list(reduce_levels = BasicTreeRecipe),
+    models = list(bag_tree = RpartBagSpec, random_forest = RangerSpec)
+  ),
+  as_workflow_set(
+    xgboost = workflow(
+      preprocessor = XgboostRecipe,
+      spec = XgboostSpec
+    ),
+    rulefit = workflow(
+      preprocessor = XrfRecipe,
+      spec = XrfSpec
+    )
+  )
+)
+
+
+# Saving the outputs ----
 
 NormalizedWorkFlowTuned <- NormalizedWorkFlowToTune
 TreeWorkFlowsTuned <- TreeWorkFlowsToTune
@@ -122,7 +238,13 @@ for (flow_i in c(
         id = flow_i
       )
 
-    qs2::qs_save(NormalizedWorkFlowTuned, NormalizedWorkFlowTunedFilePath)
+    pin_write(
+      BoardLocal,
+      NormalizedWorkFlowTuned,
+      "NormalizedWorkFlowTuned",
+      type = "qs2",
+      title = "Tuned Normalized Work Flow"
+    )
   } else {
     TreeWorkFlowsTuned =
       TreeWorkFlowsTuned |>
@@ -131,7 +253,13 @@ for (flow_i in c(
         initial = tunning_results,
         id = flow_i
       )
-    qs2::qs_save(TreeWorkFlowsTuned, TreeWorkFlowsTunedFilePath)
+    pin_write(
+      BoardLocal,
+      TreeWorkFlowsTuned,
+      "TreeWorkFlowsTuned",
+      type = "qs2",
+      title = "Tuned Tree Work Flow"
+    )
   }
 
   print(paste("saved results for", flow_i))
