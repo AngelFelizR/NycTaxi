@@ -102,7 +102,7 @@ step_join_geospatial_features <- function(
   id = recipes::rand_id("join_geospatial_features")
 ) {
   # Testing we have the packages to run this step
-  recipes::recipes_pkg_check(required_pkgs.step_discretize_cart())
+  recipes::recipes_pkg_check(required_pkgs.step_join_geospatial_features())
 
   recipes::add_step(
     recipe,
