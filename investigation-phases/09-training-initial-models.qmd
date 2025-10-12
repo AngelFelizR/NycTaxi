@@ -1,5 +1,5 @@
 ---
-title: "Data Preparation"
+title: "Training initial models"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -7,39 +7,53 @@ execute:
   warning: false
 ---
 
+After explorting the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
+
+In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case willl train:
+
+- K-nearest neighbors via kknn
+- Regularized Regression Logistic Regression via glmnet
+- Bagged MARS via earth
+- Bagged trees via rpart
+- Random forests via ranger
+- Boosted trees via xgboost
+- RuleFit models via xrf
+
+We are going to fit 10 radom variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
     
 ## Setting up the environment
 
-In this section we are lodding the data functions to use for creating and testing the models.
+Here are the loaded libraries to start the process.
 
 ```{r}
-## Tools for modeling
-library(tidymodels)
-library(baguette)
-library(rules)
-
-## Tools to explore correlations
-library(corrr)
-library(glue)
-library(scales)
-
 ## To manage relative paths
 library(here)
-
-## Publish data sets, models, and other R objects
-library(pins)
-library(qs2)
 
 ## To transform data that fits in RAM
 library(data.table)
 library(lubridate)
 library(timeDate)
 
+# To manage parallel model training
+library(future)
+
+## Tools for modeling
+library(tidymodels)
+library(embed)
+library(discrim)
+library(baguette)
+
+## Publish data sets, models, and other R objects
+library(pins)
+library(qs2)
+
 ## Custom functions
 devtools::load_all()
+```
 
-params <- yaml::read_yaml(here("params.yml"))
+Then we need to define the boards need to store and read in process data.
 
+```{r}
 # Defining the pin boards to use
 BoardRemote <- board_url(
   "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
@@ -48,11 +62,75 @@ BoardRemote <- board_url(
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
-## Importing data
 
-Here we import  de data to use.
+## Defining models to train
+
+Now we can define the models to be trained and tuned.
 
 ```{r}
+# K-nearest neighbors
+KnnSpec <-
+  nearest_neighbor(neighbors = tune()) |>
+  set_mode("classification") |>
+  set_engine("kknn")
+
+# Regularized regression logistic regression
+GlmnetSpec <-
+  logistic_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("classification") |>
+  set_engine("glmnet")
+
+# Regularized discriminant analysis
+RdaSpec <-
+  discrim_regularized(frac_common_cov = tune(), frac_identity = tune()) |>
+  set_mode("classification") |>
+  set_engine('klaR')
+
+# Flexible discriminant analysis
+FdaSpec <-
+  discrim_flexible(prod_degree = tune()) |>
+  set_mode("classification") |>
+  set_engine('earth')
+
+# Bagged MARS
+EarthBagSpec <-
+  bag_mars(num_terms = tune(), prod_degree = tune()) |>
+  set_mode("classification") |>
+  set_engine("earth", times = 25)
+
+# Bagged trees
+RpartBagSpec <-
+  bag_tree(tree_depth = tune(), min_n = tune()) |>
+  set_mode("classification") |>
+  set_engine("rpart", times = 25)
+
+# Random forests
+RangerSpec <-
+  rand_forest(mtry = tune(), min_n = tune(), trees = 250) |>
+  set_mode("classification") |>
+  set_engine("ranger")
+
+# Boosted trees
+XgboostSpec <-
+  boost_tree(
+    trees = tune(),
+    min_n = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    loss_reduction = tune(),
+    sample_size = tune()
+  ) |>
+  set_mode("classification") |>
+  set_engine("xgboost")
+```
+
+## Importing data
+
+Here we import the data to use from the remote Board located in a github repo.
+
+```{r}
+#| eval: false
+
 AcsVariablesByZoneId <-
   pin_read(BoardRemote, "AcsVariablesByZoneId")[,
     LocationID := as.character(LocationID)
@@ -87,15 +165,17 @@ set.seed(2545)
 SampledDataSplit <- initial_split(SampledData)
 
 TrainingSample <- training(SampledDataSplit)
+TestingSample <- testing(SampledDataSplit)
 ```
 
+## Creating consolidation recipe
 
-## Data preparation
-
-Before training the models we need to create a recipe that integrate all the additional fills we can add based on domain knowledge, but keeping important columns for trip identification.
+As we want to create a final recipe that can reprodice the whole pipeline we start creating a recipe that combine all features that can be used to train the model, so we we run `predict` we would only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and all the rest of feature would be added as part of the tidymodels workflow. 
 
 ```{r}
-AllFeaturesRecipe <-
+#| eval: false
+
+ConsolidationRecipe <-
   # Starting Recipe
   recipe(
     take_current_trip ~
@@ -348,146 +428,39 @@ AllFeaturesRecipe <-
 
   # Imputing the data
   step_impute_median(all_numeric_predictors())
-
 ```
 
-## Defining models to train
+## Cosolidating features
 
-```{r}
-# Logistic regression via glmnet
-GlmnetSpec <-
-  logistic_reg(penalty = tune(), mixture = tune()) |>
-  set_mode("classification") |>
-  set_engine("glmnet")
-
-# Polynomial support vector machines (SVMs) via kernlab
-KernlabPolySpec <-
-  svm_poly(cost = tune(), degree = tune(), scale_factor = tune()) |>
-  set_mode("classification") |>
-  set_engine("kernlab")
-
-# Radial basis function support vector machines (SVMs) via kernlab
-KernlabRbfSpec <-
-  svm_rbf(cost = tune(), rbf_sigma = tune()) |>
-  set_mode("classification") |>
-  set_engine("kernlab")
-
-# Bagged trees via rpart
-RpartBagSpec <-
-  bag_tree(tree_depth = tune(), min_n = tune(), cost_complexity = tune()) |>
-  set_mode("classification") |>
-  set_engine("rpart")
-
-# Random forests via ranger
-RangerSpec <-
-  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) |>
-  set_mode("classification") |>
-  set_engine("ranger")
-
-# Boosted trees via xgboost
-XgboostSpec <-
-  boost_tree(
-    trees = tune(),
-    min_n = tune(),
-    tree_depth = tune(),
-    learn_rate = tune(),
-    loss_reduction = tune(),
-    sample_size = tune()
-  ) |>
-  set_mode("classification") |>
-  set_engine("xgboost")
-
-# RuleFit models via xrf
-XrfSpec <-
-  rule_fit(
-    mtry = tune(),
-    trees = tune(),
-    min_n = tune(),
-    tree_depth = tune(),
-    learn_rate = tune(),
-    loss_reduction = tune(),
-    sample_size = tune(),
-    penalty = tune()
-  ) |>
-  set_mode("classification") |>
-  set_engine("xrf")
-```
-
-## Defining recipes to use
-
-### Defining basic recipies
-
-
-```{r}
-NormalizedRecipe <-
-  AllFeaturesRecipe |>
-  step_YeoJohnson(all_numeric_predictors()) |>
-  step_dummy(all_nominal_predictors()) |>
-  step_nzv(all_predictors()) |>
-  step_normalize(all_numeric_predictors())
-
-BasicTreeRecipe <-
-  AllFeaturesRecipe |>
-  step_nzv(all_predictors()) |>
-  step_novel(all_nominal_predictors())
-```
-
-### Making preprossessing prior tunning
-
+As we are planing to train many models it's better to apply this initial recipes to the training and testing data to avoid having to apply the the same steps for each resample to train.
 
 ```{r}
 #| eval: false
 
-TrainingSampleNormalized <-
-  prep(NormalizedRecipe) |>
-  bake(new_data = NULL)
-
-TrainingSampleForTrees <-
-  prep(BasicTreeRecipe) |>
+TrainingSampleJoined <-
+  prep(ConsolidationRecipe) |>
   bake(new_data = NULL)
 
 pin_write(
   BoardLocal,
-  TrainingSampleNormalized,
-  "TrainingSampleNormalized",
+  TrainingSampleJoined,
+  "TrainingSampleJoined",
   type = "qs2",
-  title = "Training Sample Normalized"
+  title = "Training Sample Joined"
 )
 
-pin_write(
-  BoardLocal,
-  TrainingSampleForTrees,
-  "TrainingSampleForTrees",
-  type = "qs2",
-  title = "Training Sample For Trees"
-)
 ```
 
 ```{r}
 #| echo: false
 #| output: false
 
-TrainingSampleNormalized <- pin_read(BoardRemote, "TrainingSampleNormalized")
-TrainingSampleForTrees <- pin_read(BoardRemote, "TrainingSampleForTrees")
+TrainingSampleJoined <- pin_read(BoardRemote, "TrainingSampleJoined")
 ```
 
-### Defining resamples
+## Defining recipes for models that need normalized data
 
 ```{r}
-#| eval: false
-
-set.seed(5878)
-TrainingSampleNormalizedResamples <- vfold_cv(TrainingSampleNormalized, v = 10)
-
-set.seed(1245)
-TrainingSampleForTreesResamples <- vfold_cv(TrainingSampleForTrees, v = 10)
-```
-
-### Defining recipes to tune
-
-```{r}
-#| eval: false
-
 start_recipe <- function(df) {
   new_recipe =
     recipe(take_current_trip ~ ., data = df) |>
@@ -497,74 +470,100 @@ start_recipe <- function(df) {
       percentile_75_performance,
       new_role = "additional info"
     )
+
+  return(new_recipe)
 }
 
+BasicNormalizedRecipe <-
+  start_recipe(TrainingSampleJoined) |>
+  step_YeoJohnson(all_numeric_predictors()) |>
+  step_novel(all_nominal_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_nzv(all_predictors()) |>
+  step_normalize(all_numeric_predictors())
+
 NormalizedCorrRecipe <-
-  start_recipe(TrainingSampleNormalized) |>
+  BasicNormalizedRecipe |>
   step_corr(all_numeric_predictors(), threshold = tune())
 
 NormalizedPcaRecipe <-
-  start_recipe(TrainingSampleNormalized) |>
+  BasicNormalizedRecipe |>
   step_pca(all_numeric_predictors(), num_comp = tune()) |>
   step_normalize(all_numeric_predictors())
 
 NormalizedPlsRecipe <-
-  start_recipe(TrainingSampleNormalized) |>
-  step_pls(all_numeric_predictors(), num_comp = tune()) |>
+  BasicNormalizedRecipe |>
+  step_pls(
+    all_numeric_predictors(),
+    outcome = "take_current_trip",
+    num_comp = tune()
+  ) |>
   step_normalize(all_numeric_predictors())
 
-XgboostRecipe <-
-  start_recipe(TrainingSampleForTrees) |>
+NormalizedUmapRecipe <-
+  BasicNormalizedRecipe |>
+  step_umap(
+    all_numeric_predictors(),
+    outcome = "take_current_trip",
+    neighbors = tune(),
+    num_comp = tune()
+  ) |>
+  step_normalize(all_numeric_predictors())
+```
+
+## Defining recipes for tree based models
+
+```{r}
+
+ReducedLevelsRecipe <-
+  start_recipe(TrainingSampleJoined) |>
+  step_novel(all_nominal_predictors()) |>
   step_other(all_nominal_predictors(), threshold = tune()) |>
   step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
   step_nzv(all_predictors())
 
-XrfRecipe <-
-  XgboostRecipe |>
-  step_normalize(all_numeric_predictors())
 ```
 
-
-## Defining workflows to tune
+## Defining workflows to evaluate
 
 ```{r}
 #| eval: false
 
-NormalizedWorkFlowToTune <- workflow_set(
-  preproc = list(
-    rm_corr = NormalizedCorrRecipe,
-    pca = NormalizedPcaRecipe,
-    pls = NormalizedPlsRecipe
-  ),
-  models = list(
-    logistic = GlmnetSpec,
-    svm_rbf = KernlabRbfSpec,
-    svm_poly = KernlabPolySpec
-  )
-)
-
-TreeWorkFlowsToTune <- bind_rows(
+WorkFlowToTune <- bind_rows(
   workflow_set(
-    preproc = list(reduce_levels = BasicTreeRecipe),
-    models = list(bag_tree = RpartBagSpec, random_forest = RangerSpec)
-  ),
-  as_workflow_set(
-    xgboost = workflow(
-      preprocessor = XgboostRecipe,
-      spec = XgboostSpec
+    preproc = list(
+      rm_corr = NormalizedCorrRecipe,
+      pca = NormalizedPcaRecipe,
+      pls = NormalizedPlsRecipe,
+      umap = NormalizedUmapRecipe
     ),
-    rulefit = workflow(
-      preprocessor = XrfRecipe,
-      spec = XrfSpec
+    models = list(
+      knn = KnnSpec,
+      reg_logistic = GlmnetSpec,
+      reg_da = RdaSpec,
+      flex_da = FdaSpec,
+      bag_mars = EarthBagSpec
+    )
+  ),
+  workflow_set(
+    preproc = list(
+      reduced_levels = ReducedLevelsRecipe
+    ),
+    models = list(
+      bag_tree = RpartBagSpec,
+      random_forest = RangerSpec,
+      xgboost = XgboostSpec
     )
   )
 )
-```
 
+qs2::qs_save(WorkFlowToTune, here("../NycTaxiBigFiles/WorkFlowToTune.qs"))
+```
+  
 ## Tuning grid for each workflow
 
 ```{r}
-#| file: multicore-scripts/03-tunning-initial-grid.R
+#| file: multicore-scripts/03-tuning-initial-grid.R
 
 ```
 

@@ -37,13 +37,16 @@ rix(
     # To train ML
     "tidymodels", # Framework to create models with good practices
     "baguette", # Extending tidymodels
-    "rules", # Extending tidymodels
-    "corrr", # To explore correlations
-    "mixOmics", # Integrative data analysis
     "glmnet", # Regularized generalized linear models
-    "kernlab", # Kernel-based machine learning
+    "earth", # Multivariate Adaptive Regression Splines machine learning
     "ranger", # Fast implementation of random forests
     "xgboost", # Gradient boosting framework
+    "kknn", # K-nearest neighbors machine learning
+    "klaR", # For regularized discriminant analysis
+    "discrim", # To fit various discriminant analysis models
+    "mixOmics", # Engine for step_pls
+    "embed", # To use step_umap
+    "corrr", # To explore correlations
 
     # Databases
     "DBI", # Database interface
