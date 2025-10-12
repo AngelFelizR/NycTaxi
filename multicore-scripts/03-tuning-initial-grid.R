@@ -6,7 +6,6 @@ library(tidymodels)
 library(embed)
 library(discrim)
 library(baguette)
-
 library(future)
 
 
@@ -37,24 +36,46 @@ MetricsToEval <- metric_set(roc_auc, brier_class)
 
 ## Workflow to eval ----
 
-WorkFlowToTune <- qs2::qs_read(here("../NycTaxiBigFiles/WorkFlowToTune.qs"))
+WorkFlowToTune <- qs2::qs_read(here::here(
+  "../NycTaxiBigFiles/WorkFlowToTune.qs"
+))
 
 
 # Saving the outputs ----
 
 WorkFlowToTuned <- WorkFlowToTune
 
-for (flow_i in WorkFlowToTune$wflow_id) {
-  wf_i = extract_workflow(WorkFlowToTune, id = flow_i)
-  wf_param_i = extract_parameter_set_dials(wf_i)
+for (wf_id_i in WorkFlowToTune$wflow_id) {
+  wf_i <- extract_workflow(WorkFlowToTune, id = wf_id_i)
+  wf_param_i <- extract_parameter_set_dials(wf_i)
 
-  wf_param_i <- update(
-    wf_param_i,
-    threshold = threshold(range = c(0.7, 1.0)),
-    num_comp = num_comp(range = c(2L, 50L)),
-    min_n = min_n(range = c(2L, 25L)),
-    mtry = mtry(range = c(1L, ncol(TrainingSampleJoined) - 1L))
-  )
+  if (grepl("^rm_corr", wf_id_i)) {
+    wf_param_i <- update(
+      wf_param_i,
+      threshold = threshold(range = c(0.7, 1.0))
+    )
+  }
+
+  if (grepl("^(pca|pls|umap)_", wf_id_i)) {
+    wf_param_i <- update(
+      wf_param_i,
+      num_comp = num_comp(range = c(2L, 50L))
+    )
+  }
+
+  if (grepl("^reduced_levels_", wf_id_i)) {
+    wf_param_i <- update(
+      wf_param_i,
+      min_n = min_n(range = c(2L, 25L))
+    )
+  }
+
+  if (wf_id_i == "reduced_levels_random_forest") {
+    wf_param_i <- update(
+      wf_param_i,
+      mtry = mtry(range = c(1L, ncol(TrainingSampleJoined) - 1L))
+    )
+  }
 
   set.seed(14005)
   initial_grid <-
@@ -65,17 +86,15 @@ for (flow_i in WorkFlowToTune$wflow_id) {
       original = FALSE
     )
 
-  print(paste("tunning", flow_i, "with grid:"))
+  print(paste("tunning", wf_id_i, "with grid:"))
   print(initial_grid)
 
-  if (flow_i != "reduce_levels_bag_tree") {
-    plan(multicore, workers = 3)
-  }
+  plan(multicore, workers = 3)
 
   tunning_results =
     tune_grid(
       object = wf_i,
-      resamples = resample_i,
+      resamples = TrainingSampleJoinedResamples,
       param_info = wf_param_i,
       grid = initial_grid,
       metrics = MetricsToEval,
@@ -86,16 +105,14 @@ for (flow_i in WorkFlowToTune$wflow_id) {
       )
     )
 
-  if (flow_i != "reduce_levels_bag_tree") {
-    plan(sequential)
-  }
+  plan(sequential)
 
-  print(paste("saving results for", flow_i))
+  print(paste("saving results for", wf_id_i))
 
   qs2::qs_save(
     WorkFlowToTuned,
     here::here("../NycTaxiBigFiles/WorkFlowToTuned.qs")
   )
 
-  print(paste("saved results for", flow_i))
+  print(paste("saved results for", wf_id_i))
 }
