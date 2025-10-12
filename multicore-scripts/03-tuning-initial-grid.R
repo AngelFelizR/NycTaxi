@@ -11,7 +11,7 @@ library(future)
 
 ## Removing limit for parralell processing ----
 
-options(future.globals.maxSize = +Inf)
+options(future.globals.maxSize = 16.5 * 1e9) ## 16.5 GB
 
 
 ## Pin boards to use ----
