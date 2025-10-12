@@ -120,19 +120,29 @@ start_recipe <- function(df) {
 
 NormalizedCorrRecipe <-
   start_recipe(TrainingSampleNormalized) |>
+  step_zv(all_numeric_predictors()) |>
   step_corr(all_numeric_predictors(), threshold = tune())
 
 NormalizedPcaRecipe <-
   start_recipe(TrainingSampleNormalized) |>
+  step_zv(all_numeric_predictors()) |>
   step_pca(all_numeric_predictors(), num_comp = tune()) |>
   step_normalize(all_numeric_predictors())
 
 NormalizedPlsRecipe <-
   start_recipe(TrainingSampleNormalized) |>
-  step_pls(all_numeric_predictors(), num_comp = tune()) |>
+  step_zv(all_numeric_predictors()) |>
+  step_pls(
+    all_numeric_predictors(),
+    outcome = "take_current_trip",
+    num_comp = tune()
+  ) |>
   step_normalize(all_numeric_predictors())
 
-BasicTreeRecipe <- start_recipe(TrainingSampleForTrees)
+BasicTreeRecipe <-
+  start_recipe(TrainingSampleForTrees) |>
+  step_zv(all_predictors()) |>
+  step_nzv(all_predictors())
 
 XgboostRecipe <-
   BasicTreeRecipe |>
@@ -199,16 +209,30 @@ for (flow_i in c(
 
   wf_param_i = extract_parameter_set_dials(wf_i)
 
-  if (flow_i == "reduce_levels_random_forest") {
-    wf_param_i =
-      update(wf_param_i, mtry = mtry(c(1, ncol(TrainingSampleForTrees))))
+  # Now we need to set the ranges to tune
+
+  if (flow_i == "rm_corr_logistic") {
+    # Prevent the correlation threshold from being too low
+    wf_param_i <- update(wf_param_i, threshold = threshold(range = c(0.7, 1.0)))
+  } else if (flow_i %in% c("pca_logistic", "pls_logistic")) {
+    # Ensure we always have at least 2 components
+    wf_param_i <- update(wf_param_i, num_comp = num_comp(range = c(2L, 15L)))
+  } else if (flow_i == "reduce_levels_bag_tree") {
+    # Restrict min_n to a safer range to avoid rpart failures
+    wf_param_i <- update(wf_param_i, min_n = min_n(range = c(2L, 25L)))
+  } else if (flow_i == "reduce_levels_random_forest") {
+    # Your original code for random_forest (it's perfect)
+    wf_param_i <- update(
+      wf_param_i,
+      mtry = mtry(range = c(1L, ncol(TrainingSampleForTrees) - 1L))
+    )
   }
 
   set.seed(14005)
   initial_grid <-
     grid_space_filling(
       wf_param_i,
-      size = 5,
+      size = 10,
       type = "audze_eglais",
       original = FALSE
     )
