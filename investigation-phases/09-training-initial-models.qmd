@@ -7,19 +7,17 @@ execute:
   warning: false
 ---
 
-After explorting the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
+After exploring the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
 
-In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case willl train:
+In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case will train:
 
-- K-nearest neighbors via kknn
 - Regularized Regression Logistic Regression via glmnet
 - Bagged MARS via earth
 - Bagged trees via rpart
 - Random forests via ranger
 - Boosted trees via xgboost
-- RuleFit models via xrf
 
-We are going to fit 10 radom variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
+We are going to fit 5 random variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
     
 ## Setting up the environment
 
@@ -40,6 +38,7 @@ library(future)
 ## Tools for modeling
 library(tidymodels)
 library(embed)
+library(themis)
 library(discrim)
 library(baguette)
 
@@ -68,12 +67,6 @@ BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 Now we can define the models to be trained and tuned.
 
 ```{r}
-# K-nearest neighbors
-KnnSpec <-
-  nearest_neighbor(neighbors = tune()) |>
-  set_mode("classification") |>
-  set_engine("kknn")
-
 # Regularized regression logistic regression
 GlmnetSpec <-
   logistic_reg(penalty = tune(), mixture = tune()) |>
@@ -113,7 +106,7 @@ RangerSpec <-
 # Boosted trees
 XgboostSpec <-
   boost_tree(
-    trees = tune(),
+    trees = 250,
     min_n = tune(),
     tree_depth = tune(),
     learn_rate = tune(),
@@ -162,7 +155,7 @@ SampledData <-
   )
 
 set.seed(2545)
-SampledDataSplit <- initial_split(SampledData)
+SampledDataSplit <- initial_split(SampledData, strata = take_current_trip)
 
 TrainingSample <- training(SampledDataSplit)
 TestingSample <- testing(SampledDataSplit)
@@ -170,7 +163,7 @@ TestingSample <- testing(SampledDataSplit)
 
 ## Creating consolidation recipe
 
-As we want to create a final recipe that can reprodice the whole pipeline we start creating a recipe that combine all features that can be used to train the model, so we we run `predict` we would only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and all the rest of feature would be added as part of the tidymodels workflow. 
+As we want to create a final recipe that can reproduce the whole pipeline we start creating a recipe that combine all features that can be used to train the model, so we we run `predict` we would only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and all the rest of feature would be added as part of the tidymodels workflow. 
 
 ```{r}
 #| eval: false
@@ -244,7 +237,7 @@ ConsolidationRecipe <-
     frequency = 1,
     cycle_size = 3600 * 24 * 7,
     keep_original_cols = TRUE
-  ) %>%
+  ) |>
   step_rename(
     request_datetime_sin_weekly = request_datetime_sin_1,
     request_datetime_cos_weekly = request_datetime_cos_1
@@ -430,7 +423,7 @@ ConsolidationRecipe <-
   step_impute_median(all_numeric_predictors())
 ```
 
-## Cosolidating features
+## Consolidating features
 
 As we are planing to train many models it's better to apply this initial recipes to the training and testing data to avoid having to apply the the same steps for each resample to train.
 
@@ -458,7 +451,9 @@ pin_write(
 TrainingSampleJoined <- pin_read(BoardRemote, "TrainingSampleJoined")
 ```
 
-## Defining recipes for models that need normalized data
+## Common steps for all recipes
+
+Before creating the the first recipe it's  important to take in consideration that we want to keep `performance_per_hour` and `percentile_75_performance` to see how much money we could be loassing for bad predictions.
 
 ```{r}
 start_recipe <- function(df) {
@@ -473,18 +468,21 @@ start_recipe <- function(df) {
 
   return(new_recipe)
 }
+```
 
+## Defining recipes for models that need normalized data
+
+As the models that will be trained based on this data are very affect by class imbalance will downsample to avoid those problems and speed the training time, take in consideration that we have many examples of both cases and are looking for general rules that could used by taxi drivers. 
+
+```{r}
 BasicNormalizedRecipe <-
   start_recipe(TrainingSampleJoined) |>
+  step_downsample(take_current_trip, under_ratio = 1) |>
   step_YeoJohnson(all_numeric_predictors()) |>
   step_novel(all_nominal_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
   step_nzv(all_predictors()) |>
-  step_normalize(all_numeric_predictors())
-
-NormalizedCorrRecipe <-
-  BasicNormalizedRecipe |>
-  step_corr(all_numeric_predictors(), threshold = tune())
+  step_normalize(all_numeric_predictors())**
 
 NormalizedPcaRecipe <-
   BasicNormalizedRecipe |>
@@ -530,17 +528,22 @@ ReducedLevelsRecipe <-
 #| eval: false
 
 WorkFlowToTune <- bind_rows(
+    workflow_set(
+    preproc = list(
+      normalized = BasicNormalizedRecipe
+    ),
+    models = list(
+      reg_logistic = GlmnetSpec,
+      reg_da = RdaSpec
+    )
+  ),
   workflow_set(
     preproc = list(
-      rm_corr = NormalizedCorrRecipe,
       pca = NormalizedPcaRecipe,
       pls = NormalizedPlsRecipe,
       umap = NormalizedUmapRecipe
     ),
     models = list(
-      knn = KnnSpec,
-      reg_logistic = GlmnetSpec,
-      reg_da = RdaSpec,
       flex_da = FdaSpec,
       bag_mars = EarthBagSpec
     )
@@ -566,17 +569,3 @@ qs2::qs_save(WorkFlowToTune, here("../NycTaxiBigFiles/WorkFlowToTune.qs"))
 #| file: multicore-scripts/03-tuning-initial-grid.R
 
 ```
-
-```{r}
-NormalizedWorkFlowTuned$option[[1L]][["initial"]] |>
-  collect_metrics() |>
-  filter(.metric == "roc_auc") |>
-  arrange(desc(mean))
-
-mean(TrainingSample$take_current_trip == "yes")
-
-file.mtime(NormalizedWorkFlowTunedFilePath)
-```
-
-
-

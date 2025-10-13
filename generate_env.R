@@ -41,11 +41,11 @@ rix(
     "earth", # Multivariate Adaptive Regression Splines machine learning
     "ranger", # Fast implementation of random forests
     "xgboost", # Gradient boosting framework
-    "kknn", # K-nearest neighbors machine learning
     "klaR", # For regularized discriminant analysis
     "discrim", # To fit various discriminant analysis models
     "mixOmics", # Engine for step_pls
     "embed", # To use step_umap
+    "themis", # To apply Down-Sample
     "corrr", # To explore correlations
 
     # Databases

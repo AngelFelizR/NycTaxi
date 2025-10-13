@@ -4,6 +4,7 @@
 
 library(tidymodels)
 library(embed)
+library(themis)
 library(discrim)
 library(baguette)
 library(future)
@@ -81,7 +82,7 @@ for (wf_id_i in WorkFlowToTune$wflow_id) {
   initial_grid <-
     grid_space_filling(
       wf_param_i,
-      size = 10,
+      size = 5,
       type = "audze_eglais",
       original = FALSE
     )

@@ -23,11 +23,11 @@
 #  > "earth",
 #  > "ranger",
 #  > "xgboost",
-#  > "kknn",
 #  > "klaR",
 #  > "discrim",
 #  > "mixOmics",
 #  > "embed",
+#  > "themis",
 #  > "corrr",
 #  > "DBI",
 #  > "duckdb",
@@ -94,7 +94,6 @@ let
       here
       igraph
       infer
-      kknn
       klaR
       knitr
       leaflet
@@ -113,6 +112,7 @@ let
       stringdist
       stringr
       testthat
+      themis
       tibble
       tictoc
       tidycensus
