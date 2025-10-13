@@ -101,7 +101,7 @@ for (wf_id_i in WorkFlowToTune$wflow_id) {
       control = control_grid(
         verbose = TRUE,
         parallel_over = "resamples",
-        save_pred = TRUE
+        save_pred = FALSE
       )
     )
 
