@@ -15,16 +15,12 @@ library(here)
 devtools::load_all()
 
 
+# Defining the pin boards to use
+BoardLocal <- pins::board_folder(here("../NycTaxiPins/Board"))
+
 # Importing data ----
-
-PointMeanDistance <-
-  here("cache-data/04-base-line/PointMeanDistance.fst") |>
-  read_fst(as.data.table = TRUE)
-
-ValidZoneSample <-
-  here("cache-data/05-data-sampling/ValidZoneSample.fst") |>
-  read_fst(as.data.table = TRUE)
-
+PointMeanDistance <- pins::pin_read(BoardLocal, "PointMeanDistance")
+ValidZoneSample <- pins::pin_read(BoardLocal, "ValidZoneSample")
 
 # Selecting the data to use -----
 
@@ -45,7 +41,9 @@ ValidZoneSampleByMonth <-
 
     ## Adding path first parquet month
   ][,
-    source_path := here("raw-data/trip-data/year=2022/month=01/part-0.parquet")
+    source_path := here(
+      "../NycTaxiBigFiles/trip-data/year=2022/month=01/part-0.parquet"
+    )
   ]
 
 

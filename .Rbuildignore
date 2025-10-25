@@ -1,7 +1,5 @@
 ^output$
 ^output/
-^raw-data$
-^raw-data/
 ^docs$
 ^docs/
 ^investigation-phases$

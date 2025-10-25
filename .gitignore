@@ -14,8 +14,6 @@ _site/
 docs/
 
 # Project data (large, not for Git)
-cache-data/
-raw-data/
 .vscode/
 .quarto/
 
