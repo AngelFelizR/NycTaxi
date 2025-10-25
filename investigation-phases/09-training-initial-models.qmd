@@ -12,7 +12,7 @@ After exploring the data and getting new features it's time to explore the data 
 In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case will train:
 
 - Regularized Regression Logistic Regression via glmnet
-- Bagged MARS via earth
+- MARS via earth
 - Bagged trees via rpart
 - Random forests via ranger
 - Boosted trees via xgboost
@@ -85,17 +85,16 @@ FdaSpec <-
   set_mode("classification") |>
   set_engine('earth')
 
-# Bagged MARS
-EarthBagSpec <-
-  bag_mars(num_terms = tune(), prod_degree = tune()) |>
-  set_mode("classification") |>
-  set_engine("earth", times = 25)
+# MARS
+EarthSpec <-
+  mars(num_terms = tune(), prod_degree = tune()) |>
+  set_mode("classification")
 
 # Bagged trees
 RpartBagSpec <-
-  bag_tree(tree_depth = tune(), min_n = tune()) |>
+  bag_tree(min_n = tune()) |>
   set_mode("classification") |>
-  set_engine("rpart", times = 25)
+  set_engine("C5.0")
 
 # Random forests
 RangerSpec <-
@@ -420,7 +419,10 @@ ConsolidationRecipe <-
   ))) |>
 
   # Imputing the data
-  step_impute_median(all_numeric_predictors())
+  step_impute_median(all_numeric_predictors()) |>
+
+  # Balancing data
+  step_downsample(take_current_trip, under_ratio = 1)
 ```
 
 ## Consolidating features
@@ -477,12 +479,11 @@ As the models that will be trained based on this data are very affect by class i
 ```{r}
 BasicNormalizedRecipe <-
   start_recipe(TrainingSampleJoined) |>
-  step_downsample(take_current_trip, under_ratio = 1) |>
   step_YeoJohnson(all_numeric_predictors()) |>
   step_novel(all_nominal_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
   step_nzv(all_predictors()) |>
-  step_normalize(all_numeric_predictors())**
+  step_normalize(all_numeric_predictors())
 
 NormalizedPcaRecipe <-
   BasicNormalizedRecipe |>
@@ -527,42 +528,68 @@ ReducedLevelsRecipe <-
 ```{r}
 #| eval: false
 
-WorkFlowToTune <- bind_rows(
-    workflow_set(
-    preproc = list(
-      normalized = BasicNormalizedRecipe
-    ),
-    models = list(
-      reg_logistic = GlmnetSpec,
-      reg_da = RdaSpec
-    )
+# Group 1: Simple linear models (ligeros en memoria)
+WorkFlowSimple <- workflow_set(
+  preproc = list(
+    normalized = BasicNormalizedRecipe
   ),
-  workflow_set(
-    preproc = list(
-      pca = NormalizedPcaRecipe,
-      pls = NormalizedPlsRecipe,
-      umap = NormalizedUmapRecipe
-    ),
-    models = list(
-      flex_da = FdaSpec,
-      bag_mars = EarthBagSpec
-    )
-  ),
-  workflow_set(
-    preproc = list(
-      reduced_levels = ReducedLevelsRecipe
-    ),
-    models = list(
-      bag_tree = RpartBagSpec,
-      random_forest = RangerSpec,
-      xgboost = XgboostSpec
-    )
+  models = list(
+    reg_logistic = GlmnetSpec,
+    reg_da = RdaSpec
   )
 )
 
-qs2::qs_save(WorkFlowToTune, here("../NycTaxiBigFiles/WorkFlowToTune.qs"))
+# Group 2: Dimensionality reduction models (intensivos en memoria)
+WorkFlowDimReduction <- workflow_set(
+  preproc = list(
+    pca = NormalizedPcaRecipe,
+    pls = NormalizedPlsRecipe,
+    umap = NormalizedUmapRecipe
+  ),
+  models = list(
+    flex_da = FdaSpec,
+    mars = EarthSpec
+  )
+)
+
+# Group 3: Tree-based models (muy intensivos en memoria)
+WorkFlowTrees <- workflow_set(
+  preproc = list(
+    reduced_levels = ReducedLevelsRecipe
+  ),
+  models = list(
+    bag_tree = RpartBagSpec,
+    random_forest = RangerSpec,
+    xgboost = XgboostSpec
+  )
+)
+
+pin_write(
+  BoardLocal,
+  WorkFlowSimple,
+  "WorkFlowSimple",
+  type = "qs2",
+  title = "Work Flow Simple"
+)
+
+pin_write(
+  BoardLocal,
+  WorkFlowDimReduction,
+  "WorkFlowDimReduction",
+  type = "qs2",
+  title = "Work Flow Dim Reduction"
+)
+
+pin_write(
+  BoardLocal,
+  WorkFlowTrees,
+  "WorkFlowTrees",
+  type = "qs2",
+  title = "Work Flow Trees"
+)
 ```
   
+
 ## Tuning grid for each workflow
 
 ```{r}

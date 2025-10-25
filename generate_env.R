@@ -39,6 +39,8 @@ rix(
     "baguette", # Extending tidymodels
     "glmnet", # Regularized generalized linear models
     "earth", # Multivariate Adaptive Regression Splines machine learning
+    "mda", # Mixture and Flexible Discriminant Analysis
+    "C50", #C5.0 Decision Trees and Rule-Based Models
     "ranger", # Fast implementation of random forests
     "xgboost", # Gradient boosting framework
     "klaR", # For regularized discriminant analysis
