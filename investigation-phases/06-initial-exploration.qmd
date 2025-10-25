@@ -61,7 +61,6 @@ options(datatable.print.nrows = 15, digits = 4)
 devtools::load_all()
 
 # Defining the pin boards to use
-BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -69,12 +68,12 @@ BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 ```{r}
 SampledData <-
-  pin_list(BoardRemote) |>
+  pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
   head(12L) |>
   lapply(FUN = pin_read,
-         board = BoardRemote) |>
+         board = BoardLocal) |>
   rbindlist()
 
 set.seed(2545)
@@ -86,7 +85,7 @@ TrainingSample <- training(SampledDataSplit)
 ### Importing geospatial information
 
 ```{r}
-ZoneCodesRef <- pin_read(BoardRemote, "ZoneCodesRef")
+ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")
 ```
 
 ### Adding features for exploration

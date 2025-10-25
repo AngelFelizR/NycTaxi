@@ -54,10 +54,6 @@ Then we need to define the boards need to store and read in process data.
 
 ```{r}
 # Defining the pin boards to use
-BoardRemote <- board_url(
-  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
-)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -124,26 +120,26 @@ Here we import the data to use from the remote Board located in a github repo.
 #| eval: false
 
 AcsVariablesByZoneId <-
-  pin_read(BoardRemote, "AcsVariablesByZoneId")[,
+  pin_read(BoardLocal, "AcsVariablesByZoneId")[,
     LocationID := as.character(LocationID)
   ]
 
-OmsDensityFeatures <- pin_read(BoardRemote, "OmsDensityFeatures")[,
+OmsDensityFeatures <- pin_read(BoardLocal, "OmsDensityFeatures")[,
   LocationID := as.character(LocationID)
 ]
 
-ZoneCodesRef <- pin_read(BoardRemote, "ZoneCodesRef")[, c(
+ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")[, c(
   "LocationID",
   "Borough",
   "service_zone"
 )]
 
 SampledData <-
-  pin_list(BoardRemote) |>
+  pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
   head(12L) |>
-  lapply(FUN = pin_read, board = BoardRemote) |>
+  lapply(FUN = pin_read, board = BoardLocal) |>
   rbindlist() |>
   tibble::as_tibble() |>
   mutate(
@@ -450,7 +446,7 @@ pin_write(
 #| echo: false
 #| output: false
 
-TrainingSampleJoined <- pin_read(BoardRemote, "TrainingSampleJoined")
+TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 ```
 
 ## Common steps for all recipes

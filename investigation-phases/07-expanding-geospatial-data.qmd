@@ -120,10 +120,6 @@ library(ggplot2)
 devtools::load_all()
 
 # Defining the pin boards to use
-BoardRemote <- board_url(
-  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
-)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -137,16 +133,16 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 
 ```{r}
 ZonesShapes <-
-  pin_read(BoardRemote, "ZonesShapes") |>
+  pin_read(BoardLocal, "ZonesShapes") |>
   subset(borough %in% BoroughSelected) |>
   transform(Shape_Area = st_area(geometry))
 
 SampledData <-
-  pin_list(BoardRemote) |>
+  pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
   head(12L) |>
-  lapply(FUN = pin_read, board = BoardRemote) |>
+  lapply(FUN = pin_read, board = BoardLocal) |>
   rbindlist() |>
   subset(
     select = c("trip_id", "PULocationID", "DOLocationID", "take_current_trip")
@@ -175,7 +171,7 @@ BoardLocal |> pin_write(bb_box, "bb_box", type = "qs2")
 #| output: false
 
 if (!exists("bb_box")) {
-  bb_box <- pin_read(BoardRemote, "bb_box")
+  bb_box <- pin_read(BoardLocal, "bb_box")
 }
 ```
 
@@ -336,7 +332,7 @@ OsmDataComplete
 # If the final data object doesn't exist in the current session...
 if (!exists("OsmDataComplete")) {
   # ...read it directly from the remote cache instead of re-running the slow code.
-  OsmDataComplete <- pin_read(BoardRemote, "OsmDataComplete")
+  OsmDataComplete <- pin_read(BoardLocal, "OsmDataComplete")
 }
 
 OsmDataComplete
@@ -378,23 +374,23 @@ MultiPolygonWithinZones <-
 #| echo: false
 
 if (!exists("PointsWithinZones")) {
-  PointsWithinZones <- pin_read(BoardRemote, "PointsWithinZones")
+  PointsWithinZones <- pin_read(BoardLocal, "PointsWithinZones")
 }
 
 if (!exists("LinesWithinZones")) {
-  LinesWithinZones <- pin_read(BoardRemote, "LinesWithinZones")
+  LinesWithinZones <- pin_read(BoardLocal, "LinesWithinZones")
 }
 
 if (!exists("MultiLinesWithinZones")) {
-  MultiLinesWithinZones <- pin_read(BoardRemote, "MultiLinesWithinZones")
+  MultiLinesWithinZones <- pin_read(BoardLocal, "MultiLinesWithinZones")
 }
 
 if (!exists("PolygonWithinZones")) {
-  PolygonWithinZones <- pin_read(BoardRemote, "PolygonWithinZones")
+  PolygonWithinZones <- pin_read(BoardLocal, "PolygonWithinZones")
 }
 
 if (!exists("MultiPolygonWithinZones")) {
-  MultiPolygonWithinZones <- pin_read(BoardRemote, "MultiPolygonWithinZones")
+  MultiPolygonWithinZones <- pin_read(BoardLocal, "MultiPolygonWithinZones")
 }
 ```
 
@@ -469,20 +465,20 @@ MultiPolygonInSeveralZones <-
 #| echo: false
 
 if (!exists("LinesInSeveralZones")) {
-  LinesInSeveralZones <- pin_read(BoardRemote, "LinesInSeveralZones")
+  LinesInSeveralZones <- pin_read(BoardLocal, "LinesInSeveralZones")
 }
 
 if (!exists("MultiLinesInSeveralZones")) {
-  MultiLinesInSeveralZones <- pin_read(BoardRemote, "MultiLinesInSeveralZones")
+  MultiLinesInSeveralZones <- pin_read(BoardLocal, "MultiLinesInSeveralZones")
 }
 
 if (!exists("PolygonInSeveralZones")) {
-  PolygonInSeveralZones <- pin_read(BoardRemote, "PolygonInSeveralZones")
+  PolygonInSeveralZones <- pin_read(BoardLocal, "PolygonInSeveralZones")
 }
 
 if (!exists("MultiPolygonInSeveralZones")) {
   MultiPolygonInSeveralZones <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "MultiPolygonInSeveralZones"
   )
 }
@@ -580,28 +576,28 @@ MultiPolygonInSeveralZonesCropped <-
 
 if (!exists("LinesInSeveralZonesCropped")) {
   LinesInSeveralZonesCropped <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "LinesInSeveralZonesCropped"
   )
 }
 
 if (!exists("MultiLinesInSeveralZonesCropped")) {
   MultiLinesInSeveralZonesCropped <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "MultiLinesInSeveralZonesCropped"
   )
 }
 
 if (!exists("PolygonInSeveralZonesCropped")) {
   PolygonInSeveralZonesCropped <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "PolygonInSeveralZonesCropped"
   )
 }
 
 if (!exists("MultiPolygonInSeveralZonesCropped")) {
   MultiPolygonInSeveralZonesCropped <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "MultiPolygonInSeveralZonesCropped"
   )
 }
@@ -706,21 +702,21 @@ BoardLocal |>
 
 if (!exists("AllPointsZones")) {
   AllPointsZones <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "AllPointsZones"
   )
 }
 
 if (!exists("AllLinesZones")) {
   AllLinesZones <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "AllLinesZones"
   )
 }
 
 if (!exists("AllPolygonZones")) {
   AllPolygonZones <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "AllPolygonZones"
   )
 }
@@ -808,21 +804,21 @@ BoardLocal |>
 
 if (!exists("PointDensityFeatures")) {
   PointDensityFeatures <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "PointDensityFeatures"
   )
 }
 
 if (!exists("LineDensityFeatures")) {
   LineDensityFeatures <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "LineDensityFeatures"
   )
 }
 
 if (!exists("PolygonDensityFeatures")) {
   PolygonDensityFeatures <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "PolygonDensityFeatures"
   )
 }
@@ -889,7 +885,7 @@ BoardLocal |>
 
 if (!exists("CorMatrix")) {
   CorMatrix <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "CorMatrix"
   )
 }
@@ -919,7 +915,7 @@ BoardLocal |>
 
 if (!exists("TopOsmCorrelations")) {
   TopOsmCorrelations <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "TopOsmCorrelations"
   )
 }
@@ -978,7 +974,6 @@ rm(
       "TrainingSampleOmsDensityFeatures",
       "ColorHighlight",
       "ColorGray",
-      "BoardRemote",
       "BoardLocal"
     )
   )
@@ -987,7 +982,7 @@ gc()
 
 if (!exists("OsmMedianDiff")) {
   OsmMedianDiff <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "OsmMedianDiff"
   )
 }
@@ -1047,7 +1042,7 @@ rm(
       "TrainingSampleOmsDensityFeatures",
       "ColorHighlight",
       "ColorGray",
-      "BoardRemote",
+      "BoardLocal",
       "BoardLocal"
     )
   )
@@ -1056,7 +1051,7 @@ gc()
 
 if (!exists("TopOsmMedianDiff")) {
   TopOsmMedianDiff <- pin_read(
-    BoardRemote,
+    BoardLocal,
     "TopOsmMedianDiff"
   )
 }

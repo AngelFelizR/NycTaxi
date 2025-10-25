@@ -56,7 +56,6 @@ Navigate to the parent directory where you want to store the project and another
 cd <parent-dir-path>
 mkdir NycTaxiBigFiles
 mkdir NycTaxiPins
-mkdir NycTaxiBoardCache
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
@@ -71,14 +70,16 @@ Execute the command below to run the container based on the `angelfelizr/nyc-tax
 
 
 ```bash
-docker run -tid --rm \
+docker run --rm -tid \
   --name nyc-taxi-container \
   -p 2222:22 \
-  -v <parent-dir-path>/NycTaxi:/root/NycTaxi \
-  -v <parent-dir-path>/NycTaxiBigFiles:/root/NycTaxiBigFiles \
-  -v <parent-dir-path>/NycTaxiPins:/root/NycTaxiPins \
-  -v <parent-dir-path>/NycTaxiBoardCache:/root/NycTaxiBoardCache \
-  angelfelizr/nyc-taxi-nix:4.5.1
+  -v ~/r-projects/NycTaxi:/home/nyc/NycTaxi \
+  -v ~/r-projects/NycTaxiPins:/home/nyc/NycTaxiPins \
+  -v ~/r-projects/NycTaxiBigFiles:/home/nyc/NycTaxiBigFiles \
+  angelfelizr/nyc-taxi-nix:4.5.1 && sleep 2 && \
+  docker cp ~/.ssh/id_rsa.pub nyc-taxi-container:/home/nyc/.ssh/authorized_keys && \
+  docker exec nyc-taxi-container chown nyc:nyc /home/nyc/.ssh/authorized_keys && \
+  docker exec nyc-taxi-container chmod 600 /home/nyc/.ssh/authorized_keys
 ```
 
 ### 5. Access the Container
@@ -101,4 +102,17 @@ Once inside the container, navigate to the `NycTaxi` folder and start the Nix sh
 ```bash
 cd NycTaxi
 nix-shell
+```
+
+### 7. Remote Pin board
+
+```bash
+mkdir ../NycTaxiBoardCache
+```
+
+```r
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here("../NycTaxiBoardCache")
+)
 ```

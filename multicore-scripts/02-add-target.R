@@ -15,17 +15,14 @@ library(here)
 devtools::load_all()
 
 # Defining the pin boards to use
-BoardRemote <- board_url(
-  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
-)
+
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 
 
 # Importing data ----
 
-PointMeanDistance <- BoardRemote |> pin_read("PointMeanDistance")
-ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
+PointMeanDistance <- BoardLocal |> pin_read("PointMeanDistance")
+ValidZoneSample <- BoardLocal |> pin_read("ValidZoneSample")
 
 
 # Selecting the data to use -----

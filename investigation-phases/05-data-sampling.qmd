@@ -43,10 +43,6 @@ devtools::load_all()
 options(datatable.print.nrows = 15, digits = 4)
 
 # Defining the pin boards to use
-BoardRemote <- board_url(
-  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
-)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -87,7 +83,7 @@ BoardLocal |> pin_write(ValidZoneSample, "ValidZoneSample", type = "qs2")
 
 ```{r echo=FALSE}
 if (!exists("ValidZoneSample")) {
-  ValidZoneSample <- BoardRemote |> pin_read("ValidZoneSample")
+  ValidZoneSample <- BoardLocal |> pin_read("ValidZoneSample")
 }
 ```
 
@@ -294,5 +290,5 @@ bash multicore-scripts/run_add_target.sh multicore-scripts/02-add-target.R  1 24
 Here we can see that the 24 files have been saved as fst binnary files.
 
 ```{r}
-BoardRemote |> pin_list() |> grep(pattern = "OneMonth", value = TRUE) |> sort()
+BoardLocal |> pin_list() |> grep(pattern = "OneMonth", value = TRUE) |> sort()
 ```

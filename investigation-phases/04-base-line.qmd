@@ -75,7 +75,6 @@ devtools::load_all()
 options(datatable.print.nrows = 15, digits = 4)
 
 # Defining the pin boards to use
-BoardRemote <- board_url("https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/", cache = here("../NycTaxiBoardCache"))
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -90,7 +89,7 @@ con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 ```{r}
 #| label: import zones
 
-ZoneCodesRef <- BoardRemote |> pin_read("ZoneCodesRef")
+ZoneCodesRef <- BoardLocal |> pin_read("ZoneCodesRef")
 
 ZoneCodesRef[, LocationID := as.integer(LocationID)]
 ```
@@ -101,10 +100,11 @@ ZoneCodesRef[, LocationID := as.integer(LocationID)]
 #| label: selecting zones
 
 ZoneCodesFilter <-
-  ZoneCodesRef[c("Manhattan", "Brooklyn", "Queens"), 
-               on = "Borough",
-               CJ(PULocationID = LocationID,
-                  DOLocationID = LocationID)]
+  ZoneCodesRef[
+    c("Manhattan", "Brooklyn", "Queens"),
+    on = "Borough",
+    CJ(PULocationID = LocationID, DOLocationID = LocationID)
+  ]
 ```
 
 5.  Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 3518 **the sample is not reproducible**, so we need to save the on disk to keep using the same data.
@@ -135,8 +135,8 @@ pillar::glimpse(SimulationStartDay)
 ```{r echo=FALSE}
 #| label: Simulation start date
 
-if(!exists("SimulationStartDay")){
-  SimulationStartDay <- BoardRemote |> pin_read("SimulationStartDay")
+if (!exists("SimulationStartDay")) {
+  SimulationStartDay <- BoardLocal |> pin_read("SimulationStartDay")
 
   pillar::glimpse(SimulationStartDay)
 }
@@ -157,10 +157,12 @@ SimulationStartDay[, .N, year]
 ```{r}
 #| label: Start Zone distribution
 
-ZoneCodesRef[SimulationStartDay, 
-             on = c("LocationID" = "PULocationID"),
-             .N,
-             by = "Borough"]
+ZoneCodesRef[
+  SimulationStartDay,
+  on = c("LocationID" = "PULocationID"),
+  .N,
+  by = "Borough"
+]
 ```
 
 -   The trips end on the expected boroughs.
@@ -168,10 +170,12 @@ ZoneCodesRef[SimulationStartDay,
 ```{r}
 #| label: End Zone distribution
 
-ZoneCodesRef[SimulationStartDay, 
-             on = c("LocationID" = "DOLocationID"),
-             .N,
-             by = "Borough"]
+ZoneCodesRef[
+  SimulationStartDay,
+  on = c("LocationID" = "DOLocationID"),
+  .N,
+  by = "Borough"
+]
 ```
 
 Now we can conclude that the initial data **satisfy the assumption 1**.
@@ -259,8 +263,8 @@ BoardLocal |> pin_write(SimulationHourlyWage, "SimulationHourlyWage", type = "qs
 ```{r echo=FALSE}
 #| label: Getting simulation results
 
-if(!exists("SimulationHourlyWage")){
-  SimulationHourlyWage <- BoardRemote |> pin_read("SimulationHourlyWage")
+if (!exists("SimulationHourlyWage")) {
+  SimulationHourlyWage <- BoardLocal |> pin_read("SimulationHourlyWage")
 }
 ```
 
@@ -276,18 +280,22 @@ dbDisconnect(con, shutdown = TRUE)
 #| label: Showing results
 
 DailyHourlyWage <-
-  SimulationHourlyWage[, .(`Daily Hourly Wage` = 
-                             sum(sim_driver_pay + sim_tips) /
-                             as.double(difftime(max(sim_dropoff_datetime), 
-                                                min(sim_request_datetime),
-                                                units = "hours"))),
-                       by = "simulation_id"]
+  SimulationHourlyWage[,
+    .(
+      `Daily Hourly Wage` = sum(sim_driver_pay + sim_tips) /
+        as.double(difftime(
+          max(sim_dropoff_datetime),
+          min(sim_request_datetime),
+          units = "hours"
+        ))
+    ),
+    by = "simulation_id"
+  ]
 
 
 DailyHourlyWage |>
-  ggplot()+
-  geom_histogram(aes(`Daily Hourly Wage`),
-                 bins = 10) +
+  ggplot() +
+  geom_histogram(aes(`Daily Hourly Wage`), bins = 10) +
   scale_x_continuous(breaks = breaks_width(10)) +
   theme_light()
 ```
@@ -304,8 +312,7 @@ After simulating 60 days, we can use **bootstrap** to infer the distribution of 
 set.seed(1586)
 
 BootstrapHourlyWage <-
-  specify(DailyHourlyWage,
-          `Daily Hourly Wage` ~ NULL) |>
+  specify(DailyHourlyWage, `Daily Hourly Wage` ~ NULL) |>
   generate(reps = 3000, type = "bootstrap") |>
   calculate(stat = "mean")
 
@@ -317,10 +324,8 @@ BootstrapHourlyWage
 ```{r}
 #| label: Getting interval
 
-BootstrapInterval <- 
-  get_ci(BootstrapHourlyWage, 
-         level = 0.95,
-         type = "percentile")
+BootstrapInterval <-
+  get_ci(BootstrapHourlyWage, level = 0.95, type = "percentile")
 
 BootstrapInterval
 ```
@@ -330,22 +335,22 @@ BootstrapInterval
 ```{r}
 #| label: Plotting internval
 
-visualize(BootstrapHourlyWage)+
-  shade_ci(endpoints = BootstrapInterval,
-           color = "#2c77BF",
-           fill = "#2c77BF")+
-  annotate(geom = "text",
-           y = 400,
-           x = c(BootstrapInterval[1L][[1L]] - 0.4,
-                 BootstrapInterval[2L][[1L]] + 0.4),
-           label = unlist(BootstrapInterval) |> comma(accuracy = 0.01))+
-  labs(title = "Mean Hourly Wage Distribution",
-       y = "Count")+
-  theme_light()+
-  theme(panel.grid.minor.y = element_blank(),
-        panel.grid.major.y = element_blank(),
-        plot.title = element_text(face = "bold"),
-        axis.title.x = element_blank())
+visualize(BootstrapHourlyWage) +
+  shade_ci(endpoints = BootstrapInterval, color = "#2c77BF", fill = "#2c77BF") +
+  annotate(
+    geom = "text",
+    y = 400,
+    x = c(BootstrapInterval[1L][[1L]] - 0.4, BootstrapInterval[2L][[1L]] + 0.4),
+    label = unlist(BootstrapInterval) |> comma(accuracy = 0.01)
+  ) +
+  labs(title = "Mean Hourly Wage Distribution", y = "Count") +
+  theme_light() +
+  theme(
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold"),
+    axis.title.x = element_blank()
+  )
 ```
 
 ## Business Case
@@ -357,7 +362,7 @@ If we can check the simulation results we can confirm that a 25% of the simulate
 ```{r}
 #| label: Goal Rate
 
-GoalRate <- 
+GoalRate <-
   DailyHourlyWage$`Daily Hourly Wage` |>
   quantile(probs = 0.75) |>
   unname() |>

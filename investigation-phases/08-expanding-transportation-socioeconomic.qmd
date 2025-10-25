@@ -83,10 +83,6 @@ library(gt)
 devtools::load_all()
 
 # Defining the pin boards to use
-BoardRemote <- board_url(
-  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
-)
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
 ```
 
@@ -100,18 +96,18 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 
 ```{r}
 ZonesShapes <-
-  pin_read(BoardRemote, "ZonesShapes") |>
+  pin_read(BoardLocal, "ZonesShapes") |>
   (\(df) {
     df[df[["borough"]] %chin% BoroughSelected, c("OBJECTID", "LocationID")]
   })() |>
   st_cast(to = "MULTIPOLYGON")
 
 SampledData <-
-  pin_list(BoardRemote) |>
+  pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
   head(12L) |>
-  lapply(FUN = pin_read, board = BoardRemote) |>
+  lapply(FUN = pin_read, board = BoardLocal) |>
   rbindlist() |>
   subset(
     select = c("trip_id", "PULocationID", "DOLocationID", "take_current_trip")
@@ -250,7 +246,7 @@ ValidTablesYears[, head(.SD, 5), by = "survey"]
 #| output: false
 
 if (!exists("ValidTablesYears")) {
-  ValidTablesYears <- pin_read(BoardRemote, "ValidTablesYears")
+  ValidTablesYears <- pin_read(BoardLocal, "ValidTablesYears")
 }
 ```
 
@@ -300,7 +296,7 @@ nrow(ValidTablesLastYear) |> comma()
 #| output: false
 
 if (!exists("ValidTablesLastYear")) {
-  ValidTablesLastYear <- pin_read(BoardRemote, "ValidTablesLastYear")
+  ValidTablesLastYear <- pin_read(BoardLocal, "ValidTablesLastYear")
 }
 ```
 
@@ -557,7 +553,7 @@ BoardLocal |> pin_write(ConceptsToExploreByDistance, "ConceptsToExploreByDistanc
 #| output: false
 
 if (!exists("ConceptsToExploreByDistance")) {
-  ConceptsToExploreByDistance <- pin_read(BoardRemote, "ConceptsToExploreByDistance")
+  ConceptsToExploreByDistance <- pin_read(BoardLocal, "ConceptsToExploreByDistance")
 }
 ```
 
@@ -931,11 +927,11 @@ BoardLocal |> pin_write(DecVariableTracts, "DecVariableTracts", type = "qs2")
 #| output: false
 
 if (!exists("AcsVariableTracts")) {
-  AcsVariableTracts <- pin_read(BoardRemote, "AcsVariableTracts")
+  AcsVariableTracts <- pin_read(BoardLocal, "AcsVariableTracts")
 }
 
 if (!exists("DecVariableTracts")) {
-  DecVariableTracts <- pin_read(BoardRemote, "DecVariableTracts")
+  DecVariableTracts <- pin_read(BoardLocal, "DecVariableTracts")
 }
 ```
 
@@ -1030,7 +1026,7 @@ BoardLocal |> pin_write(
 #| output: false
 
 if (!exists("ConsolidatedVariableTractsJoined")) {
-  ConsolidatedVariableTractsJoined <- pin_read(BoardRemote, "ConsolidatedVariableTractsJoined")
+  ConsolidatedVariableTractsJoined <- pin_read(BoardLocal, "ConsolidatedVariableTractsJoined")
 }
 ```
 
@@ -1178,11 +1174,11 @@ BoardLocal |> pin_write(
 #| output: false
 
 if (!exists("PuVariableTractsMeanDiff")) {
-  PuVariableTractsMeanDiff <- pin_read(BoardRemote, "PuVariableTractsMeanDiff")
+  PuVariableTractsMeanDiff <- pin_read(BoardLocal, "PuVariableTractsMeanDiff")
 }
 
 if (!exists("DoVariableTractsMeanDiff")) {
-  DoVariableTractsMeanDiff <- pin_read(BoardRemote, "DoVariableTractsMeanDiff")
+  DoVariableTractsMeanDiff <- pin_read(BoardLocal, "DoVariableTractsMeanDiff")
 }
 ```
 
