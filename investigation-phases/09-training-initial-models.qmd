@@ -589,6 +589,16 @@ pin_write(
 ## Tuning grid for each workflow
 
 ```{r}
-#| file: multicore-scripts/03-tuning-initial-grid.R
+#| file: multicore-scripts/03a-tuning-simple-models.R
+
+```
+
+```{r}
+#| file: multicore-scripts/03b-tuning-dimreduction-models.R
+
+```
+
+```{r}
+#| file: multicore-scripts/03c-tuning-tree-models.R
 
 ```

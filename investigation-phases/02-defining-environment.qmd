@@ -66,7 +66,7 @@ Execute the command below to run the container based on the `angelfelizr/nyc-tax
   * Remove the container when you exit (`--rm`).
   * Give the container a name for easy identification (`--name nyc-taxi-container`).
   * Publish port 2222 on the host and map it to port 22 inside the container, enabling SSH access.
-  * Mount the cloned repository to the `/root/NycTaxi` directory within the container (`-v <parent-dir-path>/NycTaxi:/root/NycTaxi`).
+  * Mount the cloned repository to the `/home/nyc/NycTaxi` directory within the container (`-v <parent-dir-path>/NycTaxi:/home/nyc/NycTaxi`).
 
 
 ```bash
@@ -89,10 +89,10 @@ You have two options to access the container:
 1.  **Using the Terminal**: Run the following command and use `"r"` as the password to SSH into the container:
 
 ```bash
-ssh root@localhost -p 2222
+ssh nyc@localhost -p 2222
 ```
 
-2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `root@localhost:2222` with `"r"` as the password. Then we just need to install the [direnv](https://open-vsx.org/vscode/item?itemName=mkhl.direnv) extention by **mkhl**.
+2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `nyc@localhost:2222` with `"r"` as the password. Then we just need to install the [direnv](https://open-vsx.org/vscode/item?itemName=mkhl.direnv) extention by **mkhl**.
 
 
 ### 6. Start the Nix Shell
