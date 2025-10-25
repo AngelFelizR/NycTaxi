@@ -278,13 +278,13 @@ As this process was very demanding for my computer so we preferred to run each m
 
 ```{bash}
 #| eval: false
-#| file: ../multicore-scripts/run_add_target.sh
+#| file: multicore-scripts/02-run_add_target.sh
 ```
 
 Once defined the bash script we can use it by running the next command in the terminal.
 
 ```bash
-bash multicore-scripts/run_add_target.sh multicore-scripts/02-add-target.R  1 24
+bash multicore-scripts/02-run_add_target.sh multicore-scripts/02-add-target.R  1 24
 ```
 
 Here we can see that the 24 files have been saved as fst binnary files.

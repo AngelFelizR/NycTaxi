@@ -168,15 +168,15 @@ ConsolidationRecipe <-
   recipe(
     take_current_trip ~
       PULocationID +
-        DOLocationID +
-        wav_match_flag +
-        hvfhs_license_num +
-        trip_miles +
-        trip_time +
-        request_datetime +
-        trip_id +
-        performance_per_hour +
-        percentile_75_performance,
+      DOLocationID +
+      wav_match_flag +
+      hvfhs_license_num +
+      trip_miles +
+      trip_time +
+      request_datetime +
+      trip_id +
+      performance_per_hour +
+      percentile_75_performance,
     data = TrainingSample
   ) |>
 
@@ -282,14 +282,14 @@ ConsolidationRecipe <-
     .pkgs = c("data.table", "lubridate", "timeDate"),
 
     company = fcase(
-      hvfhs_license_num == "HV0002",
-      "Juno",
-      hvfhs_license_num == "HV0003",
-      "Uber",
-      hvfhs_license_num == "HV0004",
-      "Via",
-      hvfhs_license_num == "HV0005",
-      "Lyft",
+      hvfhs_license_num == "HV0002" ,
+      "Juno"                        ,
+      hvfhs_license_num == "HV0003" ,
+      "Uber"                        ,
+      hvfhs_license_num == "HV0004" ,
+      "Via"                         ,
+      hvfhs_license_num == "HV0005" ,
+      "Lyft"                        ,
       default = "New"
     ) |>
       as.factor(),
@@ -584,21 +584,20 @@ pin_write(
   title = "Work Flow Trees"
 )
 ```
-  
 
 ## Tuning grid for each workflow
 
 ```{r}
+#| eval: false
 #| file: multicore-scripts/03a-tuning-simple-models.R
-
 ```
 
 ```{r}
+#| eval: false
 #| file: multicore-scripts/03b-tuning-dimreduction-models.R
-
 ```
 
 ```{r}
+#| eval: false
 #| file: multicore-scripts/03c-tuning-tree-models.R
-
 ```
