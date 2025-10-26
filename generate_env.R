@@ -50,6 +50,9 @@ rix(
     "themis", # To apply Down-Sample
     "corrr", # To explore correlations
 
+    # Explain Models
+    "DALEXtra", # DALEXtra: Extension for 'DALEX' Package
+
     # Databases
     "DBI", # Database interface
     "duckdb", # Embedded analytics database
