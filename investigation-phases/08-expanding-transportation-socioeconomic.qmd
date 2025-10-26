@@ -31,22 +31,6 @@ Here are the steps to follow:
     
 ## Setting up the environment
 
-### Define colors to use
-
-```{r}
-BoroughColors <- c(
-  'Manhattan' = '#e41a1c',
-  'Queens' = '#377eb8',
-  'Brooklyn' = '#4daf4a'
-)
-
-BoroughSelected <- names(BoroughColors)
-
-ColorHighlight <- "lightslateblue"
-ColorHighlightLow <- "#D3CDF7"
-ColorGray <- "gray80"
-```
-
 ### Loading packages
 
 ```{r}
@@ -84,6 +68,10 @@ devtools::load_all()
 
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
 :::{.callout-note title="Computational Performance"}
@@ -98,7 +86,7 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 ZonesShapes <-
   pin_read(BoardLocal, "ZonesShapes") |>
   (\(df) {
-    df[df[["borough"]] %chin% BoroughSelected, c("OBJECTID", "LocationID")]
+    df[df[["borough"]] %chin% names(Params$BoroughColors), c("OBJECTID", "LocationID")]
   })() |>
   st_cast(to = "MULTIPOLYGON")
 
@@ -322,7 +310,7 @@ VariablesPerDataset <-
 
 ggplot(VariablesPerDataset) +
   geom_col(aes(N, dataset, fill = year), color = "black", linewidth = 0.2) +
-  scale_fill_manual(values = c("2022" = ColorHighlight, "2020" = ColorGray)) +
+  scale_fill_manual(values = c("2022" = Params$ColorHighlight, "2020" = Params$ColorGray)) +
   scale_x_continuous(
     labels = scales::label_comma(scale = 1 / 1000, suffix = "k")
   ) +
@@ -577,7 +565,7 @@ ConceptsToExploreByDistance[,
   geom_vline(
     xintercept = 0.5,
     linetype = "dashed",
-    color = ColorHighlight,
+    color = Params$ColorHighlight,
     linewidth = 0.9
   ) +
   # Add the annotation here
@@ -586,7 +574,7 @@ ConceptsToExploreByDistance[,
     x = 0.5,
     y = Inf,
     label = "0.5 Threshold",
-    color = ColorHighlight,
+    color = Params$ColorHighlight,
     vjust = 1.2,
     hjust = -0.05,
     size = 4
@@ -705,7 +693,7 @@ gt(TopWordsByCluster) |>
   data_color(
     columns = `Node Count`,
     fn = scales::col_numeric(
-      palette = c("white", ColorHighlightLow, ColorHighlight),
+      palette = c("white", Params$ColorHighlightLow, Params$ColorHighlight),
       domain = c(0, max(TopWordsByCluster$`Node Count`))
     )
   ) |>
@@ -800,7 +788,7 @@ ConceptByDatasetToExplore[,
   data_color(
     columns = variables,
     colors = scales::col_numeric(
-      palette = c("white", ColorHighlightLow, ColorHighlight),
+      palette = c("white", Params$ColorHighlightLow, Params$ColorHighlight),
       domain = NULL
     )
   ) |>
@@ -1266,7 +1254,7 @@ VariablesToUse[
   # Enhanced header styling with gradient effect
   tab_style(
     style = list(
-      cell_fill(color = ColorHighlight),
+      cell_fill(color = Params$ColorHighlight),
       cell_text(color = "white", weight = "bold", size = px(13)),
       cell_borders(sides = "bottom", color = "white", weight = px(2))
     ),
@@ -1276,7 +1264,7 @@ VariablesToUse[
   # Stunning group headers with enhanced styling
   tab_style(
     style = list(
-      cell_fill(color = ColorHighlightLow),
+      cell_fill(color = Params$ColorHighlightLow),
       cell_text(
         weight = "bold",
         size = px(15),
@@ -1284,7 +1272,7 @@ VariablesToUse[
       ),
       cell_borders(
         sides = c("top", "bottom"),
-        color = ColorHighlight,
+        color = Params$ColorHighlight,
         weight = px(2)
       )
     ),
@@ -1377,24 +1365,24 @@ VariablesToUse[
     # Borders and lines
     table.border.top.style = "solid",
     table.border.top.width = px(4),
-    table.border.top.color = ColorHighlight,
+    table.border.top.color = Params$ColorHighlight,
     table.border.bottom.style = "solid",
     table.border.bottom.width = px(4),
-    table.border.bottom.color = ColorHighlight,
+    table.border.bottom.color = Params$ColorHighlight,
 
     # Column labels
     column_labels.border.bottom.style = "solid",
     column_labels.border.bottom.width = px(3),
-    column_labels.border.bottom.color = ColorHighlight,
-    column_labels.background.color = ColorHighlight,
+    column_labels.border.bottom.color = Params$ColorHighlight,
+    column_labels.background.color = Params$ColorHighlight,
 
     # Row groups
     row_group.border.top.style = "solid",
     row_group.border.top.width = px(2),
-    row_group.border.top.color = ColorHighlight,
+    row_group.border.top.color = Params$ColorHighlight,
     row_group.border.bottom.style = "solid",
     row_group.border.bottom.width = px(1),
-    row_group.border.bottom.color = ColorHighlightLow,
+    row_group.border.bottom.color = Params$ColorHighlightLow,
 
     # Striping and spacing
     #row.striping.include_table_body = TRUE,

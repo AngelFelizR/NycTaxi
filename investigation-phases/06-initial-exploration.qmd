@@ -25,13 +25,6 @@ This will help to:
 
 ## Setting up the environment
 
-### Define colors to use
-
-```{r}
-ColorHighlight <- "lightslateblue"
-ColorGray <- "gray80"
-```
-
 ### Loading packages
 
 ```{r warning = FALSE, message = FALSE}
@@ -62,6 +55,10 @@ devtools::load_all()
 
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
 ### Importing training sample
@@ -156,7 +153,7 @@ TrainingSample[, .N,
 ][,`:=`(prop = N / sum(N),
         take_current_trip = reorder(take_current_trip, N))] |>
   ggplot(aes(N, take_current_trip)) +
-  geom_col(fill = ColorGray,
+  geom_col(fill = Params$ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop, accuracy = 1)),
@@ -180,7 +177,7 @@ TrainingSample[, .N,
                by = "company"
 ][, prop := N / sum(N)] |>
   ggplot(aes(N, company)) +
-  geom_col(fill = ColorGray,
+  geom_col(fill = Params$ColorGray,
            color = "black",
            width = 0.5) +
   geom_text(aes(label = percent(prop)),
@@ -203,21 +200,21 @@ TrainingSample[, .N,
 Plot_dispatching_base_num <-
   plot_heap_map(TrainingSample,
                 cat_vars = c("company", "dispatching_base_num"),
-                color_high = ColorHighlight,
-                color_low = ColorGray)
+                color_high = Params$ColorHighlight,
+                color_low = Params$ColorGray)
 
 
 Plot_originating_base_num <-
   plot_heap_map(TrainingSample,
                 cat_vars = c("company", "originating_base_num"),
-                color_high = ColorHighlight,
-                color_low = ColorGray)
+                color_high = Params$ColorHighlight,
+                color_low = Params$ColorGray)
 
 Plot_access_a_ride_flag <-
   plot_heap_map(TrainingSample,
                 cat_vars = c("company", "access_a_ride_flag"),
-                color_high = ColorHighlight,
-                color_low = ColorGray,
+                color_high = Params$ColorHighlight,
+                color_low = Params$ColorGray,
                 sep = "\n")
 
 Plot_access_a_ride_flag 
@@ -234,8 +231,8 @@ Plot_access_a_ride_flag
 
 plot_heap_map(TrainingSample,
               cat_vars = c("shared_request_flag", "shared_match_flag"),
-              color_high = ColorHighlight,
-              color_low = ColorGray,
+              color_high = Params$ColorHighlight,
+              color_low = Params$ColorGray,
               sep = "\n") +
   labs(title = "",
        x = "shared_request_flag",
@@ -251,8 +248,8 @@ plot_heap_map(TrainingSample,
 
 plot_heap_map(TrainingSample,
               cat_vars = c("wav_request_flag", "wav_match_flag"),
-              color_high = ColorHighlight,
-              color_low = ColorGray,
+              color_high = Params$ColorHighlight,
+              color_low = Params$ColorGray,
               sep = "\n") +
   labs(title = "",
        x = "wav_request_flag",
@@ -275,8 +272,8 @@ Based on the reports, we can confirm that we have a good number of example from 
 
 plot_bar(TrainingSample,
          "month",
-         color_highlight = ColorHighlight,
-         color_gray = ColorGray)
+         color_highlight = Params$ColorHighlight,
+         color_gray = Params$ColorGray)
 ```
 
 #### Weekday
@@ -287,8 +284,8 @@ plot_bar(TrainingSample,
 
 plot_bar(TrainingSample,
          "weekday",
-         color_highlight = ColorHighlight,
-         color_gray = ColorGray,
+         color_highlight = Params$ColorHighlight,
+         color_gray = Params$ColorGray,
          n_top = 1L)
 ```
 
@@ -300,8 +297,8 @@ plot_bar(TrainingSample,
 
 plot_bar(TrainingSample,
          "hour",
-         color_highlight = ColorHighlight,
-         color_gray = ColorGray)
+         color_highlight = Params$ColorHighlight,
+         color_gray = Params$ColorGray)
 ```
 :::
 
@@ -620,7 +617,7 @@ ggplot(TrainingSampleValidCat,
        aes(value, fill = factor(take_current_trip, levels = c("Y", "N")))) +
   geom_bar(width = 0.7,
            position = "fill") +
-  scale_fill_manual(values = c("N" = ColorHighlight ,"Y" = ColorGray))+
+  scale_fill_manual(values = c("N" = Params$ColorHighlight ,"Y" = Params$ColorGray))+
   scale_y_continuous(labels = percent_format(accuracy = 1)) + 
   facet_wrap(vars(variable),
              scale = "free",
@@ -644,7 +641,7 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
                       trip_miles,
                       title = "trip_miles",
                       take_current_trip,
-                      manual_fill_values = c("N" = ColorHighlight, "Y" = ColorGray),
+                      manual_fill_values = c("N" = Params$ColorHighlight, "Y" = Params$ColorGray),
                       hist_binwidth = 5,
                       hist_n_break = 12,
                       log_binwidth = 0.5,
@@ -663,7 +660,7 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
 plot_num_distribution(TrainingSample[trip_time_min >= 2],
                       trip_time_min,
                       take_current_trip,
-                      manual_fill_values = c("N" = ColorHighlight, "Y" = ColorGray),
+                      manual_fill_values = c("N" = Params$ColorHighlight, "Y" = Params$ColorGray),
                       title = "trip_time_min",
                       hist_binwidth = 5,
                       hist_n_break = 12,
@@ -692,7 +689,7 @@ TrainingSample[trip_time_min >= 2,
   ggplot(aes(V1, V2, fill = `Cramer.V`))+
   geom_tile()+
   scale_fill_gradient(low = "white",
-                      high = ColorHighlight,
+                      high = Params$ColorHighlight,
                       space = "Lab",
                       na.value = "white") +
   geom_text(aes(label = percent(`Cramer.V`, accuracy = 1)),

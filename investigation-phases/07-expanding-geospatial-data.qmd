@@ -55,37 +55,6 @@ Here are the steps to follow:
     
 ## Setting up the environment
 
-### Define colors to use
-
-```{r}
-BoroughColors <- c(
-  'Manhattan' = '#e41a1c',
-  'Queens' = '#377eb8',
-  'Brooklyn' = '#4daf4a'
-)
-
-BoroughSelected <- names(BoroughColors)
-
-ColorHighlight <- "lightslateblue"
-ColorGray <- "gray80"
-```
-
-### Define features to import
-
-```{r}
-FeaturesToGet <- c(
-  "amenity",
-  "shop",
-  "office",
-  "tourism",
-  "public_transport",
-  "aeroway",
-  "emergency",
-  "sport",
-  "landuse",
-  "highway"
-)
-```
 
 ### Loading packages
 
@@ -121,11 +90,32 @@ devtools::load_all()
 
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
 :::{.callout-note title="Computational Performance"}
 The geospatial processing operations in this document are computationally intensive. Although they could benefit from parallelization with packages like `future` and `future.apply`, we've opted for a sequential approach with caching via `qs2`  to maximize **reproducibility** and maintain **code simplicity**. Intermediate results are saved after each costly operation to avoid unnecessary recalculations during iterative development.
 :::
+
+### Define features to import
+
+```{r}
+FeaturesToGet <- c(
+  "amenity",
+  "shop",
+  "office",
+  "tourism",
+  "public_transport",
+  "aeroway",
+  "emergency",
+  "sport",
+  "landuse",
+  "highway"
+)
+```
 
 ## Import data
 
@@ -134,7 +124,7 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 ```{r}
 ZonesShapes <-
   pin_read(BoardLocal, "ZonesShapes") |>
-  subset(borough %in% BoroughSelected) |>
+  subset(borough %in% names(Params$BoroughColors)) |>
   transform(Shape_Area = st_area(geometry))
 
 SampledData <-
@@ -159,7 +149,10 @@ Now we can create a bounding box that encompasses the selected boroughs to effic
 #| eval: false
 
 bb_box <-
-  lapply(X = paste0(BoroughSelected, ", NY"), FUN = osmdata::getbb) |>
+  lapply(
+    X = paste0(names(Params$BoroughColors), ", NY"),
+    FUN = osmdata::getbb
+  ) |>
   do.call(what = "cbind") |>
   (\(x) cbind(min = apply(x, 1, min), max = apply(x, 1, max)))()
 
@@ -175,7 +168,7 @@ if (!exists("bb_box")) {
 }
 ```
 
-This plot shows the selected boroughs and the taxi zones within them, giving us a visual overview of our geographical units of analysis. The blue rectangle represents the bounding box we defined earlier, encompassing Manhattan (red), Queens (blue), and Brooklyn (green). Each of these boroughs is further divided into smaller taxi zones, which are the **primary geographical units for our analysis**. The different colors assigned to each borough (defined in the `BoroughColors` vector) help to visually distinguish them. This initial map confirms that we have correctly loaded the taxi zone shapefile and subsetted it to include only the boroughs of interest for our study.
+This plot shows the selected boroughs and the taxi zones within them, giving us a visual overview of our geographical units of analysis. The blue rectangle represents the bounding box we defined earlier, encompassing Manhattan (red), Queens (blue), and Brooklyn (green). Each of these boroughs is further divided into smaller taxi zones, which are the **primary geographical units for our analysis**. The different colors assigned to each borough (defined in the `Params$BoroughColors` vector) help to visually distinguish them. This initial map confirms that we have correctly loaded the taxi zone shapefile and subsetted it to include only the boroughs of interest for our study.
 
 
 ```{r}
@@ -183,7 +176,7 @@ plot_box(bb_box) +
   tm_shape(ZonesShapes) +
   tm_polygons(
     fill = "borough",
-    fill.scale = tm_scale_categorical(values = BoroughColors),
+    fill.scale = tm_scale_categorical(values = Params$BoroughColors),
     fill_alpha = 0.6
   )
 ```
@@ -860,7 +853,7 @@ dim(TrainingSampleOmsDensityFeatures) |> scales::comma()
 
 rm(
   list = grep(
-    "OmsDensityFeatures|SampledData|Color|Board",
+    "OmsDensityFeatures|SampledData|Color|Board|Params",
     ls(),
     invert = TRUE,
     value = TRUE
@@ -931,7 +924,9 @@ ggplot(TopOsmCorrelations) +
     color = "black",
     linewidth = 0.4
   ) +
-  scale_fill_manual(values = c("TRUE" = ColorHighlight, "FALSE" = ColorGray)) +
+  scale_fill_manual(
+    values = c("TRUE" = Params$ColorHighlight, "FALSE" = Params$ColorGray)
+  ) +
   scale_x_continuous(
     breaks = scales::breaks_width(0.01),
     labels = scales::label_percent(accuracy = 1)
@@ -972,8 +967,7 @@ rm(
     c(
       "OmsDensityFeatures",
       "TrainingSampleOmsDensityFeatures",
-      "ColorHighlight",
-      "ColorGray",
+      "Params",
       "BoardLocal"
     )
   )
@@ -1040,8 +1034,7 @@ rm(
       "OmsDensityFeatures",
       "OsmMedianDiff",
       "TrainingSampleOmsDensityFeatures",
-      "ColorHighlight",
-      "ColorGray",
+      "Params",
       "BoardLocal",
       "BoardLocal"
     )
@@ -1076,7 +1069,9 @@ Based on the next chart, we can see that the median change based on different fa
 
 ggplot(TopOsmMedianDiff) +
   geom_boxplot(aes(x = value, y = variable, fill = take_current_trip)) +
-  scale_fill_manual(values = c("TRUE" = ColorHighlight, "FALSE" = ColorGray)) +
+  scale_fill_manual(
+    values = c("TRUE" = Params$ColorHighlight, "FALSE" = Params$ColorGray)
+  ) +
   scale_x_continuous(
     transform = scales::new_transform(
       "signed_log10",

@@ -49,13 +49,13 @@ library(qs2)
 
 ## Custom functions
 devtools::load_all()
-```
 
-Then we need to define the boards need to store and read in process data.
-
-```{r}
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
 
