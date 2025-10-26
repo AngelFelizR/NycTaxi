@@ -105,7 +105,7 @@ To effectively query this large dataset, we need a smart storage strategy. We wi
 
 ### Defining the Folder Structure
 
-The code below programmatically defines the required directory paths. It starts with a base `raw-data` folder and then generates a list of nested year and month subfolders based on the filenames we extracted earlier. 
+The code below programmatically defines the required directory paths. It starts with a base `../NycTaxiBigFiles` folder and then generates a list of nested year and month subfolders based on the filenames we extracted earlier. 
 
 ```{r}
 BigFilesPath <- here::here("../NycTaxiBigFiles")
@@ -193,7 +193,7 @@ FoldersToCreate
 Now, we download each file and save it to the correct location.
 
   * The Parquet trip files are downloaded into their respective `year=/month=` subfolders and named `part-0.parquet`. 
-  * The taxi zone CSV and shapefile ZIP are saved directly into the `raw-data` folder. [cite: 11, 12]
+  * The taxi zone CSV and shapefile ZIP are saved directly into the `../NycTaxiBigFiles` folder. [cite: 11, 12]
 
 Since downloading large Parquet files can take time, the timeout limit is increased to 30 minutes (1800 seconds). 
 

@@ -1,5 +1,5 @@
 ---
-title: "Exploring Transportation and Socioeconomic Patterns"
+title: "Expanding Transportation and Socioeconomic Patterns"
 editor_options: 
   chunk_output_type: console
 execute:

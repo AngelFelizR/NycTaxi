@@ -18,7 +18,8 @@ knitr::opts_chunk$set(
 The elements of the process are defined using a **SIPOC** diagram.
 
 ```{r parsermd-chunk-1, echo = FALSE}
-DiagrammeR::grViz('
+DiagrammeR::grViz(
+  '
 digraph SIPOC {
     rankdir=LR;
     node [shape=box];
@@ -69,7 +70,8 @@ digraph SIPOC {
     P4 -> P5 [constraint=false];
 }
 
-')
+'
+)
 ```
 
 ## Available features groups
@@ -90,7 +92,7 @@ digraph SIPOC {
 | **tolls** | Total amount of all tolls paid in trip |
 | **airport_fee** | \$2.50 for both drop off and pick up at LaGuardia, Newark, and John F. Kennedy airports |
 
-1. Available **after arriving** ending the trip, so can be used to estimate the **outcome** to predict.
+2. Available **after arriving** ending the trip, so can be used to estimate the **outcome** to predict.
 
 | **Field Name** | **Description** |
 |:-----------------------------------|:-----------------------------------|
@@ -100,7 +102,7 @@ digraph SIPOC {
 
 
 ::: {.callout-note}
-**trip_time** and **driver_pay** can also be used as predictors, as taxi apps usually provide very good predictions of these two variables. They can be used to predict the output where the only variable that we don't have any clue about is the trip **tip**.
+Despite **trip_time** and **driver_pay** are usually predicted by the company's apps are are assuming that those fields represent the final value after completing each trip and not an estimation.
 :::
 
 

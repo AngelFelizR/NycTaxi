@@ -1,5 +1,5 @@
 ---
-title: "Training initial models"
+title: "Training Initial Models"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -12,6 +12,7 @@ After exploring the data and getting new features it's time to explore the data 
 In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case will train:
 
 - Regularized Regression Logistic Regression via glmnet
+- Flexible discriminant analysis
 - MARS via earth
 - Bagged trees via rpart
 - Random forests via ranger
@@ -68,12 +69,6 @@ GlmnetSpec <-
   logistic_reg(penalty = tune(), mixture = tune()) |>
   set_mode("classification") |>
   set_engine("glmnet")
-
-# Regularized discriminant analysis
-RdaSpec <-
-  discrim_regularized(frac_common_cov = tune(), frac_identity = tune()) |>
-  set_mode("classification") |>
-  set_engine('klaR')
 
 # Flexible discriminant analysis
 FdaSpec <-
@@ -530,8 +525,7 @@ WorkFlowSimple <- workflow_set(
     normalized = BasicNormalizedRecipe
   ),
   models = list(
-    reg_logistic = GlmnetSpec,
-    reg_da = RdaSpec
+    reg_logistic = GlmnetSpec
   )
 )
 
@@ -589,15 +583,60 @@ pin_write(
 
 ```{r}
 #| eval: false
-#| file: multicore-scripts/03a-tuning-simple-models.R
+#| file: ../multicore-scripts/03a-tuning-simple-models.R
 ```
 
 ```{r}
 #| eval: false
-#| file: multicore-scripts/03b-tuning-dimreduction-models.R
+#| file: ../multicore-scripts/03b-tuning-dimreduction-models.R
 ```
 
 ```{r}
 #| eval: false
-#| file: multicore-scripts/03c-tuning-tree-models.R
+#| file: ../multicore-scripts/03c-tuning-tree-models.R
+```
+
+## Exploring results
+
+```{r}
+WorkFlowTuned <- c(
+  pin_read(BoardLocal, "WorkFlowSimpleTuned"),
+  pin_read(BoardLocal, "WorkFlowDimReductionTuned"),
+  pin_read(BoardLocal, "WorkFlowTreesTuned")
+)
+
+WorkFlowTunedBest <- lapply(
+  names(WorkFlowTuned),
+  FUN = \(x) {
+    show_best(WorkFlowTuned[[x]], metric = "brier_class") |> mutate(model = x)
+  }
+) |>
+  do.call(what = "bind_rows")
+```
+
+```{r}
+WorkFlowTunedBest |>
+  mutate(model = reorder(model, -mean)) |>
+  ggplot(aes(model, mean)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme_light()
+```
+
+
+```{r}
+WorkFlowTunedBest |>
+  filter(grepl("reduced_levels|normalized", model)) |>
+  arrange(mean, std_err) |>
+  group_by(model) |>
+  slice_head(n = 1) |>
+  transmute(model = paste(model, "-", .config), .metric, mean, std_err) |>
+  arrange(mean, std_err) |>
+  ungroup() |>
+  mutate(model = factor(model, levels = rev(model))) |>
+  ggplot(aes(x = mean, y = model)) +
+  geom_errorbar(aes(xmin = mean - 3 * std_err, xmax = mean + 3 * std_err)) +
+  geom_point() +
+  labs(x = "brier_class", y = "Best Models") +
+  theme_light()
 ```

@@ -278,7 +278,7 @@ As this process was very demanding for my computer so we preferred to run each m
 
 ```{bash}
 #| eval: false
-#| file: multicore-scripts/02-run_add_target.sh
+#| file: ../multicore-scripts/02-run_add_target.sh
 ```
 
 Once defined the bash script we can use it by running the next command in the terminal.

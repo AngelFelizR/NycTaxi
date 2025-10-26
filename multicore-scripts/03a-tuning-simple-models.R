@@ -2,10 +2,6 @@
 
 ## Libraries -----
 library(tidymodels)
-library(embed)
-library(themis)
-library(discrim)
-library(baguette)
 library(future)
 
 ## Removing limit for parallel processing ----
@@ -24,50 +20,48 @@ TrainingSampleJoinedResamples <- vfold_cv(TrainingSampleJoined, v = 5)
 MetricsToEval <- metric_set(roc_auc, brier_class)
 
 ## Workflow to eval ----
-WorkFlowSimple <- pins::pin_read(BoardLocal, "WorkFlowSimple")
+WorkFlowSimple <-
+  pins::pin_read(BoardLocal, "WorkFlowSimple") |>
+  extract_workflow(id = "normalized_reg_logistic")
 
-# Tunning and saving ----
-results_list <- list()
+## Grid to eval ----
+WfParams <- extract_parameter_set_dials(WorkFlowSimple)
 
-for (wf_id_i in WorkFlowSimple$wflow_id) {
-  wf_i <- extract_workflow(WorkFlowSimple, id = wf_id_i)
-  wf_param_i <- extract_parameter_set_dials(wf_i)
+set.seed(14005)
+initial_grid <- grid_space_filling(
+  WfParams,
+  size = 5,
+  type = "audze_eglais",
+  original = FALSE
+)
 
-  set.seed(14005)
-  initial_grid <- grid_space_filling(
-    wf_param_i,
-    size = 5,
-    type = "audze_eglais",
-    original = FALSE
+print("Tuning normalized_reg_logistic with grid:")
+print(initial_grid)
+
+plan(multicore, workers = 3)
+
+WorkFlowSimpleTuned <- tune_grid(
+  object = WorkFlowSimple,
+  resamples = TrainingSampleJoinedResamples,
+  param_info = WfParams,
+  grid = initial_grid,
+  metrics = MetricsToEval,
+  control = control_grid(
+    verbose = TRUE,
+    parallel_over = "resamples",
+    save_pred = FALSE
   )
+)
 
-  print(paste("Tuning", wf_id_i, "with grid:"))
-  print(initial_grid)
+plan(sequential)
 
-  plan(multicore, workers = 3)
+print("Completed normalized_reg_logistic")
 
-  results_list[[wf_id_i]] <- tune_grid(
-    object = wf_i,
-    resamples = TrainingSampleJoinedResamples,
-    param_info = wf_param_i,
-    grid = initial_grid,
-    metrics = MetricsToEval,
-    control = control_grid(
-      verbose = TRUE,
-      parallel_over = "resamples",
-      save_pred = FALSE
-    )
-  )
-
-  plan(sequential)
-
-  print(paste("Completed", wf_id_i))
-}
 
 # Save all results together
 pins::pin_write(
   BoardLocal,
-  results_list,
+  list(normalized_reg_logistic = WorkFlowSimpleTuned),
   "WorkFlowSimpleTuned",
   type = "qs2",
   title = "Work Flow Simple Tuned"

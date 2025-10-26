@@ -32,24 +32,30 @@ And based on this steps we can organize the articles created in this portfolio w
 1. **Business Understanding**
 
     1. Business Understanding Overview
-    5. Defining Base Line
 
-1. **Data Understanding**
+2. **Data Understanding**
 
     2. Defining Development Environment
     3. Data Collection Process
-    4. Data Sampling
+
+3. **Business Understanding**
+
+    4. Defining Base Line
+
+4. **Data Understanding**
+
+    5. Data Sampling
     6. Initial Exploration
+
+5. **Data Preparation** 
+
     7. Expanding Geospatial Information
+    8. Expanding Transportation and Socioeconomic Patterns
 
-1. **Data Preparation**
+6. **Modeling**
 
-    - _(Pending)_
-    
+    9. Training initial models
 
-1. **Modeling**
-
-    - _(Pending)_
 
 1. **Evaluation**
 
@@ -71,7 +77,7 @@ _(Pending)_
 
 ## Disclaimer 
 
-This project was completed by making strong assumptions due the reality that the data used to create the analysis don't provide any unique identifier for taxi drivers, that could help us to deliver more realistic results.
+This project was completed by making **strong assumptions** due the reality that the data used to create the analysis **don't provide any unique identifier for taxi drivers**, that could help us to deliver more realistic results.
 
 On the other hand, this project aims to increase **taxi driver earnings**, regardless that if we apply it extensively, it could also end producing the following results:
 
