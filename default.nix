@@ -46,9 +46,10 @@
 #  > "DiagrammeR",
 #  > "patchwork",
 #  > "gt",
+#  > "ggtext",
 #  > "infer",
-#  > "recipes",
-#  >      "future",
+#  >      "recipes",
+#  > "future",
 #  > "future.apply",
 #  > "tictoc",
 #  > "knitr",
@@ -92,6 +93,7 @@ let
       future_apply
       ggiraph
       ggplot2
+      ggtext
       glmnet
       glue
       gt

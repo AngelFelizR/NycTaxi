@@ -33,7 +33,7 @@ website:
           - text: "08 - Exploring Transportation and Socioeconomic Patterns"
             href: investigation-phases/08-expanding-transportation-socioeconomic.qmd
           - text: "09 - Data Preparation"
-            href: investigation-phases/09-data-preparation.qmd
+            href: investigation-phases/09-training-initial-models.qmd
     right:
       - text: "About Angel Feliz"
         href: about.qmd

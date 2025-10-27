@@ -9,7 +9,7 @@ execute:
 
 After exploring the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
 
-In this section we will start defining the models to train. We prefer using memory efficient models as we are working with hardware limitations. In this case will train:
+In this section we will start defining the models to train. We trained a diverse set of models, from simple, interpretable ones (Logistic Regression) to complex, powerful ones (Random Forests), to see which approach works best for our data and hardware constraints:
 
 - Regularized Regression Logistic Regression via glmnet
 - Flexible discriminant analysis
@@ -32,6 +32,7 @@ library(here)
 library(data.table)
 library(lubridate)
 library(timeDate)
+library(ggtext)
 
 # To manage parallel model training
 library(future)
@@ -446,7 +447,7 @@ TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 
 ## Common steps for all recipes
 
-Before creating the the first recipe it's  important to take in consideration that we want to keep `performance_per_hour` and `percentile_75_performance` to see how much money we could be loassing for bad predictions.
+Before creating the the first recipe it's  important to take in consideration that we want to keep `performance_per_hour` and `percentile_75_performance` to see how much money we could be losing for bad predictions.
 
 ```{r}
 start_recipe <- function(df) {
@@ -581,6 +582,8 @@ pin_write(
 
 ## Tuning grid for each workflow
 
+Here is the code used to train and eval de different models.
+
 ```{r}
 #| eval: false
 #| file: ../multicore-scripts/03a-tuning-simple-models.R
@@ -598,13 +601,21 @@ pin_write(
 
 ## Exploring results
 
+Our initial model exploration revealed that **tree-based models**, specifically Random Forest and Bagged Trees, delivered the best performance. However, a regularized Logistic Regression was a strong and much simpler contender."
+
+Let's import the results of the exploration.
+
 ```{r}
 WorkFlowTuned <- c(
   pin_read(BoardLocal, "WorkFlowSimpleTuned"),
   pin_read(BoardLocal, "WorkFlowDimReductionTuned"),
   pin_read(BoardLocal, "WorkFlowTreesTuned")
 )
+```
 
+Consolidate the results for one of the metrics.
+
+```{r}
 WorkFlowTunedBest <- lapply(
   names(WorkFlowTuned),
   FUN = \(x) {
@@ -614,29 +625,62 @@ WorkFlowTunedBest <- lapply(
   do.call(what = "bind_rows")
 ```
 
+Across all folds and tune params the best results came from `Random Forest` and `Bag Trees` but reguardless of their tunning params the performance was very similar so **taking more time** tunning this models to seem worthy. `Xgboost` performed poorly in general in exception of one configuration so it will be important to take more time improving the tuning params.
+
+On the other hand, we also have the `Logistic Regression` which present a really similar results so it would be great to understand how we can **improve the model** with feature engineering.
+
 ```{r}
 WorkFlowTunedBest |>
-  mutate(model = reorder(model, -mean)) |>
+  mutate(
+    best_models = case_when(
+      grepl("(random|bag)_", model) ~ "group1",
+      grepl("logistic|xgboost", model) ~ "group2",
+      .default = "other"
+    ),
+    model = reorder(model, -mean, FUN = median),
+  ) |>
   ggplot(aes(model, mean)) +
-  geom_boxplot() +
+  geom_boxplot(aes(fill = best_models)) +
+  scale_fill_manual(
+    values = c(
+      "group1" = Params$ColorHighlight,
+      "group2" = Params$ColorHighlightLow,
+      "other" = Params$ColorGray
+    )
+  ) +
   coord_flip() +
-  theme_light()
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>",
+      "**Tree Based Models**",
+      "</span> ",
+      "present the best performance"
+    ),
+    subtitle = "But the **Logistic Regression** perfomed well",
+    y = "Brier Score",
+    x = "Best Models"
+  ) +
+  theme_light() +
+  theme(
+    plot.title = element_markdown(size = 14),
+    plot.subtitle = element_markdown(size = 12),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none"
+  )
 ```
 
+## Conclusion
 
-```{r}
-WorkFlowTunedBest |>
-  filter(grepl("reduced_levels|normalized", model)) |>
-  arrange(mean, std_err) |>
-  group_by(model) |>
-  slice_head(n = 1) |>
-  transmute(model = paste(model, "-", .config), .metric, mean, std_err) |>
-  arrange(mean, std_err) |>
-  ungroup() |>
-  mutate(model = factor(model, levels = rev(model))) |>
-  ggplot(aes(x = mean, y = model)) +
-  geom_errorbar(aes(xmin = mean - 3 * std_err, xmax = mean + 3 * std_err)) +
-  geom_point() +
-  labs(x = "brier_class", y = "Best Models") +
-  theme_light()
-```
+The initial model training and evaluation revealed two key findings:
+
+1. **Tree-based models (`Random Forest` and `Bagged Trees`)** achieved the best performance, indicating they are well-suited to capture the complex patterns in the NYC taxi data.
+
+2. **A simpler `Regularized Logistic Regression` model performed nearly as well**. This suggests that a strong linear relationship exists within the features, making it a highly efficient and interpretable candidate for a final model.
+
+Therefore, the next steps should focus on two parallel paths: 
+
+- Further tuning the `xgboost` models to maximize performance
+- Investing in feature engineering to improve the already-competitive logistic model.

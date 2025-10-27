@@ -74,6 +74,7 @@ rix(
     "DiagrammeR", # Graphs and diagrams
     "patchwork", # Combine ggplot2 plots
     "gt", # To create html tables
+    "ggtext", # Exteding more text for ggplot2
 
     # Modeling & statistics
     "infer", # Statistical inference
