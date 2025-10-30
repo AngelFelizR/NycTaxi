@@ -7,3 +7,147 @@ execute:
   warning: false
 ---
 
+After exploring the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
+
+In this section we will start defining the models to train. We trained a diverse set of models, from simple, interpretable ones (Logistic Regression) to complex, powerful ones (Random Forests), to see which approach works best for our data and hardware constraints:
+
+- Regularized Regression Logistic Regression via glmnet
+- Flexible discriminant analysis
+- MARS via earth
+- Bagged trees via rpart
+- Random forests via ranger
+- Boosted trees via xgboost
+
+We are going to fit 5 random variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
+    
+## Setting up the environment
+
+Here are the loaded libraries to start the process.
+
+```{r}
+## To manage relative paths
+library(here)
+
+## To transform data that fits in RAM
+library(data.table)
+library(lubridate)
+library(timeDate)
+library(ggtext)
+
+# To manage parallel model training
+library(future)
+
+## Tools for modeling
+library(tidymodels)
+library(embed)
+library(themis)
+library(discrim)
+library(baguette)
+
+## Publish data sets, models, and other R objects
+library(pins)
+library(qs2)
+
+## Custom functions
+devtools::load_all()
+
+# Defining the pin boards to use
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+Params$BoroughColors <- unlist(Params$BoroughColors)
+```
+
+
+## Defining models to train
+
+Now we can define the models to be trained and tuned.
+
+```{r}
+# Regularized regression logistic regression
+GlmnetSpec <-
+  logistic_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("classification") |>
+  set_engine("glmnet")
+
+# Flexible discriminant analysis
+FdaSpec <-
+  discrim_flexible(prod_degree = tune()) |>
+  set_mode("classification") |>
+  set_engine('earth')
+
+# MARS
+EarthSpec <-
+  mars(num_terms = tune(), prod_degree = tune()) |>
+  set_mode("classification")
+
+# Bagged trees
+C5BagSpec <-
+  bag_tree(min_n = tune()) |>
+  set_mode("classification") |>
+  set_engine("C5.0")
+
+# Random forests
+RangerSpec <-
+  rand_forest(mtry = tune(), min_n = tune(), trees = 250) |>
+  set_mode("classification") |>
+  set_engine("ranger")
+
+# Boosted trees
+XgboostSpec <-
+  boost_tree(
+    trees = 250,
+    min_n = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    loss_reduction = tune(),
+    sample_size = tune()
+  ) |>
+  set_mode("classification") |>
+  set_engine("xgboost")
+```
+
+## Importing data
+
+Here we import the data to use from the remote Board located in a github repo.
+
+```{r}
+#| eval: false
+
+AcsVariablesByZoneId <-
+  pin_read(BoardLocal, "AcsVariablesByZoneId")[,
+    LocationID := as.character(LocationID)
+  ]
+
+OmsDensityFeatures <- pin_read(BoardLocal, "OmsDensityFeatures")[,
+  LocationID := as.character(LocationID)
+]
+
+ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")[, c(
+  "LocationID",
+  "Borough",
+  "service_zone"
+)]
+
+SampledData <-
+  pin_list(BoardLocal) |>
+  grep(pattern = "^OneMonthData", value = TRUE) |>
+  sort() |>
+  head(12L) |>
+  lapply(FUN = pin_read, board = BoardLocal) |>
+  rbindlist() |>
+  tibble::as_tibble() |>
+  mutate(
+    take_current_trip = fifelse(take_current_trip == 1L, "yes", "no") |>
+      factor(levels = c("yes", "no")),
+    PULocationID = as.character(PULocationID),
+    DOLocationID = as.character(DOLocationID)
+  )
+
+set.seed(2545)
+SampledDataSplit <- initial_split(SampledData, strata = take_current_trip)
+
+TrainingSample <- training(SampledDataSplit)
+TestingSample <- testing(SampledDataSplit)
+```

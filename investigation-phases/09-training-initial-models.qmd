@@ -83,7 +83,7 @@ EarthSpec <-
   set_mode("classification")
 
 # Bagged trees
-RpartBagSpec <-
+C5BagSpec <-
   bag_tree(min_n = tune()) |>
   set_mode("classification") |>
   set_engine("C5.0")
@@ -549,7 +549,7 @@ WorkFlowTrees <- workflow_set(
     reduced_levels = ReducedLevelsRecipe
   ),
   models = list(
-    bag_tree = RpartBagSpec,
+    bag_tree = C5BagSpec,
     random_forest = RangerSpec,
     xgboost = XgboostSpec
   )
@@ -670,6 +670,107 @@ WorkFlowTunedBest |>
     panel.grid.minor.y = element_blank(),
     legend.position = "none"
   )
+```
+
+
+## Creating workflows to explore
+
+```{r}
+# eval: false
+
+finalize_tree_work_flow <- function(model_spec, wf_name) {
+  finalized_wf =
+    workflow(
+      preprocessor = ConsolidationRecipe |>
+        update_role(
+          trip_id,
+          performance_per_hour,
+          percentile_75_performance,
+          new_role = "additional info"
+        ) |>
+        step_novel(all_nominal_predictors()) |>
+        step_other(all_nominal_predictors(), threshold = tune()) |>
+        step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+        step_nzv(all_predictors()),
+      spec = RangerSpec
+    ) |>
+    finalize_workflow(
+      select_best(
+        WorkFlowTuned[["reduced_levels_random_forest"]],
+        metric = "brier_class"
+      )
+    )
+
+  return(finalized_wf)
+}
+
+InitialFinalizedRandomForestWf <- finalize_tree_work_flow(
+  RangerSpec,
+  "reduced_levels_random_forest"
+)
+InitialFinalizedXgboostWf <- finalize_tree_work_flow(
+  XgboostSpec,
+  "reduced_levels_xgboost"
+)
+InitialFinalizedBagTreeWf <- finalize_tree_work_flow(
+  C5BagSpec,
+  "reduced_levels_bag_tree"
+)
+
+InitialFinalizedLogisticWf <- workflow(
+  preprocessor = ConsolidationRecipe |>
+    update_role(
+      trip_id,
+      performance_per_hour,
+      percentile_75_performance,
+      new_role = "additional info"
+    ) |>
+    step_YeoJohnson(all_numeric_predictors()) |>
+    step_novel(all_nominal_predictors()) |>
+    step_dummy(all_nominal_predictors()) |>
+    step_nzv(all_predictors()) |>
+    step_normalize(all_numeric_predictors()),
+  spec = GlmnetSpec
+) |>
+  finalize_workflow(
+    select_best(
+      WorkFlowTuned[["normalized_reg_logistic"]],
+      metric = "brier_class"
+    )
+  )
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedRandomForestWf,
+  "InitialFinalizedRandomForestWf",
+  type = "qs2",
+  title = "Initial Finalized Random Forest Wf"
+)
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedXgboostWf,
+  "InitialFinalizedXgboostWf",
+  type = "qs2",
+  title = "Initial Finalized Xgboost Wf"
+)
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedBagTreeWf,
+  "InitialFinalizedBagTreeWf",
+  type = "qs2",
+  title = "Initial Finalized Bag Tree Wf"
+)
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedLogisticWf,
+  "InitialFinalizedLogisticWf",
+  type = "qs2",
+  title = "Initial Finalized Logistic Wf"
+)
+
 ```
 
 ## Conclusion
