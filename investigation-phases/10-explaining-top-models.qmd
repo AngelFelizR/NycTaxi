@@ -80,9 +80,60 @@ SampledData <-
   )
 
 set.seed(2545)
-SampledDataSplit <- initial_split(SampledData, strata = take_current_trip)
+TrainingSample <-
+  initial_split(SampledData, strata = take_current_trip) |>
+  training()
 
-TrainingSample <- training(SampledDataSplit)
+InitialFinalizedLogisticWf <- pin_read(BoardLocal, "InitialFinalizedLogisticWf")
+LogisticPreprocessor <- extract_preprocessor(InitialFinalizedLogisticWf)
+LogisticSpec <- extract_spec_parsnip(InitialFinalizedLogisticWf)
+```
+
+## Importing workflows to train
+
+```{r}
+#| eval: false
+
+TrainingSampleProcessed <-
+  prep(LogisticPreprocessor) |>
+  bake(new_data = TrainingSample)
+
+pin_write(
+  BoardLocal,
+  TrainingSampleProcessed,
+  "TrainingSampleProcessed",
+  type = "qs2"
+)
+```
+
+## Fitting resamples
+
+```{r}
+#| eval: false
+
+set.seed(5878)
+TrainingSampleProcessedResamples <- vfold_cv(
+  TrainingSampleProcessed,
+  v = 5,
+  strata = take_current_trip
+)
+
+InitialFinalizedLogisticFitted <-
+  recipe(take_current_trip ~ ., data = TrainingSampleProcessed) |>
+  update_role(
+    trip_id,
+    performance_per_hour,
+    percentile_75_performance,
+    new_role = "additional info"
+  ) |>
+  workflow(
+    LogisticSpec
+  ) |>
+  fit_resamples(
+    resamples = TrainingSampleProcessedResamples,
+    metrics = metric_set(brier_class),
+    control = control_resamples(save_pred = TRUE, extract = identity)
+  )
 
 set.seed(5878)
 TrainingSampleResamples <- vfold_cv(
@@ -90,24 +141,14 @@ TrainingSampleResamples <- vfold_cv(
   v = 5,
   strata = take_current_trip
 )
-```
 
-## Importing workflows to train
-
-```{r}
-InitialFinalizedLogisticWf <- pin_read(BoardLocal, "InitialFinalizedLogisticWf")
-```
-
-## Fitting resamples
-
-```{r}
-InitialFinalizedLogisticFitted <- fit_resamples(
-  InitialFinalizedLogisticWf,
-  TrainingSampleResamples,
-  metrics = metric_set(brier_class),
-  control = control_resamples(save_pred = TRUE, extract = identity)
-)
-
+InitialFinalizedLogisticFitted2 <-
+  fit_resamples(
+    InitialFinalizedLogisticWf,
+    resamples = TrainingSampleResamples,
+    metrics = metric_set(brier_class),
+    control = control_resamples(save_pred = TRUE, extract = identity)
+  )
 
 pin_write(
   BoardLocal,
@@ -115,13 +156,38 @@ pin_write(
   "InitialFinalizedLogisticFitted",
   type = "qs2"
 )
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedLogisticFitted2,
+  "InitialFinalizedLogisticFitted2",
+  type = "qs2"
+)
 ```
 
+```{r}
+InitialFinalizedLogisticFitted <- pin_read(
+  BoardLocal,
+  "InitialFinalizedLogisticFitted",
+)
+
+InitialFinalizedLogisticFitted2 <- pin_read(
+  BoardLocal,
+  "InitialFinalizedLogisticFitted2",
+)
+
+TrainingSampleProcessed <- pin_read(
+  BoardLocal,
+  "TrainingSampleProcessed"
+)
+
+InitialFinalizedLogisticPredictions <- collect_predictions(
+  InitialFinalizedLogisticFitted
+)
+```
 
 ```{r}
-InitialFinalizedLogisticFitted |>
-  collect_predictions() |>
-  ggplot() +
+ggplot(InitialFinalizedLogisticPredictions) +
   geom_histogram(
     aes(.pred_yes, fill = take_current_trip),
     alpha = 0.3,
@@ -132,15 +198,12 @@ InitialFinalizedLogisticFitted |>
 
 
 ```{r}
-InitialFinalizedLogisticFitted |>
-  collect_predictions() |>
+InitialFinalizedLogisticPredictions |>
   mutate(
     yes_pred = (take_current_trip == "yes") * 1,
     residual = yes_pred - .pred_yes
   ) |>
-  arrange(desc(abs(residual))) |>
-  slice_head(n = 10) |>
-  arrange(id)
+  summarize(total_residual = sum(abs(residual)))
 ```
 
 ```{r}
