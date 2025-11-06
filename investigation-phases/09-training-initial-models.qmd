@@ -34,9 +34,6 @@ library(lubridate)
 library(timeDate)
 library(ggtext)
 
-# To manage parallel model training
-library(future)
-
 ## Tools for modeling
 library(tidymodels)
 library(embed)
@@ -46,7 +43,6 @@ library(baguette)
 
 ## Publish data sets, models, and other R objects
 library(pins)
-library(qs2)
 
 ## Custom functions
 devtools::load_all()

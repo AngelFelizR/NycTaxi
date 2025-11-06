@@ -7,18 +7,7 @@ execute:
   warning: false
 ---
 
-After exploring the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
-
-In this section we will start defining the models to train. We trained a diverse set of models, from simple, interpretable ones (Logistic Regression) to complex, powerful ones (Random Forests), to see which approach works best for our data and hardware constraints:
-
-- Regularized Regression Logistic Regression via glmnet
-- Flexible discriminant analysis
-- MARS via earth
-- Bagged trees via rpart
-- Random forests via ranger
-- Boosted trees via xgboost
-
-We are going to fit 5 random variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
+Now is time to understand what is going under the h
     
 ## Setting up the environment
 
@@ -34,9 +23,6 @@ library(lubridate)
 library(timeDate)
 library(ggtext)
 
-# To manage parallel model training
-library(future)
-
 ## Tools for modeling
 library(tidymodels)
 library(embed)
@@ -46,7 +32,6 @@ library(baguette)
 
 ## Publish data sets, models, and other R objects
 library(pins)
-library(qs2)
 
 ## Custom functions
 devtools::load_all()
@@ -59,62 +44,11 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-
-## Defining models to train
-
-Now we can define the models to be trained and tuned.
-
-```{r}
-# Regularized regression logistic regression
-GlmnetSpec <-
-  logistic_reg(penalty = tune(), mixture = tune()) |>
-  set_mode("classification") |>
-  set_engine("glmnet")
-
-# Flexible discriminant analysis
-FdaSpec <-
-  discrim_flexible(prod_degree = tune()) |>
-  set_mode("classification") |>
-  set_engine('earth')
-
-# MARS
-EarthSpec <-
-  mars(num_terms = tune(), prod_degree = tune()) |>
-  set_mode("classification")
-
-# Bagged trees
-C5BagSpec <-
-  bag_tree(min_n = tune()) |>
-  set_mode("classification") |>
-  set_engine("C5.0")
-
-# Random forests
-RangerSpec <-
-  rand_forest(mtry = tune(), min_n = tune(), trees = 250) |>
-  set_mode("classification") |>
-  set_engine("ranger")
-
-# Boosted trees
-XgboostSpec <-
-  boost_tree(
-    trees = 250,
-    min_n = tune(),
-    tree_depth = tune(),
-    learn_rate = tune(),
-    loss_reduction = tune(),
-    sample_size = tune()
-  ) |>
-  set_mode("classification") |>
-  set_engine("xgboost")
-```
-
 ## Importing data
 
 Here we import the data to use from the remote Board located in a github repo.
 
 ```{r}
-#| eval: false
-
 AcsVariablesByZoneId <-
   pin_read(BoardLocal, "AcsVariablesByZoneId")[,
     LocationID := as.character(LocationID)
@@ -149,5 +83,115 @@ set.seed(2545)
 SampledDataSplit <- initial_split(SampledData, strata = take_current_trip)
 
 TrainingSample <- training(SampledDataSplit)
-TestingSample <- testing(SampledDataSplit)
+
+set.seed(5878)
+TrainingSampleResamples <- vfold_cv(
+  TrainingSample,
+  v = 5,
+  strata = take_current_trip
+)
 ```
+
+## Importing workflows to train
+
+```{r}
+InitialFinalizedLogisticWf <- pin_read(BoardLocal, "InitialFinalizedLogisticWf")
+```
+
+## Fitting resamples
+
+```{r}
+InitialFinalizedLogisticFitted <- fit_resamples(
+  InitialFinalizedLogisticWf,
+  TrainingSampleResamples,
+  metrics = metric_set(brier_class),
+  control = control_resamples(save_pred = TRUE, extract = identity)
+)
+
+
+pin_write(
+  BoardLocal,
+  InitialFinalizedLogisticFitted,
+  "InitialFinalizedLogisticFitted",
+  type = "qs2"
+)
+```
+
+
+```{r}
+InitialFinalizedLogisticFitted |>
+  collect_predictions() |>
+  ggplot() +
+  geom_histogram(
+    aes(.pred_yes, fill = take_current_trip),
+    alpha = 0.3,
+    position = position_identity()
+  ) +
+  theme_light()
+```
+
+
+```{r}
+InitialFinalizedLogisticFitted |>
+  collect_predictions() |>
+  mutate(
+    yes_pred = (take_current_trip == "yes") * 1,
+    residual = yes_pred - .pred_yes
+  ) |>
+  arrange(desc(abs(residual))) |>
+  slice_head(n = 10) |>
+  arrange(id)
+```
+
+```{r}
+library(DALEX)
+fitted_resamples = InitialFinalizedLogisticFitted
+fold_id = "Fold1"
+create_fold_explainer <- function(fitted_resamples, fold_id) {
+  order_id = sub("Fold", "", fold_id) |> as.integer()
+  fitted_workflow = fitted_resamples$.extracts[[order_id]]$`.extracts`[[1L]]
+  testing_data = testing(fitted_resamples$splits[[order_id]])
+
+  DALEXtra::explain_tidymodels(
+    fitted_workflow,
+    data = testing_data,
+    y = as.double(testing_data[["take_current_trip"]] == "yes")
+  )
+}
+
+CreatedFold <- InitialFinalizedLogisticFitted$id
+names(CreatedFold) <- CreatedFold
+
+ExplainerList <- lapply(
+  CreatedFold,
+  FUN = create_fold_explainer,
+  fitted_resamples = InitialFinalizedLogisticFitted
+)
+
+set.seed(1801)
+biggest_error <-
+  predict_parts(
+    explainer = ExplainerList[["Fold1"]],
+    new_observation = TrainingSample[40800, ]
+  )
+```
+
+```{r}
+library(forcats)
+biggest_error %>%
+  group_by(variable) %>%
+  mutate(mean_val = mean(contribution)) %>%
+  ungroup() %>%
+  mutate(variable = fct_reorder(variable, abs(mean_val))) %>%
+  ggplot(aes(contribution, variable, fill = mean_val > 0)) +
+  geom_col(
+    data = ~ distinct(., variable, mean_val),
+    aes(mean_val, variable),
+    alpha = 0.5
+  ) +
+  geom_boxplot(width = 0.5) +
+  theme(legend.position = "none") +
+  scale_fill_viridis_d() +
+  labs(y = NULL)
+```
+
