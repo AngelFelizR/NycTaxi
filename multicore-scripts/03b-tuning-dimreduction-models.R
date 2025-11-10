@@ -64,7 +64,7 @@ for (wf_id_i in WorkFlowDimReduction$wflow_id) {
     control = control_grid(
       verbose = TRUE,
       parallel_over = "resamples",
-      save_pred = FALSE
+      save_pred = TRUE
     )
   )
 

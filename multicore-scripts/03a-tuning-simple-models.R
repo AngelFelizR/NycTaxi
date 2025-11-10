@@ -49,7 +49,7 @@ WorkFlowSimpleTuned <- tune_grid(
   control = control_grid(
     verbose = TRUE,
     parallel_over = "resamples",
-    save_pred = FALSE
+    save_pred = TRUE
   )
 )
 
