@@ -407,9 +407,6 @@ ConsolidationRecipe <-
     "hvfhs_license_num"
   ))) |>
 
-  # Imputing the data
-  step_impute_median(all_numeric_predictors()) |>
-
   # Balancing data
   step_downsample(take_current_trip, under_ratio = 1)
 ```
@@ -450,6 +447,7 @@ Before creating the the first recipe it's  important to take in consideration th
 start_recipe <- function(df) {
   new_recipe =
     recipe(take_current_trip ~ ., data = df) |>
+    step_impute_median(all_numeric_predictors()) |>
     update_role(
       trip_id,
       performance_per_hour,
