@@ -44,15 +44,14 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-## Importing data
+## Importing training data
 
 Here we import the data to use from the remote Board located in a github repo.
 
 ```{r}
-AcsVariablesByZoneId <-
-  pin_read(BoardLocal, "AcsVariablesByZoneId")[,
-    LocationID := as.character(LocationID)
-  ]
+AcsVariablesByZoneId <- pin_read(BoardLocal, "AcsVariablesByZoneId")[,
+  LocationID := as.character(LocationID)
+]
 
 OmsDensityFeatures <- pin_read(BoardLocal, "OmsDensityFeatures")[,
   LocationID := as.character(LocationID)
@@ -83,128 +82,234 @@ set.seed(2545)
 TrainingSample <-
   initial_split(SampledData, strata = take_current_trip) |>
   training()
-
-InitialFinalizedLogisticWf <- pin_read(BoardLocal, "InitialFinalizedLogisticWf")
-LogisticPreprocessor <- extract_preprocessor(InitialFinalizedLogisticWf)
-LogisticSpec <- extract_spec_parsnip(InitialFinalizedLogisticWf)
 ```
 
-## Importing workflows to train
+## Defining data to explain
+
+```{r}
+set.seed(2971)
+ExplainSplit <- initial_split(TrainingSample, strata = take_current_trip)
+
+ExplainTraining <- training(ExplainSplit)
+ExplainTesting <- testing(ExplainSplit)
+```
+
+## Importing workflows
+
+```{r}
+WorkflowsToImport <-
+  pin_list(BoardLocal) |>
+  grep(pattern = "^InitialFinalized\\w+Wf$", value = TRUE)
+
+names(WorkflowsToImport) <-
+  WorkflowsToImport |>
+  sub(pattern = "^InitialFinalized", replacement = "") |>
+  sub(pattern = "Wf$", replacement = "")
+
+InitialFinalizedWf <- lapply(
+  WorkflowsToImport,
+  FUN = pin_read,
+  board = BoardLocal
+)
+
+InitialFinalizedWf <- as_workflow_set(!!!InitialFinalizedWf)
+
+InitialFinalizedWf
+```
+
+## Fitting workflows
 
 ```{r}
 #| eval: false
 
-TrainingSampleProcessed <-
-  prep(LogisticPreprocessor) |>
-  bake(new_data = TrainingSample)
+InitialFittedWf <-
+  InitialFinalizedWf |>
+  mutate(fit = map(info, ~ fit(.x$workflow[[1L]], ExplainTraining)))
 
 pin_write(
   BoardLocal,
-  TrainingSampleProcessed,
-  "TrainingSampleProcessed",
-  type = "qs2"
+  InitialFittedWf,
+  name = "InitialFittedWf",
+  type = "qs2",
+  title = "Initial Fitted Wf"
 )
 ```
 
-## Fitting resamples
+```{r}
+InitialFittedWf <- pin_read(
+  BoardLocal,
+  name = "InitialFittedWf"
+)
+```
+
+
+## Getting residuals for all models
 
 ```{r}
 #| eval: false
 
-set.seed(5878)
-TrainingSampleProcessedResamples <- vfold_cv(
-  TrainingSampleProcessed,
-  v = 5,
-  strata = take_current_trip
-)
-
-InitialFinalizedLogisticFitted <-
-  recipe(take_current_trip ~ ., data = TrainingSampleProcessed) |>
-  update_role(
+ExplainTestingOutputCols <-
+  ExplainTesting |>
+  select(
     trip_id,
     performance_per_hour,
     percentile_75_performance,
-    new_role = "additional info"
-  ) |>
-  workflow(
-    LogisticSpec
-  ) |>
-  fit_resamples(
-    resamples = TrainingSampleProcessedResamples,
-    metrics = metric_set(brier_class),
-    control = control_resamples(save_pred = TRUE, extract = identity)
+    take_current_trip
   )
 
-set.seed(5878)
-TrainingSampleResamples <- vfold_cv(
-  TrainingSample,
-  v = 5,
-  strata = take_current_trip
-)
-
-InitialFinalizedLogisticFitted2 <-
-  fit_resamples(
-    InitialFinalizedLogisticWf,
-    resamples = TrainingSampleResamples,
-    metrics = metric_set(brier_class),
-    control = control_resamples(save_pred = TRUE, extract = identity)
-  )
+ExplainTestingPredictions <-
+  InitialFittedWf |>
+  transmute(
+    wflow_id,
+    .predictions = map(
+      fit,
+      ~ bind_cols(
+        ExplainTestingOutputCols,
+        predict(.x, new_data = ExplainTesting, type = "class"),
+        predict(.x, new_data = ExplainTesting, type = "prob")
+      )
+    )
+  ) |>
+  unnest(.predictions)
 
 pin_write(
   BoardLocal,
-  InitialFinalizedLogisticFitted,
-  "InitialFinalizedLogisticFitted",
-  type = "qs2"
-)
-
-pin_write(
-  BoardLocal,
-  InitialFinalizedLogisticFitted2,
-  "InitialFinalizedLogisticFitted2",
-  type = "qs2"
+  ExplainTestingPredictions,
+  name = "ExplainTestingPredictions",
+  type = "qs2",
+  title = "Explain Testing Predictions"
 )
 ```
 
 ```{r}
-InitialFinalizedLogisticFitted <- pin_read(
+ExplainTestingPredictions <- pin_read(
   BoardLocal,
-  "InitialFinalizedLogisticFitted",
-)
-
-InitialFinalizedLogisticFitted2 <- pin_read(
-  BoardLocal,
-  "InitialFinalizedLogisticFitted2",
-)
-
-TrainingSampleProcessed <- pin_read(
-  BoardLocal,
-  "TrainingSampleProcessed"
-)
-
-InitialFinalizedLogisticPredictions <- collect_predictions(
-  InitialFinalizedLogisticFitted
+  name = "ExplainTestingPredictions"
 )
 ```
 
-```{r}
-ggplot(InitialFinalizedLogisticPredictions) +
-  geom_histogram(
-    aes(.pred_yes, fill = take_current_trip),
-    alpha = 0.3,
-    position = position_identity()
-  ) +
-  theme_light()
-```
 
+## Model Cost
 
 ```{r}
-InitialFinalizedLogisticPredictions |>
+add_error_cost <- function(dt) {
   mutate(
-    yes_pred = (take_current_trip == "yes") * 1,
-    residual = yes_pred - .pred_yes
+    dt,
+    current_method_cost = if_else(
+      take_current_trip == "no",
+      percentile_75_performance - performance_per_hour,
+      0
+    ),
+    cost_wrong_no = if_else(
+      take_current_trip != .pred_class & .pred_class == "no",
+      performance_per_hour - percentile_75_performance,
+      0
+    ),
+    cost_wrong_yes = if_else(
+      take_current_trip != .pred_class & .pred_class == "yes",
+      percentile_75_performance - performance_per_hour,
+      0
+    ),
+    cost_wrong_total = cost_wrong_no + cost_wrong_yes
+  )
+}
+
+
+calculate_cost_by_threshold <- function(threshold) {
+  ExplainTestingPredictions |>
+    mutate(
+      threshold = threshold,
+      .pred_class = if_else(.pred_yes >= threshold, "yes", "no")
+    ) |>
+    add_error_cost() |>
+    group_by(wflow_id, threshold) |>
+    summarize(
+      current_method_cost = sum(current_method_cost),
+      cost_wrong_total = sum(cost_wrong_total, na.rm = TRUE)
+    )
+}
+
+lapply(seq(0, 0.5, by = 0.05), FUN = calculate_cost_by_threshold) |>
+  bind_rows() |>
+  pivot_longer(
+    cols = !c(threshold, wflow_id),
+    names_to = "cost_source",
+    values_to = "cost"
   ) |>
-  summarize(total_residual = sum(abs(residual)))
+  ggplot(aes(threshold, cost, color = cost_source, group = cost_source)) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(
+    labels = scales::label_currency(accuracy = 1, scale = 1e-3, suffix = "k")
+  ) +
+  expand_limits(y = 0) +
+  facet_wrap(vars(wflow_id)) +
+  theme_minimal() +
+  theme(legend.position = "top")
 ```
+
+
+## 
+
+```{r}
+ExplainTestingNoPredictions <-
+  ExplainTestingPredictions |>
+  filter(take_current_trip == "no") |>
+  add_error_cost() |>
+  group_by(trip_id) |>
+  summarize(
+    cost_wrong_total = sum(cost_wrong_total),
+    models_correct = sum(take_current_trip == .pred_class)
+  )
+
+ExplainTestingNoPredictions |>
+  mutate(models_correct = factor(models_correct)) |>
+  group_by(models_correct) |>
+  mutate(
+    models_correct = forcats::fct_relabel(
+      models_correct,
+      ~ paste0("n=", scales::comma(n()), "\n", .x)
+    )
+  ) |>
+  ggplot() +
+  geom_col(aes(models_correct, cost_wrong_total)) +
+  scale_y_continuous(
+    labels = scales::label_currency(accuracy = 1, scale = 1e-3, suffix = "k")
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ExplainTestingPredictions |>
+  semi_join(
+    filter(ExplainTestingNoPredictions, models_correct == 0L),
+    by = "trip_id"
+  ) |>
+  add_error_cost() |>
+  pivot_wider(
+    id_cols = c(
+      trip_id,
+      performance_per_hour,
+      percentile_75_performance,
+      cost_wrong_total
+    ),
+    names_from = wflow_id,
+    values_from = .pred_yes
+  ) |>
+  arrange(desc(cost_wrong_total))
+```
+
+```{r}
+ExplainTestingPredictions |>
+  filter(take_current_trip == "no") |>
+  group_by(trip_id) |>
+  mutate(models_correct = sum(take_current_trip == .pred_class)) |>
+  ungroup() |>
+  filter(models_correct == 0L) |>
+  arrange(trip_id)
+```
+
+
 
 ```{r}
 library(DALEX)

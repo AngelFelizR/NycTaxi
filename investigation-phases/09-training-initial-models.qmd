@@ -165,6 +165,7 @@ ConsolidationRecipe <-
       hvfhs_license_num +
       trip_miles +
       trip_time +
+      driver_pay +
       request_datetime +
       trip_id +
       performance_per_hour +

@@ -102,7 +102,7 @@ digraph SIPOC {
 
 
 ::: {.callout-note}
-Despite **trip_time** and **driver_pay** are usually predicted by the company's apps are are assuming that those fields represent the final value after completing each trip and not an estimation.
+Despite the final values for **trip_time** and **driver_pay** are avaialable at the end of the trips, taxi companies provide really good models to predict the final price and time before starting any trip. That why they can also be used as predictors.
 :::
 
 

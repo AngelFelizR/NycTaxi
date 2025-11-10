@@ -430,7 +430,7 @@ Based on the below graphs, we can say that:
 
 1. `tips` is **strongly right-skewed**, as approximately **79% of trips recorded no tip**. Among the remaining 21% of trips, about 10% have tips in the range `(0, 4]` dollars and approximately 9% fall within `(4, 10]` dollars. It is uncommon to observe trips with tips exceeding 10 dollars, and trips with tips greater than 20 dollars are exceedingly rare.
 
-3. `driver_pay` is **right skewed** __pending__ to explain.
+3. `driver_pay` is **right skewed** as only **6% of trips** of the trips present pays higher than $40.
 
 4. `performance_per_hour` present some over inflated values of around 30K dollars per hour, which make no sense based on what we saw in when defining the based line to improve of 50 dollars per hour. After applying a logarithmic scale of base 2, we can see the real distribution, we can find that some of the trips have a negative performance, but thanks to the ECDF Plot we know that only 5% of the points present less than 40 dollars per hour, 7% of the trips present values greater than 100 dollars per hour and only 1% of the example present a performance grater than 160 dollars per hour.
 
