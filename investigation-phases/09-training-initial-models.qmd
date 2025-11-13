@@ -39,7 +39,6 @@ library(tidymodels)
 library(embed)
 library(themis)
 library(discrim)
-library(baguette)
 
 ## Publish data sets, models, and other R objects
 library(pins)
@@ -78,12 +77,6 @@ EarthSpec <-
   mars(num_terms = tune(), prod_degree = tune()) |>
   set_mode("classification")
 
-# Bagged trees
-C5BagSpec <-
-  bag_tree(min_n = tune()) |>
-  set_mode("classification") |>
-  set_engine("C5.0")
-
 # Random forests
 RangerSpec <-
   rand_forest(mtry = tune(), min_n = tune(), trees = 250) |>
@@ -94,9 +87,10 @@ RangerSpec <-
 XgboostSpec <-
   boost_tree(
     trees = 250,
-    min_n = tune(),
     tree_depth = tune(),
     learn_rate = tune(),
+    mtry = tune(),
+    min_n = tune(),
     loss_reduction = tune(),
     sample_size = tune()
   ) |>
@@ -500,14 +494,12 @@ NormalizedUmapRecipe <-
 ## Defining recipes for tree based models
 
 ```{r}
-
 ReducedLevelsRecipe <-
   start_recipe(TrainingSampleJoined) |>
   step_novel(all_nominal_predictors()) |>
   step_other(all_nominal_predictors(), threshold = tune()) |>
   step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
   step_nzv(all_predictors())
-
 ```
 
 ## Defining workflows to evaluate
@@ -538,13 +530,12 @@ WorkFlowDimReduction <- workflow_set(
   )
 )
 
-# Group 3: Tree-based models (muy intensivos en memoria)
+# Group 3: Tree-based models
 WorkFlowTrees <- workflow_set(
   preproc = list(
     reduced_levels = ReducedLevelsRecipe
   ),
   models = list(
-    bag_tree = C5BagSpec,
     random_forest = RangerSpec,
     xgboost = XgboostSpec
   )
@@ -707,10 +698,6 @@ InitialFinalizedXgboostWf <- finalize_tree_work_flow(
   XgboostSpec,
   "reduced_levels_xgboost"
 )
-InitialFinalizedBagTreeWf <- finalize_tree_work_flow(
-  C5BagSpec,
-  "reduced_levels_bag_tree"
-)
 
 InitialFinalizedLogisticWf <- workflow(
   preprocessor = ConsolidationRecipe |>
@@ -752,27 +739,18 @@ pin_write(
 
 pin_write(
   BoardLocal,
-  InitialFinalizedBagTreeWf,
-  "InitialFinalizedBagTreeWf",
-  type = "qs2",
-  title = "Initial Finalized Bag Tree Wf"
-)
-
-pin_write(
-  BoardLocal,
   InitialFinalizedLogisticWf,
   "InitialFinalizedLogisticWf",
   type = "qs2",
   title = "Initial Finalized Logistic Wf"
 )
-
 ```
 
 ## Conclusion
 
 The initial model training and evaluation revealed two key findings:
 
-1. **Tree-based models (`Random Forest` and `Bagged Trees`)** achieved the best performance, indicating they are well-suited to capture the complex patterns in the NYC taxi data.
+1. **Tree-based models (`Random Forest` and `Xgboost`)** achieved the best performance, indicating they are well-suited to capture the complex patterns in the NYC taxi data.
 
 2. **A simpler `Regularized Logistic Regression` model performed nearly as well**. This suggests that a strong linear relationship exists within the features, making it a highly efficient and interpretable candidate for a final model.
 

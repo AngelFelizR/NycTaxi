@@ -28,7 +28,7 @@ library(tidymodels)
 library(embed)
 library(themis)
 library(discrim)
-library(baguette)
+
 
 ## Publish data sets, models, and other R objects
 library(pins)
