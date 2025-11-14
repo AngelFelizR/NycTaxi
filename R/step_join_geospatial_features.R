@@ -34,6 +34,8 @@
 #'   using `skip = TRUE` as it may affect the computations for subsequent
 #'   operations.
 #' @param id A character string that is unique to this step to identify it.
+#' @param terms Pending
+#' @param info Pending
 #'
 #' @return An updated version of `recipe` with the new step added to the
 #'   sequence of any existing operations.
@@ -253,6 +255,18 @@ bake.step_join_geospatial_features <- function(
 }
 
 
+#' Required Packages for `step_join_geospatial_features`
+#'
+#' Identifies the packages needed when using
+#' `step_join_geospatial_features()` within a recipe.
+#' This ensures that all dependencies are available when the step
+#' is prepared or baked.
+#'
+#' @param x A recipe object.
+#' @param ... Not used.
+#'
+#' @return A character vector with the names of the required packages.
+#'
 #' @export
 required_pkgs.step_join_geospatial_features <- function(x, ...) {
   c("data.table", "NycTaxi")

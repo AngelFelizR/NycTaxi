@@ -2,14 +2,11 @@
 "_PACKAGE"
 
 ## usethis namespace: start
-#' @importFrom DBI dbConnect
-#' @importFrom DBI dbDisconnect
-#' @importFrom DBI dbGetQuery
+#' @importFrom data.table :=
+#' @importFrom data.table .N
 #' @importFrom data.table %between%
 #' @importFrom data.table %chin%
 #' @importFrom data.table %like%
-#' @importFrom data.table .N
-#' @importFrom data.table :=
 #' @importFrom data.table as.data.table
 #' @importFrom data.table copy
 #' @importFrom data.table data.table
@@ -17,11 +14,21 @@
 #' @importFrom data.table fifelse
 #' @importFrom data.table is.data.table
 #' @importFrom data.table rbindlist
-#' @importFrom data.table setDT
 #' @importFrom data.table setattr
+#' @importFrom data.table setDT
 #' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
 #' @importFrom data.table uniqueN
+#' @importFrom DBI dbConnect
+#' @importFrom DBI dbDisconnect
+#' @importFrom DBI dbGetQuery
+#' @importFrom dplyr filter
+#' @importFrom dplyr if_else
+#' @importFrom dplyr mutate
+#' @importFrom dplyr pull
+#' @importFrom dplyr right_join
+#' @importFrom dplyr row_number
+#' @importFrom dplyr transmute
 #' @importFrom duckdb duckdb
 #' @importFrom future.apply future_lapply
 #' @importFrom ggplot2 aes
@@ -93,6 +100,8 @@
 #' @importFrom tmap tm_basemap
 #' @importFrom tmap tm_borders
 #' @importFrom tmap tm_shape
+#' @importFrom tune collect_predictions
+#' @importFrom tune select_best
 #' @importFrom utils tail
 #' @importFrom withr local_seed
 ## usethis namespace: end
@@ -136,5 +145,12 @@ utils::globalVariables(c(
   "N",
   "cat1",
   "cat2",
-  "prop"
+  "prop",
+
+  # Adding cost
+  ".pred_yes",
+  ".pred_class",
+  "cost_wrong_no",
+  "cost_wrong_yes",
+  ".config"
 ))

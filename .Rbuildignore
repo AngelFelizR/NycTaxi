@@ -30,3 +30,9 @@
 ^\.vscode$
 ^[.]?air[.]toml$
 ^result/$
+^result$
+^default.nix$
+^Dockerfile$
+^generate_env.R$
+^params.yml$
+^.envrc$

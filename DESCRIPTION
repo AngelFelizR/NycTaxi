@@ -16,6 +16,7 @@ Depends:
 Imports: 
     data.table,
     DBI,
+    dplyr,
     duckdb,
     future.apply,
     ggplot2,
@@ -32,6 +33,7 @@ Imports:
     tibble,
     timeDate,
     tmap,
+    tune,
     utils,
     withr
 Suggests:

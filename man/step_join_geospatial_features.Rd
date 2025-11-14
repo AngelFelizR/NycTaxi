@@ -63,6 +63,10 @@ using \code{skip = TRUE} as it may affect the computations for subsequent
 operations.}
 
 \item{id}{A character string that is unique to this step to identify it.}
+
+\item{terms}{Pending}
+
+\item{info}{Pending}
 }
 \value{
 An updated version of \code{recipe} with the new step added to the
@@ -88,26 +92,6 @@ geospatial features. The join behavior depends on \code{col_prefix}:
 columns without renaming
 }
 }
-\section{Tidying}{
-
-When you \code{\link[generics:tidy]{tidy()}} this step, a tibble is returned with
-columns \code{terms}, \code{spatial_features}, and \code{id}:
-
-\describe{
-\item{terms}{character, the columns used for joining}
-\item{spatial_features}{character, names of spatial feature columns added}
-\item{id}{character, id of this step}
-}
-
-There is one row for each pair of (join column, spatial feature).
-}
-
-\section{Case weights}{
-
-This step performs an inner join. The case weights are not modified by this
-step and are assumed to be based on the original data structure.
-}
-
 \examples{
 # Create sample data
 main_data = data.frame(
