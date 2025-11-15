@@ -29,7 +29,6 @@ Here are the loaded libraries to start the process.
 library(here)
 
 ## To transform data that fits in RAM
-library(data.table)
 library(lubridate)
 library(timeDate)
 library(ggtext)
@@ -403,6 +402,14 @@ ConsolidationRecipe <-
 
   # Balancing data
   step_downsample(take_current_trip, under_ratio = 1)
+
+pin_write(
+  BoardLocal,
+  ConsolidationRecipe,
+  "ConsolidationRecipe",
+  type = "qs2",
+  title = "Consolidation Recipe"
+)
 ```
 
 ## Consolidating features
@@ -617,13 +624,16 @@ On the other hand, we also have the `Logistic Regression` which present a really
 
 ```{r}
 WorkFlowTunedBest |>
+  group_by(model) |>
+  mutate(meadian_of_mean_score = quantile(mean, probs = 0.75)) |>
+  ungroup() |>
   mutate(
-    best_models = case_when(
-      grepl("(random|bag)_", model) ~ "group1",
-      grepl("logistic|xgboost", model) ~ "group2",
-      .default = "other"
-    ),
     model = reorder(model, -mean, FUN = median),
+    best_models = case_when(
+      meadian_of_mean_score < 0.18 ~ "group1",
+      meadian_of_mean_score < 0.23 ~ "group2",
+      .default = "other"
+    )
   ) |>
   ggplot(aes(model, mean)) +
   geom_boxplot(aes(fill = best_models)) +
@@ -640,13 +650,18 @@ WorkFlowTunedBest |>
       "<span style='color:",
       Params$ColorHighlight,
       ";'>",
-      "**Tree Based Models**",
+      "**Logistic Regression**",
       "</span> ",
-      "present the best performance"
+      " and ",
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>",
+      "**Random Forest**",
+      "</span> "
     ),
-    subtitle = "But the **Logistic Regression** perfomed well",
+    subtitle = "were the best models based on **Bier Score**",
     y = "Brier Score",
-    x = "Best Models"
+    x = "Trained Models"
   ) +
   theme_light() +
   theme(
@@ -658,68 +673,83 @@ WorkFlowTunedBest |>
   )
 ```
 
+But we understand that we need to evaluate the model based on the cost impact rather than a general metric to match with the objetive.
+
+```{r}
+collect_prediction_cost <- function(
+  training_data,
+  tuned_wf,
+  model_name,
+  threshold,
+  metric = "brier_class"
+) {
+  NycTaxi::collect_predictions_best_config(tuned_wf, model_name, metric) |>
+    NycTaxi::add_performance_variables(training_data = training_data) |>
+    NycTaxi::add_pred_class(threshold) |>
+    NycTaxi::calculate_costs()
+}
+
+CostByModel <- lapply(
+  names(WorkFlowTuned),
+  FUN = collect_prediction_cost,
+  threshold = 0.5,
+  training_data = TrainingSampleJoined,
+  tuned_wf = WorkFlowTuned
+) |>
+  bind_rows() |>
+  group_by(model_name) |>
+  summarize(
+    current_method_cost = mean(current_method_cost, na.rm = TRUE),
+    model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  mutate(
+    total_benefit = current_method_cost - model_method_cost,
+    model_name = reorder(model_name, total_benefit)
+  )
+
+CostByModel |>
+  ggplot(aes(model_method_cost, model_name)) +
+  geom_segment(
+    aes(x = current_method_cost, xend = model_method_cost),
+    color = Params$ColorGray,
+    linewidth = 1
+  ) +
+  geom_point(
+    color = Params$ColorHighlight,
+    size = 3
+  ) +
+  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  expand_limits(x = 0) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>",
+      "**Logistic Regression**",
+      "</span> ",
+      "losses less money than current method"
+    ),
+    subtitle = "**Flexible DA** is also producing similar results",
+    y = "Trained Models",
+    x = "Average Cost Lost Due Wrong Selection"
+  ) +
+  theme_light() +
+  theme(
+    plot.title = element_markdown(size = 14),
+    plot.subtitle = element_markdown(size = 12),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "none"
+  )
+```
+
 
 ## Creating workflows to explore
 
 ```{r}
 # eval: false
-
-finalize_tree_work_flow <- function(model_spec, wf_name) {
-  finalized_wf =
-    workflow(
-      preprocessor = ConsolidationRecipe |>
-        update_role(
-          trip_id,
-          performance_per_hour,
-          percentile_75_performance,
-          new_role = "additional info"
-        ) |>
-        step_novel(all_nominal_predictors()) |>
-        step_other(all_nominal_predictors(), threshold = tune()) |>
-        step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
-        step_nzv(all_predictors()),
-      spec = RangerSpec
-    ) |>
-    finalize_workflow(
-      select_best(
-        WorkFlowTuned[["reduced_levels_random_forest"]],
-        metric = "brier_class"
-      )
-    )
-
-  return(finalized_wf)
-}
-
-InitialFinalizedRandomForestWf <- finalize_tree_work_flow(
-  RangerSpec,
-  "reduced_levels_random_forest"
-)
-InitialFinalizedXgboostWf <- finalize_tree_work_flow(
-  XgboostSpec,
-  "reduced_levels_xgboost"
-)
-
-InitialFinalizedLogisticWf <- workflow(
-  preprocessor = ConsolidationRecipe |>
-    update_role(
-      trip_id,
-      performance_per_hour,
-      percentile_75_performance,
-      new_role = "additional info"
-    ) |>
-    step_YeoJohnson(all_numeric_predictors()) |>
-    step_novel(all_nominal_predictors()) |>
-    step_dummy(all_nominal_predictors()) |>
-    step_nzv(all_predictors()) |>
-    step_normalize(all_numeric_predictors()),
-  spec = GlmnetSpec
-) |>
-  finalize_workflow(
-    select_best(
-      WorkFlowTuned[["normalized_reg_logistic"]],
-      metric = "brier_class"
-    )
-  )
 
 pin_write(
   BoardLocal,
