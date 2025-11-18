@@ -618,11 +618,12 @@ WorkFlowTunedBest <- lapply(
   do.call(what = "bind_rows")
 ```
 
-Across all folds and tune params the best results came from `Random Forest` and `Bag Trees` but reguardless of their tunning params the performance was very similar so **taking more time** tunning this models to seem worthy. `Xgboost` performed poorly in general in exception of one configuration so it will be important to take more time improving the tuning params.
-
-On the other hand, we also have the `Logistic Regression` which present a really similar results so it would be great to understand how we can **improve the model** with feature engineering.
+Now we can confirm that best models were `Logistic Regression` and `Random Forest` based on number of predictios correct, but we need to also take in consideration that relative cost of taking or reject the wrong trip can change from trip to trip and it's really important that the metric that selects the best model take that into consideration.
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
 WorkFlowTunedBest |>
   group_by(model) |>
   mutate(meadian_of_mean_score = quantile(mean, probs = 0.75)) |>
@@ -673,9 +674,11 @@ WorkFlowTunedBest |>
   )
 ```
 
-But we understand that we need to evaluate the model based on the cost impact rather than a general metric to match with the objetive.
+To estimate the cost we are selecting the best model of each model type and take the difference of the performace per hour of each trip and the performance per hour or the 75 percentile depending the final value was correct o no.
 
 ```{r}
+#| eval: false
+
 collect_prediction_cost <- function(
   training_data,
   tuned_wf,
@@ -689,14 +692,38 @@ collect_prediction_cost <- function(
     NycTaxi::calculate_costs()
 }
 
-CostByModel <- lapply(
+PredictionsCosts <- lapply(
   names(WorkFlowTuned),
   FUN = collect_prediction_cost,
   threshold = 0.5,
   training_data = TrainingSampleJoined,
   tuned_wf = WorkFlowTuned
 ) |>
-  bind_rows() |>
+  bind_rows()
+
+pin_write(
+  BoardLocal,
+  x = PredictionsCosts,
+  name = "PredictionsCosts",
+  type = "qs2",
+  title = "Predictions Costs"
+)
+```
+
+As the current method that the taxis are using in the simulation is to take all trips we can calculate that on average of how much money was lost due this strategy on the training data (around $4 per trip) and compore how that number could change if we just the best trained model for each model type.
+
+The resuls were really surprising as the `Flexible Dicrim Analisys` was performing really similar to `Logistic Regression` and `Random Forest` (that was in 2nd place) it's almost producing the same results as taking al trips.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+PredictionsCosts <- pin_read(
+  BoardLocal,
+  name = "PredictionsCosts"
+)
+
+PredictionsCosts |>
   group_by(model_name) |>
   summarize(
     current_method_cost = mean(current_method_cost, na.rm = TRUE),
@@ -706,9 +733,7 @@ CostByModel <- lapply(
   mutate(
     total_benefit = current_method_cost - model_method_cost,
     model_name = reorder(model_name, total_benefit)
-  )
-
-CostByModel |>
+  ) |>
   ggplot(aes(model_method_cost, model_name)) +
   geom_segment(
     aes(x = current_method_cost, xend = model_method_cost),
@@ -716,7 +741,10 @@ CostByModel |>
     linewidth = 1
   ) +
   geom_point(
-    color = Params$ColorHighlight,
+    shape = 21,
+    color = "black",
+    fill = Params$ColorHighlight,
+    stroke = 0.5,
     size = 3
   ) +
   scale_x_continuous(breaks = scales::breaks_width(1)) +
@@ -745,10 +773,72 @@ CostByModel |>
   )
 ```
 
+```{r}
+compare_model_predictions <- function(
+  predictions_df,
+  model1_name,
+  model2_name,
+  truth_col = "take_current_trip",
+  pred_class_col = ".pred_class"
+) {
+  # Filter for the two models and calculate correctness
+  comparison <- predictions_df |>
+    filter(model_name %in% c(model1_name, model2_name)) |>
+    mutate(correct = .data[[truth_col]] == .data[[pred_class_col]]) |>
+    pivot_wider(
+      id_cols = c("id", "trip_id", all_of(truth_col)),
+      names_from = "model_name",
+      values_from = c(".pred_yes", "correct")
+    )
 
-## Creating workflows to explore
+  # Create dynamic column names
+  correct_col1 <- paste0("correct_", model1_name)
+  correct_col2 <- paste0("correct_", model2_name)
+
+  # Categorize predictions
+  comparison |>
+    mutate(
+      correct_model = case_when(
+        .data[[correct_col1]] & !.data[[correct_col2]] ~ model1_name,
+        .data[[correct_col2]] & !.data[[correct_col1]] ~ model2_name,
+        .data[[correct_col1]] & .data[[correct_col2]] ~ "Both Correct",
+        TRUE ~ "Both Incorrect"
+      )
+    ) |>
+    count(correct_model, sort = TRUE) |>
+    mutate(percentage = scales::percent(n / sum(n), accuracy = 0.1))
+}
+
+ModelsToCompare <-
+  PredictionsCosts |>
+  pull(model_name) |>
+  unique() |>
+  setdiff(y = "normalized_reg_logistic")
+
+lapply(
+  ModelsToCompare,
+  FUN = compare_model_predictions,
+  predictions_df = PredictionsCosts,
+  model1_name = "normalized_reg_logistic"
+) |>
+  bind_rows() |>
+  filter(correct_model %in% ModelsToCompare) |>
+  arrange(desc(n))
+```
+
+Logistic Regression and xgboost highlighted complementary strengths: logistic regression surfaces stable, global linear effects you can act on immediately (easy to inspect, calibrate, and deploy), while xgboost captures nonlinear interactions and local patterns that improve raw performance but need explainability and calibration for safe use.
 
 ```{r}
+compare_model_predictions(
+  predictions_df = PredictionsCosts,
+  model1_name = "normalized_reg_logistic",
+  model2_name = "reduced_levels_xgboost"
+)
+```
+
+  ## Creating workflows to explore
+  
+  ```{r}
 # eval: false
 
 pin_write(
