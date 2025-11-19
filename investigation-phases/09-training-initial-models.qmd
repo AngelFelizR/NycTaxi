@@ -615,7 +615,7 @@ WorkFlowTunedBest <- lapply(
     show_best(WorkFlowTuned[[x]], metric = "brier_class") |> mutate(model = x)
   }
 ) |>
-  do.call(what = "bind_rows")
+  bind_rows()
 ```
 
 Now we can confirm that best models were `Logistic Regression` and `Random Forest` based on number of predictios correct, but we need to also take in consideration that relative cost of taking or reject the wrong trip can change from trip to trip and it's really important that the metric that selects the best model take that into consideration.
@@ -836,45 +836,61 @@ compare_model_predictions(
 )
 ```
 
-  ## Creating workflows to explore
-  
-  ```{r}
+## Creating workflows to explore
+
+Now the strategy will be to undertand what patterns have been catched by `xgboost` that we not  catched by the `Logict Regression` and then define whether we need to create modefy the features of `Logict Regression` or create an statck model to use the best of both models.
+
+```{r}
+#| echo: false
+
+WorkFlowSimple <- pin_read(
+  BoardLocal,
+  "WorkFlowSimple"
+)
+
+WorkFlowTrees <- pin_read(
+  BoardLocal,
+  "WorkFlowTrees"
+)
+```
+
+```{r}
 # eval: false
 
+InitialLogisticWf <- WorkFlowSimple |>
+  extract_workflow(id = "normalized_reg_logistic") |>
+  finalize_workflow(
+    parameters = select_best(
+      WorkFlowTuned[["normalized_reg_logistic"]],
+      metric = "brier_class"
+    )
+  )
+
+InitialXgboostWf <- WorkFlowTrees |>
+  extract_workflow(id = "reduced_levels_xgboost") |>
+  finalize_workflow(
+    parameters = select_best(
+      WorkFlowTuned[["reduced_levels_xgboost"]],
+      metric = "brier_class"
+    )
+  )
+
 pin_write(
   BoardLocal,
-  InitialFinalizedRandomForestWf,
-  "InitialFinalizedRandomForestWf",
+  InitialLogisticWf,
+  "InitialLogisticWf",
   type = "qs2",
-  title = "Initial Finalized Random Forest Wf"
+  title = "Initial Logistic Wf"
 )
 
 pin_write(
   BoardLocal,
-  InitialFinalizedXgboostWf,
-  "InitialFinalizedXgboostWf",
+  InitialXgboostWf,
+  "InitialXgboostWf",
   type = "qs2",
-  title = "Initial Finalized Xgboost Wf"
-)
-
-pin_write(
-  BoardLocal,
-  InitialFinalizedLogisticWf,
-  "InitialFinalizedLogisticWf",
-  type = "qs2",
-  title = "Initial Finalized Logistic Wf"
+  title = "Initial Xgboost Wf"
 )
 ```
 
 ## Conclusion
 
-The initial model training and evaluation revealed two key findings:
-
-1. **Tree-based models (`Random Forest` and `Xgboost`)** achieved the best performance, indicating they are well-suited to capture the complex patterns in the NYC taxi data.
-
-2. **A simpler `Regularized Logistic Regression` model performed nearly as well**. This suggests that a strong linear relationship exists within the features, making it a highly efficient and interpretable candidate for a final model.
-
-Therefore, the next steps should focus on two parallel paths: 
-
-- Further tuning the `xgboost` models to maximize performance
-- Investing in feature engineering to improve the already-competitive logistic model.
