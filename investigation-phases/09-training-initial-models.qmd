@@ -7,18 +7,18 @@ execute:
   warning: false
 ---
 
-After exploring the data and getting new features it's time to explore the data using ML models to extract insights that will be used to create the final model.
+After exploring the data and engineering new features, the next step is to evaluate the data using Machine Learning models. Our goal is to extract insights that will inform the creation of the final production model.
 
-In this section we will start defining the models to train. We trained a diverse set of models, from simple, interpretable ones (Logistic Regression) to complex, powerful ones (Random Forests), to see which approach works best for our data and hardware constraints:
+In this section, we define the models to be trained. We have selected a diverse set of algorithms, ranging from simple, interpretable ones (like Logistic Regression) to complex, powerful ones (like Random Forests). This allows us to determine which approach best suits our data and hardware constraints:
 
-- Regularized Regression Logistic Regression via glmnet
-- Flexible discriminant analysis
-- MARS via earth
-- Bagged trees via rpart
-- Random forests via ranger
-- Boosted trees via xgboost
+- Regularized Logistic Regression via `glmnet`
+- Flexible Discriminant Analysis (FDA)
+- MARS via `earth`
+- Bagged Trees via `rpart`
+- Random Forests via `ranger`
+- Boosted Trees via `xgboost`
 
-We are going to fit 5 random variations of the different parameters to tune over 5 fold cross validation, then explore the results of each model.
+We will fit 5 random variations of the tuning parameters over 5-fold cross-validation, then explore the results of each model.
     
 ## Setting up the environment
 
@@ -42,6 +42,9 @@ library(discrim)
 ## Publish data sets, models, and other R objects
 library(pins)
 
+## For table formatting
+library(gt)
+
 ## Custom functions
 devtools::load_all()
 
@@ -53,13 +56,12 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-
 ## Defining models to train
 
 Now we can define the models to be trained and tuned.
 
 ```{r}
-# Regularized regression logistic regression
+# Regularized logistic regression
 GlmnetSpec <-
   logistic_reg(penalty = tune(), mixture = tune()) |>
   set_mode("classification") |>
@@ -99,7 +101,7 @@ XgboostSpec <-
 
 ## Importing data
 
-Here we import the data to use from the remote Board located in a github repo.
+Here we import the data to use from the remote Board located in a GitHub repo.
 
 ```{r}
 #| eval: false
@@ -143,7 +145,7 @@ TestingSample <- testing(SampledDataSplit)
 
 ## Creating consolidation recipe
 
-As we want to create a final recipe that can reproduce the whole pipeline we start creating a recipe that combine all features that can be used to train the model, so we we run `predict` we would only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and all the rest of feature would be added as part of the tidymodels workflow. 
+We want to create a final recipe that reproduces the whole pipeline. We start by creating a recipe that combines all features used to train the model. This ensures that when we run `predict`, we only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), and all other features will be added as part of the `tidymodels` workflow.
 
 ```{r}
 #| eval: false
@@ -414,7 +416,7 @@ pin_write(
 
 ## Consolidating features
 
-As we are planing to train many models it's better to apply this initial recipes to the training and testing data to avoid having to apply the the same steps for each resample to train.
+As we are planning to train many models, it is efficient to apply these initial recipes to the training and testing data once. This avoids repeating the same steps for each training resample.
 
 ```{r}
 #| eval: false
@@ -442,7 +444,7 @@ TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 
 ## Common steps for all recipes
 
-Before creating the the first recipe it's  important to take in consideration that we want to keep `performance_per_hour` and `percentile_75_performance` to see how much money we could be losing for bad predictions.
+Before creating the first recipe, it is important to consider that we want to keep `performance_per_hour` and `percentile_75_performance` available to calculate how much money we could be losing due to incorrect predictions.
 
 ```{r}
 start_recipe <- function(df) {
@@ -462,7 +464,7 @@ start_recipe <- function(df) {
 
 ## Defining recipes for models that need normalized data
 
-As the models that will be trained based on this data are very affect by class imbalance will downsample to avoid those problems and speed the training time, take in consideration that we have many examples of both cases and are looking for general rules that could used by taxi drivers. 
+The models trained on this data are very affected by class imbalance. We will downsample to avoid these problems and speed up training time. Note that we have many examples of both cases and are looking for general rules that could be used by taxi drivers.
 
 ```{r}
 BasicNormalizedRecipe <-
@@ -514,7 +516,7 @@ ReducedLevelsRecipe <-
 ```{r}
 #| eval: false
 
-# Group 1: Simple linear models (ligeros en memoria)
+# Group 1: Simple linear models (light on memory)
 WorkFlowSimple <- workflow_set(
   preproc = list(
     normalized = BasicNormalizedRecipe
@@ -524,7 +526,7 @@ WorkFlowSimple <- workflow_set(
   )
 )
 
-# Group 2: Dimensionality reduction models (intensivos en memoria)
+# Group 2: Dimensionality reduction models (memory intensive)
 WorkFlowDimReduction <- workflow_set(
   preproc = list(
     pca = NormalizedPcaRecipe,
@@ -575,7 +577,7 @@ pin_write(
 
 ## Tuning grid for each workflow
 
-Here is the code used to train and eval de different models.
+Here is the code used to train and evaluate the different models.
 
 ```{r}
 #| eval: false
@@ -594,7 +596,7 @@ Here is the code used to train and eval de different models.
 
 ## Exploring results
 
-Our initial model exploration revealed that **tree-based models**, specifically Random Forest and Bagged Trees, delivered the best performance. However, a regularized Logistic Regression was a strong and much simpler contender."
+Our initial model exploration revealed that **tree-based models**, specifically Random Forest and Bagged Trees, delivered the best raw performance. However, a regularized Logistic Regression was a strong and much simpler contender.
 
 Let's import the results of the exploration.
 
@@ -606,7 +608,7 @@ WorkFlowTuned <- c(
 )
 ```
 
-Consolidate the results for one of the metrics.
+We will consolidate the results for one of the metrics.
 
 ```{r}
 WorkFlowTunedBest <- lapply(
@@ -618,7 +620,7 @@ WorkFlowTunedBest <- lapply(
   bind_rows()
 ```
 
-Now we can confirm that best models were `Logistic Regression` and `Random Forest` based on number of predictios correct, but we need to also take in consideration that relative cost of taking or reject the wrong trip can change from trip to trip and it's really important that the metric that selects the best model take that into consideration.
+Now we can confirm that the best models were `Logistic Regression` and `Random Forest` based on the number of correct predictions. However, we also need to consider that the relative cost of taking or rejecting the wrong trip can change from trip to trip. It is crucial that the metric used to select the best model takes these economic implications into consideration.
 
 ```{r}
 #| code-fold: true
@@ -660,7 +662,7 @@ WorkFlowTunedBest |>
       "**Random Forest**",
       "</span> "
     ),
-    subtitle = "were the best models based on **Bier Score**",
+    subtitle = "were the best models based on **Brier Score**",
     y = "Brier Score",
     x = "Trained Models"
   ) +
@@ -674,7 +676,7 @@ WorkFlowTunedBest |>
   )
 ```
 
-To estimate the cost we are selecting the best model of each model type and take the difference of the performace per hour of each trip and the performance per hour or the 75 percentile depending the final value was correct o no.
+To estimate the cost, we select the best model of each type and calculate the difference between the `performance_per_hour` of each trip and the `performance_per_hour` of the 75th percentile, depending on whether the final prediction was correct or not.
 
 ```{r}
 #| eval: false
@@ -710,9 +712,9 @@ pin_write(
 )
 ```
 
-As the current method that the taxis are using in the simulation is to take all trips we can calculate that on average of how much money was lost due this strategy on the training data (around $4 per trip) and compore how that number could change if we just the best trained model for each model type.
+The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $4 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
 
-The resuls were really surprising as the `Flexible Dicrim Analisys` was performing really similar to `Logistic Regression` and `Random Forest` (that was in 2nd place) it's almost producing the same results as taking al trips.
+The results were promising, showing that **Flexible Discriminant Analysis** (specifically using PLS) performed similarly to **Logistic Regression** and **Random Forest**. Logistic Regression proved to be the most cost-effective, significantly reducing the average loss compared to the current baseline.
 
 ```{r}
 #| code-fold: true
@@ -823,22 +825,40 @@ lapply(
 ) |>
   bind_rows() |>
   filter(correct_model %in% ModelsToCompare) |>
-  arrange(desc(n))
+  arrange(desc(n)) |>
+  gt() |>
+  tab_header(title = "Model Prediction Agreement Comparison") |>
+  cols_label(
+    correct_model = "Model Compared",
+    n = "Count",
+    percentage = "Percentage"
+  ) |>
+  fmt_number(columns = n, decimals = 0)
 ```
 
-Logistic Regression and xgboost highlighted complementary strengths: logistic regression surfaces stable, global linear effects you can act on immediately (easy to inspect, calibrate, and deploy), while xgboost captures nonlinear interactions and local patterns that improve raw performance but need explainability and calibration for safe use.
+Logistic Regression and XGBoost highlighted complementary strengths: Logistic Regression surfaces stable, global linear effects suitable for immediate deployment due to their interpretability. However, XGBoost captures non-linear interactions and local patterns. **Critically, XGBoost achieved correct predictions on a unique 10% segment where Logistic Regression failed**. This specific edge identifies XGBoost as the primary candidate for deeper investigation, as dissecting these unique predictions can reveal complex patterns necessary to improve the final model.
+
+
 
 ```{r}
 compare_model_predictions(
   predictions_df = PredictionsCosts,
   model1_name = "normalized_reg_logistic",
   model2_name = "reduced_levels_xgboost"
-)
+) |>
+  gt() |>
+  tab_header(title = "Logistic Regression vs XGBoost") |>
+  cols_label(
+    correct_model = "Prediction State",
+    n = "Count",
+    percentage = "Percentage"
+  ) |>
+  fmt_number(columns = n, decimals = 0)
 ```
 
 ## Creating workflows to explore
 
-Now the strategy will be to undertand what patterns have been catched by `xgboost` that we not  catched by the `Logict Regression` and then define whether we need to create modefy the features of `Logict Regression` or create an statck model to use the best of both models.
+Now the strategy will be to understand what patterns have been caught by `xgboost` that were not caught by `Logistic Regression`. We will then decide whether we need to modify the features of `Logistic Regression` or create a stacked model to utilize the best aspects of both models.
 
 ```{r}
 #| echo: false
@@ -855,7 +875,7 @@ WorkFlowTrees <- pin_read(
 ```
 
 ```{r}
-# eval: false
+#| eval: false
 
 InitialLogisticWf <- WorkFlowSimple |>
   extract_workflow(id = "normalized_reg_logistic") |>
@@ -894,3 +914,6 @@ pin_write(
 
 ## Conclusion
 
+The initial modeling phase successfully identified two distinct but high-performing approaches: **Regularized Logistic Regression** and **XGBoost**. While XGBoost displayed superior raw pattern recognition capabilities—likely due to its ability to capture non-linear interactions between location, time, and external factors—the Regularized Logistic Regression model demonstrated remarkable resilience and interpretability, yielding the lowest estimated financial loss per trip.
+
+Given that the business objective focuses on minimizing cost (Performance Per Hour lost) rather than purely maximizing prediction accuracy, the **Logistic Regression model currently stands as the preferred candidate for deployment**. However, the unique patterns captured by XGBoost suggest there is still room for improvement. The next steps will focus on feature engineering to expose these non-linear patterns to the linear model, or potentially exploring a stacked ensemble to combine the global stability of the linear model with the local precision of the boosted trees.
