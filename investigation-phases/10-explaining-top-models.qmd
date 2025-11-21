@@ -79,32 +79,69 @@ SampledData <-
   )
 
 set.seed(2545)
-TrainingSample <-
+TrainingSample2 <-
   initial_split(SampledData, strata = take_current_trip) |>
   training()
+```
+
+## Transforming data based on base recipe
+
+```{r}
+#| eval: false
+
+ConsolidationRecipe <- pin_read(
+  BoardLocal,
+  "ConsolidationRecipe"
+)
+
+TrainingSampleAllFeatures <-
+  prep(ConsolidationRecipe) |>
+  bake(new_data = TrainingSample)
+
+pin_write(
+  BoardLocal,
+  TrainingSampleAllFeatures,
+  name = "TrainingSampleAllFeatures",
+  type = "qs2",
+  title = "Training Sample All Features"
+)
 ```
 
 ## Defining data to explain
 
 ```{r}
+#| echo: false
+
+identical(TrainingSampleJoined, TrainingSampleAllFeatures)
+
+TrainingSampleAllFeatures <- pin_read(
+  BoardLocal,
+  name = "TrainingSampleAllFeatures"
+)
+```
+
+```{r}
 set.seed(2971)
-ExplainSplit <- initial_split(TrainingSample, strata = take_current_trip)
+ExplainSplit <- initial_split(
+  TrainingSampleAllFeatures,
+  strata = take_current_trip
+)
 
 ExplainTraining <- training(ExplainSplit)
 ExplainTesting <- testing(ExplainSplit)
 ```
+
 
 ## Importing workflows
 
 ```{r}
 WorkflowsToImport <-
   pin_list(BoardLocal) |>
-  grep(pattern = "^InitialFinalized\\w+Wf$", value = TRUE)
+  grep(pattern = "Wf$", value = TRUE)
 
 names(WorkflowsToImport) <-
   WorkflowsToImport |>
-  sub(pattern = "^InitialFinalized", replacement = "") |>
-  sub(pattern = "Wf$", replacement = "")
+  gsub(pattern = "Initial|Wf", replacement = "")
 
 InitialFinalizedWf <- lapply(
   WorkflowsToImport,
@@ -136,6 +173,8 @@ pin_write(
 ```
 
 ```{r}
+#| echo: true
+
 InitialFittedWf <- pin_read(
   BoardLocal,
   name = "InitialFittedWf"
@@ -182,10 +221,32 @@ pin_write(
 ```
 
 ```{r}
+#| echo: true
+
 ExplainTestingPredictions <- pin_read(
   BoardLocal,
   name = "ExplainTestingPredictions"
 )
+```
+
+```{r}
+
+NycTaxi::compare_model_predictions(
+  predictions_df = ExplainTestingPredictions,
+  model_col = "wflow_id",
+  model1_name = "Logistic",
+  model2_name = "Xgboost",
+  pivot_wider_id_cols = "trip_id"
+) |>
+  gt() |>
+  tab_header(title = "Logistic Regression vs XGBoost") |>
+  cols_label(
+    correct_model = "Prediction State",
+    n = "Count",
+    percentage = "Percentage"
+  ) |>
+  fmt_number(columns = n, decimals = 0) |>
+  fmt_percent(columns = percentage, decimals = 0)
 ```
 
 

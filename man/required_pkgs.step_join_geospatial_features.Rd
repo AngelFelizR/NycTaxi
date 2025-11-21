@@ -4,7 +4,7 @@
 \alias{required_pkgs.step_join_geospatial_features}
 \title{Required Packages for \code{step_join_geospatial_features}}
 \usage{
-required_pkgs.step_join_geospatial_features(x, ...)
+\method{required_pkgs}{step_join_geospatial_features}(x, ...)
 }
 \arguments{
 \item{x}{A recipe object.}

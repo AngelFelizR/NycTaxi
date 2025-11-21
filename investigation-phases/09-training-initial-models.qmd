@@ -775,42 +775,12 @@ PredictionsCosts |>
   )
 ```
 
+## Is any of the models making a better predictions for some observations?
+
+To solve this question we need to explit the training data.
+
+
 ```{r}
-compare_model_predictions <- function(
-  predictions_df,
-  model1_name,
-  model2_name,
-  truth_col = "take_current_trip",
-  pred_class_col = ".pred_class"
-) {
-  # Filter for the two models and calculate correctness
-  comparison <- predictions_df |>
-    filter(model_name %in% c(model1_name, model2_name)) |>
-    mutate(correct = .data[[truth_col]] == .data[[pred_class_col]]) |>
-    pivot_wider(
-      id_cols = c("id", "trip_id", all_of(truth_col)),
-      names_from = "model_name",
-      values_from = c(".pred_yes", "correct")
-    )
-
-  # Create dynamic column names
-  correct_col1 <- paste0("correct_", model1_name)
-  correct_col2 <- paste0("correct_", model2_name)
-
-  # Categorize predictions
-  comparison |>
-    mutate(
-      correct_model = case_when(
-        .data[[correct_col1]] & !.data[[correct_col2]] ~ model1_name,
-        .data[[correct_col2]] & !.data[[correct_col1]] ~ model2_name,
-        .data[[correct_col1]] & .data[[correct_col2]] ~ "Both Correct",
-        TRUE ~ "Both Incorrect"
-      )
-    ) |>
-    count(correct_model, sort = TRUE) |>
-    mutate(percentage = scales::percent(n / sum(n), accuracy = 0.1))
-}
-
 ModelsToCompare <-
   PredictionsCosts |>
   pull(model_name) |>
@@ -819,9 +789,11 @@ ModelsToCompare <-
 
 lapply(
   ModelsToCompare,
-  FUN = compare_model_predictions,
+  FUN = NycTaxi::compare_model_predictions,
   predictions_df = PredictionsCosts,
-  model1_name = "normalized_reg_logistic"
+  model_col = "model_name",
+  model1_name = "normalized_reg_logistic",
+  pivot_wider_id_cols = c("id", "trip_id")
 ) |>
   bind_rows() |>
   filter(correct_model %in% ModelsToCompare) |>
@@ -833,18 +805,19 @@ lapply(
     n = "Count",
     percentage = "Percentage"
   ) |>
-  fmt_number(columns = n, decimals = 0)
+  fmt_number(columns = n, decimals = 0) |>
+  fmt_percent(columns = percentage, decimals = 0)
 ```
 
 Logistic Regression and XGBoost highlighted complementary strengths: Logistic Regression surfaces stable, global linear effects suitable for immediate deployment due to their interpretability. However, XGBoost captures non-linear interactions and local patterns. **Critically, XGBoost achieved correct predictions on a unique 10% segment where Logistic Regression failed**. This specific edge identifies XGBoost as the primary candidate for deeper investigation, as dissecting these unique predictions can reveal complex patterns necessary to improve the final model.
 
-
-
 ```{r}
 compare_model_predictions(
   predictions_df = PredictionsCosts,
+  model_col = "model_name",
   model1_name = "normalized_reg_logistic",
-  model2_name = "reduced_levels_xgboost"
+  model2_name = "reduced_levels_xgboost",
+  pivot_wider_id_cols = c("id", "trip_id")
 ) |>
   gt() |>
   tab_header(title = "Logistic Regression vs XGBoost") |>
@@ -853,7 +826,8 @@ compare_model_predictions(
     n = "Count",
     percentage = "Percentage"
   ) |>
-  fmt_number(columns = n, decimals = 0)
+  fmt_number(columns = n, decimals = 0) |>
+  fmt_percent(columns = percentage, decimals = 0)
 ```
 
 ## Creating workflows to explore

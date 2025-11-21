@@ -1,0 +1,85 @@
+#' Compare Predictions Between Two Models
+#'
+#' This function compares the prediction performance of two models by calculating
+#' how often each model is correct, both are correct, or both are incorrect.
+#'
+#' @param predictions_df A data frame containing predictions from multiple models.
+#'   Must include columns for model identifier, truth values, and predicted classes.
+#' @param model_col Character string specifying the column name that identifies
+#'   which model made each prediction.
+#' @param model1_name Character string specifying the name/identifier of the first
+#'   model to compare.
+#' @param model2_name Character string specifying the name/identifier of the second
+#'   model to compare.
+#' @param truth_col Character string specifying the column name containing the true
+#'   outcome values. Default is `"take_current_trip"`.
+#' @param pred_class_col Character string specifying the column name containing the
+#'   predicted class values. Default is `".pred_class"`.
+#' @param pivot_wider_id_cols Character vector specifying the column names to use
+#'   as identifiers when pivoting the data wider. These columns uniquely identify
+#'   each observation and are preserved in the output. Default is `NULL`.
+#'
+#' @return A data frame with three columns:
+#'   \describe{
+#'     \item{correct_model}{Category indicating which model(s) were correct:
+#'       the first model name, second model name, "Both Correct", or "Both Incorrect"}
+#'     \item{n}{Count of observations in each category}
+#'     \item{percentage}{Percentage of observations in each category, formatted as text}
+#'   }
+#'   The data frame is sorted by count in descending order.
+#'
+#' @details
+#' The function filters the predictions to include only the two specified models,
+#' determines correctness by comparing predicted classes to truth values, and then
+#' categorizes each observation based on which model(s) predicted correctly.
+#'
+#' @examples
+#' \dontrun{
+#' # Compare logistic regression vs random forest models
+#' comparison <- compare_model_predictions(
+#'   predictions_df = all_predictions,
+#'   model_col = "model_type",
+#'   model1_name = "logistic",
+#'   model2_name = "random_forest"
+#' )
+#' }
+#'
+#' @export
+compare_model_predictions <- function(
+  predictions_df,
+  model_col,
+  model1_name,
+  model2_name,
+  truth_col = "take_current_trip",
+  pred_class_col = ".pred_class",
+  pivot_wider_id_cols = NULL
+) {
+  # Filter for the two models and calculate correctness
+  comparison <- predictions_df |>
+    dplyr::filter(.data[[model_col]] %in% c(model1_name, model2_name)) |>
+    dplyr::mutate(correct = .data[[truth_col]] == .data[[pred_class_col]]) |>
+    tidyr::pivot_wider(
+      id_cols = c(pivot_wider_id_cols, truth_col),
+      names_from = model_col,
+      values_from = c(".pred_yes", "correct")
+    )
+
+  # Create dynamic column names
+  correct_col1 <- paste0("correct_", model1_name)
+  correct_col2 <- paste0("correct_", model2_name)
+
+  # Categorize predictions
+  summary_df <- comparison |>
+    dplyr::mutate(
+      correct_model = dplyr::case_when(
+        .data[[correct_col1]] & !.data[[correct_col2]] ~ model1_name,
+        .data[[correct_col2]] & !.data[[correct_col1]] ~ model2_name,
+        .data[[correct_col1]] & .data[[correct_col2]] ~ "Both Correct",
+        TRUE ~ "Both Incorrect"
+      )
+    ) |>
+    dplyr::count(correct_model, sort = TRUE) |>
+    dplyr::mutate(percentage = n / sum(n))
+
+  return(summary_df)
+}
