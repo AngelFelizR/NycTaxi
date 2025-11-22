@@ -400,10 +400,7 @@ ConsolidationRecipe <-
     "LocationID",
     "request_datetime",
     "hvfhs_license_num"
-  ))) |>
-
-  # Balancing data
-  step_downsample(take_current_trip, under_ratio = 1)
+  )))
 
 pin_write(
   BoardLocal,
@@ -418,9 +415,7 @@ pin_write(
 
 As we are planning to train many models, it is efficient to apply these initial recipes to the training and testing data once. This avoids repeating the same steps for each training resample.
 
-```{r}
-#| eval: false
-
+```r
 TrainingSampleJoined <-
   prep(ConsolidationRecipe) |>
   bake(new_data = NULL)
@@ -432,7 +427,6 @@ pin_write(
   type = "qs2",
   title = "Training Sample Joined"
 )
-
 ```
 
 ```{r}
@@ -450,6 +444,7 @@ Before creating the first recipe, it is important to consider that we want to ke
 start_recipe <- function(df) {
   new_recipe =
     recipe(take_current_trip ~ ., data = df) |>
+    step_downsample(take_current_trip, under_ratio = 1) |>
     step_impute_median(all_numeric_predictors()) |>
     update_role(
       trip_id,
@@ -712,9 +707,13 @@ pin_write(
 )
 ```
 
-The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $4 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
+The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $3.8 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
 
-The results were promising, showing that **Flexible Discriminant Analysis** (specifically using PLS) performed similarly to **Logistic Regression** and **Random Forest**. Logistic Regression proved to be the most cost-effective, significantly reducing the average loss compared to the current baseline.
+Its really important to highlight the following points:
+
+- **normalized_reg_logistic** was the best model in terms of **Brier Score** and cost reduction.
+- **reduced_levels_random_forest** and **reduced_levels_xgboost** regardless of performing similarly to *normalized_reg_logistic* in the **Brier Score** didn't achieve similar cost reduction.
+- **pls_mars** regardless of presenting a relatively high **Brier Score** presented similar cost reduction to the *normalized_reg_logistic*.
 
 ```{r}
 #| code-fold: true
@@ -726,12 +725,17 @@ PredictionsCosts <- pin_read(
 )
 
 PredictionsCosts |>
-  group_by(model_name) |>
+  # Defining cost of model and fold
+  group_by(model_name, id) |>
   summarize(
     current_method_cost = mean(current_method_cost, na.rm = TRUE),
     model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
   ) |>
-  ungroup() |>
+  # Defining cost of model across folds
+  summarize(
+    current_method_cost = mean(current_method_cost),
+    model_method_cost = mean(model_method_cost)
+  ) |>
   mutate(
     total_benefit = current_method_cost - model_method_cost,
     model_name = reorder(model_name, total_benefit)
@@ -758,9 +762,8 @@ PredictionsCosts |>
       ";'>",
       "**Logistic Regression**",
       "</span> ",
-      "losses less money than current method"
+      "losses<br>less money than current method"
     ),
-    subtitle = "**Flexible DA** is also producing similar results",
     y = "Trained Models",
     x = "Average Cost Lost Due Wrong Selection"
   ) +
@@ -775,64 +778,35 @@ PredictionsCosts |>
   )
 ```
 
-## Is any of the models making a better predictions for some observations?
+## Conclusion
 
-To solve this question we need to explit the training data.
+After evaluating multiple modeling approaches, **regularized logistic regression emerged as the optimal production model** for this trip acceptance problem, achieving:
 
+- **Best cost performance**: Reduced average loss per trip from $3.8 (baseline accept-all strategy) to approximately $2.6
+- **Strong predictive accuracy**: Competitive Brier Score compared to more complex models
+- **Production advantages**: Interpretable, lightweight, and fast enough for real-time driver recommendations
 
-```{r}
-ModelsToCompare <-
-  PredictionsCosts |>
-  pull(model_name) |>
-  unique() |>
-  setdiff(y = "normalized_reg_logistic")
+### Key Insights
 
-lapply(
-  ModelsToCompare,
-  FUN = NycTaxi::compare_model_predictions,
-  predictions_df = PredictionsCosts,
-  model_col = "model_name",
-  model1_name = "normalized_reg_logistic",
-  pivot_wider_id_cols = c("id", "trip_id")
-) |>
-  bind_rows() |>
-  filter(correct_model %in% ModelsToCompare) |>
-  arrange(desc(n)) |>
-  gt() |>
-  tab_header(title = "Model Prediction Agreement Comparison") |>
-  cols_label(
-    correct_model = "Model Compared",
-    n = "Count",
-    percentage = "Percentage"
-  ) |>
-  fmt_number(columns = n, decimals = 0) |>
-  fmt_percent(columns = percentage, decimals = 0)
-```
+While **random forest** showed comparable raw prediction accuracy, it **failed to translate this into better cost performance**. This reveals an important lesson: the cases where random forest outperforms logistic regression are not the economically significant ones. The logistic regression correctly identifies the high-cost mistakes that matter most to driver profitability.
 
-Logistic Regression and XGBoost highlighted complementary strengths: Logistic Regression surfaces stable, global linear effects suitable for immediate deployment due to their interpretability. However, XGBoost captures non-linear interactions and local patterns. **Critically, XGBoost achieved correct predictions on a unique 10% segment where Logistic Regression failed**. This specific edge identifies XGBoost as the primary candidate for deeper investigation, as dissecting these unique predictions can reveal complex patterns necessary to improve the final model.
+Interestingly, **pls_mars** achieved similar cost reduction despite a higher Brier Score, suggesting that model comparison should always be tied to business metrics rather than purely statistical ones.
 
-```{r}
-compare_model_predictions(
-  predictions_df = PredictionsCosts,
-  model_col = "model_name",
-  model1_name = "normalized_reg_logistic",
-  model2_name = "reduced_levels_xgboost",
-  pivot_wider_id_cols = c("id", "trip_id")
-) |>
-  gt() |>
-  tab_header(title = "Logistic Regression vs XGBoost") |>
-  cols_label(
-    correct_model = "Prediction State",
-    n = "Count",
-    percentage = "Percentage"
-  ) |>
-  fmt_number(columns = n, decimals = 0) |>
-  fmt_percent(columns = percentage, decimals = 0)
-```
+### Model Improvement Opportunities
 
-## Creating workflows to explore
+The complementary strengths of logistic regression and random forest suggest potential for further optimization if we:
 
-Now the strategy will be to understand what patterns have been caught by `xgboost` that were not caught by `Logistic Regression`. We will then decide whether we need to modify the features of `Logistic Regression` or create a stacked model to utilize the best aspects of both models.
+1. **Identify disagreement cases**: Analyze observations that **reduced_levels_random_forest** predicts correctly but **normalized_reg_logistic** fails to predict
+
+2. **Apply instance-level explainability**: Use techniques like SHAP or Break-down Plots to understand the reasons behind each model's predictions
+
+3. **Engineer targeted features**: Modify **normalized_reg_logistic** features or create a stacked ensemble to capture the best aspects of both models
+
+These improvements would be explored in the next phase of model development, building on the strong foundation of the current production model.
+
+## Saving best workflow
+
+After knowing the next steps we just need to save the best workflows for **normalized_reg_logistic** and **reduced_levels_random_forest** to be used in the next section.
 
 ```{r}
 #| echo: false
@@ -860,11 +834,12 @@ InitialLogisticWf <- WorkFlowSimple |>
     )
   )
 
-InitialXgboostWf <- WorkFlowTrees |>
-  extract_workflow(id = "reduced_levels_xgboost") |>
+
+InitialRandomForestWf <- WorkFlowTrees |>
+  extract_workflow(id = "reduced_levels_random_forest") |>
   finalize_workflow(
     parameters = select_best(
-      WorkFlowTuned[["reduced_levels_xgboost"]],
+      WorkFlowTuned[["reduced_levels_random_forest"]],
       metric = "brier_class"
     )
   )
@@ -879,15 +854,9 @@ pin_write(
 
 pin_write(
   BoardLocal,
-  InitialXgboostWf,
-  "InitialXgboostWf",
+  InitialRandomForestWf,
+  "InitialRandomForestWf",
   type = "qs2",
-  title = "Initial Xgboost Wf"
+  title = "Initial Random Forest Wf"
 )
 ```
-
-## Conclusion
-
-The initial modeling phase successfully identified two distinct but high-performing approaches: **Regularized Logistic Regression** and **XGBoost**. While XGBoost displayed superior raw pattern recognition capabilities—likely due to its ability to capture non-linear interactions between location, time, and external factors—the Regularized Logistic Regression model demonstrated remarkable resilience and interpretability, yielding the lowest estimated financial loss per trip.
-
-Given that the business objective focuses on minimizing cost (Performance Per Hour lost) rather than purely maximizing prediction accuracy, the **Logistic Regression model currently stands as the preferred candidate for deployment**. However, the unique patterns captured by XGBoost suggest there is still room for improvement. The next steps will focus on feature engineering to expose these non-linear patterns to the linear model, or potentially exploring a stacked ensemble to combine the global stability of the linear model with the local precision of the boosted trees.

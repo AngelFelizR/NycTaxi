@@ -1,5 +1,5 @@
 ---
-title: "Expaling Top Models"
+title: "Investigating Model Disagreements: Instance-Level Model Analysis"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -79,9 +79,20 @@ SampledData <-
   )
 
 set.seed(2545)
-TrainingSample2 <-
+TrainingSample <-
   initial_split(SampledData, strata = take_current_trip) |>
   training()
+
+set.seed(2971)
+ExplainSplit <-
+  prep(ConsolidationRecipe) |>
+  bake(new_data = TrainingSample) |>
+  initial_split(
+    strata = take_current_trip
+  )
+
+ExplainTraining <- training(ExplainSplit)
+ExplainTesting <- testing(ExplainSplit)
 ```
 
 ## Transforming data based on base recipe
@@ -111,8 +122,6 @@ pin_write(
 
 ```{r}
 #| echo: false
-
-identical(TrainingSampleJoined, TrainingSampleAllFeatures)
 
 TrainingSampleAllFeatures <- pin_read(
   BoardLocal,
