@@ -2,6 +2,7 @@
 
 ## Libraries -----
 library(tidymodels)
+library(themis)
 library(baguette)
 
 ## Pin boards to use ----

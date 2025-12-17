@@ -7,8 +7,7 @@ library(rix)
 
 # Call the 'rix' function to configure and generate the Nix environment files.
 rix(
-  # Relatively fresh packages and have a stable environment for production
-  r_ver = "4.5.1",
+  date = "2025-12-02",
 
   # R Packages
   r_pkgs = c(
@@ -52,6 +51,7 @@ rix(
 
     # Explain Models
     "DALEXtra", # DALEXtra: Extension for 'DALEX' Package
+    "vip", # To get Feature Importance based on models
 
     # Databases
     "DBI", # Database interface

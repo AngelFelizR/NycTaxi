@@ -38,6 +38,7 @@ library(tidymodels)
 library(embed)
 library(themis)
 library(discrim)
+library(DALEX)
 
 ## Publish data sets, models, and other R objects
 library(pins)
@@ -415,7 +416,9 @@ pin_write(
 
 As we are planning to train many models, it is efficient to apply these initial recipes to the training and testing data once. This avoids repeating the same steps for each training resample.
 
-```r
+```{r}
+#| eval: false
+
 TrainingSampleJoined <-
   prep(ConsolidationRecipe) |>
   bake(new_data = NULL)
@@ -757,12 +760,12 @@ PredictionsCosts |>
   expand_limits(x = 0) +
   labs(
     title = paste0(
-      "<span style='color:",
+      "**Only** <span style='color:",
       Params$ColorHighlight,
       ";'>",
-      "**Logistic Regression**",
+      "Xgboost",
       "</span> ",
-      "losses<br>less money than current method"
+      "is better than current method"
     ),
     y = "Trained Models",
     x = "Average Cost Lost Due Wrong Selection"
@@ -778,35 +781,231 @@ PredictionsCosts |>
   )
 ```
 
+## Fine tunning Xgboost
+
+```{r}
+# Especificación del modelo XGBoost con parámetros a tunear
+XgboostSpecToTune <-
+  boost_tree(
+    trees = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    mtry = tune(),
+    min_n = tune(),
+    loss_reduction = tune(),
+    sample_size = tune()
+  ) |>
+  set_mode("classification") |>
+  # Single-thread to leverage fold parallelization
+  set_engine("xgboost", nthread = 1)
+
+# Extraer y actualizar el workflow
+WorkFlowXgboost <-
+  pins::pin_read(BoardLocal, "WorkFlowTrees") |>
+  extract_workflow(id = "reduced_levels_xgboost") |>
+  update_model(XgboostSpecToTune)
+```
+
+```{r}
+
+WorkFlowTuned[["reduced_levels_xgboost"]] |>
+  collect_metrics() |>
+  filter(.metric == "brier_class") |>
+  select(mtry:threshold, mean, std_err) |>
+  arrange(mean) |>
+  head(5L)
+```
+
+```{r}
+#| eval: false
+
+# Setting very narrow ranges centered around the best-performing iteration (Iter 9):
+# mtry=96, trees=221, min_n=18, tree_depth=6, learn_rate=0.104, loss_reduction=0.000556, sample_size=0.784
+XgboostParamsRefined <-
+  extract_parameter_set_dials(WorkFlowXgboost) |>
+  update(
+    # Search range slightly above and below 221
+    trees = trees(range = c(200L, 350L)),
+
+    # Search range slightly above and below 18
+    min_n = min_n(range = c(15L, 25L)),
+
+    # Focused range around 96 (Ensure it doesn't exceed total features - 1)
+    mtry = mtry(range = c(70L, min(100L, ncol(TrainingSampleJoined) - 1L))),
+
+    # Focused range around 6 (allowing for slightly deeper or shallower trees)
+    tree_depth = tree_depth(range = c(5L, 8L)),
+
+    # Linear search range around 0.104
+    learn_rate = learn_rate(range = c(0.05, 0.20), trans = NULL),
+
+    # Focused range around log10(0.000556) which is about -3.25
+    loss_reduction = loss_reduction(range = c(-4, -3)),
+
+    # Focused range around 0.784
+    sample_size = sample_prop(range = c(0.70, 0.90))
+  )
+
+# Defining resamples
+set.seed(5878)
+TrainingSampleJoinedResamples <- vfold_cv(TrainingSampleJoined, v = 5)
+
+# Optimización Bayesiana
+set.seed(91254)
+WorkFlowXgboostTuned <-
+  tryCatch(
+    WorkFlowXgboost |>
+      tune_bayes(
+        resamples = TrainingSampleJoinedResamples,
+        metrics = metric_set(brier_class, roc_auc),
+        initial = 10, # Start with 10 random points (recommended)
+        param_info = XgboostParamsRefined, # Allow 25 Bayesian optimization iterations to find a better peak
+        iter = 25L,
+
+        control = control_bayes(
+          verbose = TRUE,
+          verbose_iter = TRUE,
+          seed = 91254,
+          save_pred = FALSE,
+
+          # Parallelize folds (requires xgboost nthread=1)
+          parallel_over = "resamples",
+
+          # Allow more iterations without improvement before stopping
+          no_improve = 20L,
+
+          # Explore uncertain regions
+          uncertain = 5L,
+
+          extract = NULL
+        )
+      ),
+    error = function(e) {
+      message("Error during tuning: ", e$message)
+      return(NULL)
+    }
+  )
+
+
+# Process results if tuning succeeded
+if (!is.null(WorkFlowXgboostTuned)) {
+  BestXgboostConfig <- select_best(WorkFlowXgboostTuned, metric = "brier_class")
+  MetricsXgboostHistory <- collect_metrics(WorkFlowXgboostTuned)
+
+  pin_write(
+    BoardLocal,
+    x = BestXgboostConfig,
+    name = "BestXgboostConfig",
+    type = "qs2",
+    title = "Best Xgboost Config"
+  )
+
+  pin_write(
+    BoardLocal,
+    x = MetricsXgboostHistory,
+    name = "MetricsXgboostHistory",
+    type = "qs2",
+    title = "Metrics Xgboost History"
+  )
+}
+```
+
+
+```{r}
+
+MetricsXgboostHistory = pin_read(
+  BoardLocal,
+  name = "MetricsXgboostHistory"
+)
+
+MetricsXgboostHistory |>
+  filter(.metric == "brier_class") |>
+  select(mtry:threshold, mean, std_err, .iter) |>
+  arrange(mean) |>
+  head(5L)
+```
+
+## Training exploring variable importance
+
+```{r}
+rm(list = grep("^WorkFlowTuned$|Recipe$", ls(), value = TRUE))
+gc()
+```
+
+```{r}
+set.seed(2971)
+ExplainerSplit <-
+  initial_split(TrainingSampleJoined, strata = take_current_trip)
+
+ExplainerTraining <- training(ExplainerSplit)
+ExplainerTesting <- testing(ExplainerSplit)
+```
+
+```{r}
+BestXgboostConfig = pin_read(
+  BoardLocal,
+  name = "BestXgboostConfig"
+)
+
+XgboostWfFitted <- WorkFlowXgboost |>
+  finalize_workflow(parameters = BestXgboostConfig) |>
+  fit(data = ExplainerTraining)
+
+ExplainerXgboost <- DALEXtra::explain_tidymodels(
+  XgboostWfFitted,
+  data = ExplainerTesting |> select(-take_current_trip),
+  y = ExplainerTesting$take_current_trip
+)
+
+set.seed(1980)
+ExplainerXgboostVip <- model_parts(
+  explainer = ExplainerXgboost,
+  loss_function = get_loss_yardstick(brier_class),
+  B = 50,
+  type = "difference"
+)
+
+pin_write(
+  BoardLocal,
+  x = XgboostWfFitted,
+  name = "XgboostWfFitted",
+  type = "qs2",
+  title = "Xgboost Wf Fitted"
+)
+
+pin_write(
+  BoardLocal,
+  x = ExplainerXgboost,
+  name = "ExplainerXgboost",
+  type = "qs2",
+  title = "Explainer Xgboost"
+)
+
+pin_write(
+  BoardLocal,
+  x = ExplainerXgboostVip,
+  name = "ExplainerXgboostVip",
+  type = "qs2",
+  title = "Explainer Xgboost Vip"
+)
+```
+
+```{r}
+
+ExplainerXgboostVip |>
+  as.data.frame() |>
+  group_by(variable) |>
+  summarize(dropout_loss = mean(dropout_loss)) |>
+  arrange(desc(dropout_loss)) |>
+  (\(x) bind_rows(head(x, 10L), tail(x, 10L)))()
+
+plot(ExplainerXgboostVip)
+```
+
+
 ## Conclusion
 
-After evaluating multiple modeling approaches, **regularized logistic regression emerged as the optimal production model** for this trip acceptance problem, achieving:
 
-- **Best cost performance**: Reduced average loss per trip from $3.8 (baseline accept-all strategy) to approximately $2.6
-- **Strong predictive accuracy**: Competitive Brier Score compared to more complex models
-- **Production advantages**: Interpretable, lightweight, and fast enough for real-time driver recommendations
-
-### Key Insights
-
-While **random forest** showed comparable raw prediction accuracy, it **failed to translate this into better cost performance**. This reveals an important lesson: the cases where random forest outperforms logistic regression are not the economically significant ones. The logistic regression correctly identifies the high-cost mistakes that matter most to driver profitability.
-
-Interestingly, **pls_mars** achieved similar cost reduction despite a higher Brier Score, suggesting that model comparison should always be tied to business metrics rather than purely statistical ones.
-
-### Model Improvement Opportunities
-
-The complementary strengths of logistic regression and random forest suggest potential for further optimization if we:
-
-1. **Identify disagreement cases**: Analyze observations that **reduced_levels_random_forest** predicts correctly but **normalized_reg_logistic** fails to predict
-
-2. **Apply instance-level explainability**: Use techniques like SHAP or Break-down Plots to understand the reasons behind each model's predictions
-
-3. **Engineer targeted features**: Modify **normalized_reg_logistic** features or create a stacked ensemble to capture the best aspects of both models
-
-These improvements would be explored in the next phase of model development, building on the strong foundation of the current production model.
-
-## Saving best workflow
-
-After knowing the next steps we just need to save the best workflows for **normalized_reg_logistic** and **reduced_levels_random_forest** to be used in the next section.
 
 ```{r}
 #| echo: false

@@ -2,6 +2,7 @@
 
 ## Libraries -----
 library(tidymodels)
+library(themis)
 library(future)
 
 ## Removing limit for parallel processing ----
@@ -38,7 +39,7 @@ initial_grid <- grid_space_filling(
 print("Tuning normalized_reg_logistic with grid:")
 print(initial_grid)
 
-plan(multicore, workers = 3)
+plan(multicore, workers = 5)
 
 WorkFlowSimpleTuned <- tune_grid(
   object = WorkFlowSimple,

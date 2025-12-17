@@ -1,5 +1,5 @@
 ---
-title: "Investigating Model Disagreements: Instance-Level Model Analysis"
+title: "Feature selection"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -17,12 +17,16 @@ execute:
 library(here)
 
 ## To transform data that fits in RAM
+library(lubridate)
 library(timeDate)
 library(ggtext)
 
 ## Tools for modeling
 library(tidymodels)
 library(themis)
+
+## Tools for intepreting ML
+library(DALEX)
 
 ## Publish data sets, models, and other R objects
 library(pins)
@@ -84,53 +88,24 @@ TrainingSample <-
   initial_split(SampledData, strata = take_current_trip) |>
   training()
 
+ConsolidationRecipe <- pin_read(
+  BoardLocal,
+  "ConsolidationRecipe"
+)
+
 set.seed(2971)
-ExplainSplit <- initial_split(TrainingSample, strata = take_current_trip)
-
-
-ExplainTraining <-
+TrainingCompleteSplit <-
   prep(ConsolidationRecipe) |>
-  bake(new_data = training(ExplainSplit))
+  bake(new_data = TrainingSample) |>
+  initial_split(strata = take_current_trip)
 
-ExplainTesting <-
-  prep(ConsolidationRecipe) |>
-  bake(new_data = testing(ExplainSplit))
-
-pin_write(
-  BoardLocal,
-  ExplainTraining,
-  "ExplainTraining",
-  type = "qs2",
-  title = "Explain Training"
-)
-
-pin_write(
-  BoardLocal,
-  ExplainTesting,
-  "ExplainTesting",
-  type = "qs2",
-  title = "Explain Testing"
-)
+TrainingCompleteTraining <- training(TrainingCompleteSplit)
+TrainingCompleteTesting <- testing(TrainingCompleteSplit)
 ```
 
+### Fitting workflows
+    
 ```{r}
-#| echo: false
-
-ExplainTraining <- pin_read(
-  BoardLocal,
-  "ExplainTraining"
-)
-
-ExplainTesting <- pin_read(
-  BoardLocal,
-  "ExplainTesting"
-)
-```
-
-### Importing workflows to train
-
-```{r}
-
 InitialLogisticWf <- pin_read(
   BoardLocal,
   "InitialLogisticWf"
@@ -140,21 +115,15 @@ InitialRandomForestWf <- pin_read(
   BoardLocal,
   "InitialRandomForestWf"
 )
-```
-
-## Fitting model
-
-```{r}
-#| eval: false
 
 InitialLogisticWfFitted <- fit(
   InitialLogisticWf,
-  data = ExplainTraining
+  data = TrainingCompleteTraining
 )
 
 InitialRandomForestWfFitted <- fit(
   InitialRandomForestWf,
-  data = ExplainTraining
+  data = TrainingCompleteTraining
 )
 
 pin_write(
@@ -175,8 +144,6 @@ pin_write(
 ```
 
 ```{r}
-#| echo: false
-
 InitialLogisticWfFitted <- pin_read(
   BoardLocal,
   "InitialLogisticWfFitted"
@@ -189,73 +156,95 @@ InitialRandomForestWfFitted <- pin_read(
 ```
 
 
-```{r}
-TrainedModels <- list(
-  "logistic" = InitialLogisticWfFitted,
-  "ramdom_forest" = InitialRandomForestWfFitted
-)
-
-TrainedModelPreds <-
-  lapply(names(TrainedModels), \(x) {
-    predict(TrainedModels[[x]], new_data = ExplainTesting) |>
-      add_rowindex() |>
-      mutate(.pred_class = as.character(.pred_class), model_name = x) |>
-      bind_cols(
-        predict(TrainedModels[[x]], new_data = ExplainTesting, type = "prob"),
-      )
-  }) |>
-  bind_rows() |>
-  pivot_wider(
-    id_cols = .row,
-    names_from = model_name,
-    values_from = c(.pred_class, .pred_yes)
-  )
-
-ExamplesToImproveLogistic <-
-  ExplainTesting |>
-  mutate(
-    take_current_trip = as.character(take_current_trip),
-    yes_prob = if_else(take_current_trip == "yes", 1L, 0L)
-  ) |>
-  add_rowindex() |>
-  left_join(TrainedModelPreds, by = ".row") |>
-  filter(
-    .pred_class_logistic != .pred_class_ramdom_forest,
-    take_current_trip == .pred_class_ramdom_forest
-  ) |>
-  transmute(
-    trip_id,
-    .row,
-    performance_per_hour,
-    take_current_trip,
-    percentile_75_performance,
-    .pred_yes_ramdom_forest,
-    .pred_yes_logistic,
-    logistic_residuals = yes_prob - .pred_yes_logistic
-  ) |>
-  arrange(desc(abs(logistic_residuals)))
-
-pin_write(
-  BoardLocal,
-  ExamplesToImproveLogistic,
-  "ExamplesToImproveLogistic",
-  type = "qs2",
-  title = "Examples To Improve Logistic"
-)
-```
-
 ## Creating explainers
 
 ```{r}
 ExplainerLogistic <- DALEXtra::explain_tidymodels(
   InitialLogisticWfFitted,
-  data = ExplainTesting,
-  y = if_else(ExplainTesting$take_current_trip == "yes", 1L, 0L)
+  data = TrainingCompleteTesting |> select(-take_current_trip),
+  y = TrainingCompleteTesting$take_current_trip
 )
 
 ExplainerRandomForest <- DALEXtra::explain_tidymodels(
   InitialRandomForestWfFitted,
-  data = ExplainTesting,
-  y = if_else(ExplainTesting$take_current_trip == "yes", 1L, 0L)
+  data = TrainingCompleteTesting |> select(-take_current_trip),
+  y = TrainingCompleteTesting$take_current_trip
 )
+
+pin_write(
+  BoardLocal,
+  ExplainerLogistic,
+  "ExplainerLogistic",
+  type = "qs2",
+  title = "Explainer Logistic"
+)
+
+pin_write(
+  BoardLocal,
+  ExplainerRandomForest,
+  "ExplainerRandomForest",
+  type = "qs2",
+  title = "Explainer Random Forest"
+)
+```
+
+## Getting VIP
+
+```{r}
+brier_class_dalex <- get_loss_yardstick(
+  brier_class,
+  reverse = FALSE,
+  reference = 1
+)
+
+set.seed(1980)
+ExplainerLogisticVip <- model_parts(
+  explainer = ExplainerLogistic,
+  loss_function = brier_class_dalex,
+  B = 50,
+  type = "difference"
+)
+
+set.seed(1850)
+ExplainerRandomForestVip <- model_parts(
+  explainer = ExplainerRandomForest,
+  loss_function = brier_class_dalex,
+  B = 50,
+  type = "difference"
+)
+
+pin_write(
+  BoardLocal,
+  ExplainerLogisticVip,
+  "ExplainerLogisticVip",
+  type = "qs2",
+  title = "Explainer Logistic Vip"
+)
+
+pin_write(
+  BoardLocal,
+  ExplainerRandomForestVip,
+  "ExplainerRandomForestVip",
+  type = "qs2",
+  title = "Explainer Random Forest Vip"
+)
+```
+
+
+```{r}
+ExplainerLogisticVip |>
+  as.data.frame() |>
+  group_by(variable) |>
+  summarize(dropout_loss = mean(dropout_loss)) |>
+  arrange(desc(dropout_loss)) |>
+  (\(x) bind_rows(head(x, 10L), tail(x, 10L)))()
+```
+
+```{r}
+ExplainerRandomForestVip |>
+  as.data.frame() |>
+  group_by(variable) |>
+  summarize(dropout_loss = mean(dropout_loss)) |>
+  arrange(desc(dropout_loss)) |>
+  (\(x) bind_rows(head(x, 10L), tail(x, 10L)))()
 ```
