@@ -925,12 +925,17 @@ MetricsXgboostHistory |>
   head(5L)
 ```
 
-## Training exploring variable importance
+## Exploring variable importance
 
 ```{r}
-rm(list = grep("^WorkFlowTuned$|Recipe$", ls(), value = TRUE))
+#| output: false
+#| false: false
+
+rm(list = grep("^WorkFlowTuned$|^(Normalized|Basic)", ls(), value = TRUE))
 gc()
 ```
+
+Now we can explit the training data to validate what the the most important features behind the predictions.
 
 ```{r}
 set.seed(2971)
@@ -941,7 +946,11 @@ ExplainerTraining <- training(ExplainerSplit)
 ExplainerTesting <- testing(ExplainerSplit)
 ```
 
+We need to fit a new model based on this data.
+
 ```{r}
+#| eval: false
+
 BestXgboostConfig = pin_read(
   BoardLocal,
   name = "BestXgboostConfig"
@@ -951,11 +960,31 @@ XgboostWfFitted <- WorkFlowXgboost |>
   finalize_workflow(parameters = BestXgboostConfig) |>
   fit(data = ExplainerTraining)
 
+pin_write(
+  BoardLocal,
+  x = XgboostWfFitted,
+  name = "XgboostWfFitted",
+  type = "qs2",
+  title = "Xgboost Wf Fitted"
+)
+```
+
+Then create the explainer for `DALEX`.
+
+```{r}
+XgboostWfFitted <- pin_read(BoardLocal, "XgboostWfFitted")
+
 ExplainerXgboost <- DALEXtra::explain_tidymodels(
   XgboostWfFitted,
   data = ExplainerTesting |> select(-take_current_trip),
   y = ExplainerTesting$take_current_trip
 )
+```
+
+Now we can evaluate how the model performs after permutating each of the variables.
+
+```{r}
+#| eval: false
 
 set.seed(1980)
 ExplainerXgboostVip <- model_parts(
@@ -967,22 +996,6 @@ ExplainerXgboostVip <- model_parts(
 
 pin_write(
   BoardLocal,
-  x = XgboostWfFitted,
-  name = "XgboostWfFitted",
-  type = "qs2",
-  title = "Xgboost Wf Fitted"
-)
-
-pin_write(
-  BoardLocal,
-  x = ExplainerXgboost,
-  name = "ExplainerXgboost",
-  type = "qs2",
-  title = "Explainer Xgboost"
-)
-
-pin_write(
-  BoardLocal,
   x = ExplainerXgboostVip,
   name = "ExplainerXgboostVip",
   type = "qs2",
@@ -990,72 +1003,177 @@ pin_write(
 )
 ```
 
-```{r}
+The results are interesting as the model didn't show strong positive but strong negative predictors as we can see the after comparting the top 10 of positive predictors and the top 20 of negative predictors.
 
-ExplainerXgboostVip |>
-  as.data.frame() |>
+```{r}
+ExplainerXgboostVip <- pin_read(BoardLocal, "ExplainerXgboostVip")
+
+ExplainerXgboostVipSummary <-
+  as.data.frame(ExplainerXgboostVip) |>
   group_by(variable) |>
   summarize(dropout_loss = mean(dropout_loss)) |>
-  arrange(desc(dropout_loss)) |>
-  (\(x) bind_rows(head(x, 10L), tail(x, 10L)))()
+  arrange(desc(dropout_loss))
 
-plot(ExplainerXgboostVip)
+ExplainerXgboostVipSummary |>
+  (\(x) bind_rows(head(x, 10L), tail(x, 20L)))() |>
+  as.data.frame()
+```
+
+Based on this results let's validate the if the brier class score decreasing after removing all negative variables.
+
+```{r}
+AllVariablesToRemove <-
+  ExplainerXgboostVipSummary |>
+  filter(dropout_loss < 0) |>
+  pull(variable) |>
+  head(n = -1L)
+
+AllVariablesToRemove
 ```
 
 
-## Conclusion
+## Evaluating model after variable removal
 
+```{r}
+BestXgboostConfig = pin_read(
+  BoardLocal,
+  name = "BestXgboostConfig"
+)
+
+set.seed(65416)
+TrainingSampleJoinedResamples <- vfold_cv(
+  TrainingSampleJoined,
+  v = 5,
+  strata = take_current_trip
+)
+
+RemovingAllRecipe <-
+  TrainingSampleJoined |>
+  select(-all_of(AllVariablesToRemove)) |>
+  start_recipe() |>
+  step_novel(all_nominal_predictors()) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
+
+WorkFlowXgboostRevAll <-
+  WorkFlowXgboost |>
+  update_recipe(RemovingAllRecipe) |>
+  finalize_workflow(BestXgboostConfig)
+```
+
+```{r}
+#| eval: false
+
+XgboostRevAllEvaluted <- fit_resamples(
+  WorkFlowXgboostRevAll,
+  resamples = TrainingSampleJoinedResamples,
+  metrics = metric_set(brier_class),
+  control = control_resamples(
+    verbose = TRUE,
+    allow_par = FALSE,
+    save_pred = TRUE
+  )
+)
+
+pin_write(
+  BoardLocal,
+  x = XgboostRevAllEvaluted,
+  name = "XgboostRevAllEvaluted",
+  type = "qs2",
+  title = "Xgboost Rev All Evaluted"
+)
+```
+
+After evaluating the resamples we can confirm that the **108 variables** ere not needed to keep the same level of predictions, which is a great new  due the computation constrains we have.
+
+```{r}
+MetricsXgboostHistory = pin_read(
+  BoardLocal,
+  name = "MetricsXgboostHistory"
+)
+
+XgboostRevAllEvaluted = pin_read(
+  BoardLocal,
+  name = "XgboostRevAllEvaluted"
+)
+
+MetricsXgboostHistory |>
+  filter(.metric == "brier_class") |>
+  select(mean, std_err, .iter) |>
+  arrange(mean) |>
+  head(5L)
+
+collect_metrics(XgboostRevAllEvaluted)
+```
+
+## Training new model
+
+```{r}
+XgboostWfRevAllFitted <- fit(WorkFlowXgboostRevAll, data = ExplainerTraining)
+
+pin_write(
+  BoardLocal,
+  x = XgboostWfRevAllFitted,
+  name = "XgboostWfRevAllFitted",
+  type = "qs2",
+  title = "Xgboost Wf Rev All Fitted"
+)
+```
 
 
 ```{r}
-#| echo: false
+XgboostWfRevAllFitted <- pin_read(BoardLocal, "XgboostWfRevAllFitted")
 
-WorkFlowSimple <- pin_read(
-  BoardLocal,
-  "WorkFlowSimple"
-)
+ExplainerTestingRevAll <-
+  ExplainerTesting |>
+  select(-all_of(c(AllVariablesToRemove, "take_current_trip")))
 
-WorkFlowTrees <- pin_read(
-  BoardLocal,
-  "WorkFlowTrees"
+ExplainerXgboostRevAll <- DALEXtra::explain_tidymodels(
+  XgboostWfRevAllFitted,
+  data = ExplainerTestingRevAll,
+  y = ExplainerTesting$take_current_trip
 )
 ```
 
 ```{r}
 #| eval: false
 
-InitialLogisticWf <- WorkFlowSimple |>
-  extract_workflow(id = "normalized_reg_logistic") |>
-  finalize_workflow(
-    parameters = select_best(
-      WorkFlowTuned[["normalized_reg_logistic"]],
-      metric = "brier_class"
-    )
-  )
-
-
-InitialRandomForestWf <- WorkFlowTrees |>
-  extract_workflow(id = "reduced_levels_random_forest") |>
-  finalize_workflow(
-    parameters = select_best(
-      WorkFlowTuned[["reduced_levels_random_forest"]],
-      metric = "brier_class"
-    )
-  )
-
-pin_write(
-  BoardLocal,
-  InitialLogisticWf,
-  "InitialLogisticWf",
-  type = "qs2",
-  title = "Initial Logistic Wf"
+set.seed(1980)
+ExplainerXgboostRevAllVip <- model_parts(
+  explainer = ExplainerXgboostRevAll,
+  loss_function = get_loss_yardstick(brier_class),
+  B = 50,
+  type = "difference"
 )
 
 pin_write(
   BoardLocal,
-  InitialRandomForestWf,
-  "InitialRandomForestWf",
+  x = ExplainerXgboostRevAllVip,
+  name = "ExplainerXgboostRevAllVip",
   type = "qs2",
-  title = "Initial Random Forest Wf"
+  title = "Explainer Xgboost Rev All Vip"
 )
+```
+
+```{r}
+ExplainerXgboostRevAllVip <- pin_read(BoardLocal, "ExplainerXgboostRevAllVip")
+
+ExplainerXgboostVipRevAllSummary <-
+  as.data.frame(ExplainerXgboostRevAllVip) |>
+  group_by(variable) |>
+  summarize(dropout_loss = mean(dropout_loss)) |>
+  arrange(desc(dropout_loss))
+
+ExplainerXgboostVipRevAllSummary |>
+  (\(x) bind_rows(head(x, 10L), tail(x, 20L)))() |>
+  as.data.frame()
+```
+
+
+```{r}
+ExplainerXgboostVipRevAllSummary |>
+  mutate(variable = reorder(variable, dropout_loss)) |>
+  ggplot() +
+  geom_col(aes(dropout_loss, variable))
 ```
