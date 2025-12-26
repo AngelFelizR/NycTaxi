@@ -1,5 +1,5 @@
 ---
-title: "Training Initial Models"
+title: "Training Model to use"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -57,7 +57,9 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-## Defining models to train
+## Training initial models
+
+### Defining models to train
 
 Now we can define the models to be trained and tuned.
 
@@ -100,7 +102,7 @@ XgboostSpec <-
   set_engine("xgboost")
 ```
 
-## Importing data
+### Importing training data
 
 Here we import the data to use from the remote Board located in a GitHub repo.
 
@@ -144,7 +146,7 @@ TrainingSample <- training(SampledDataSplit)
 TestingSample <- testing(SampledDataSplit)
 ```
 
-## Creating consolidation recipe
+### Adding all features to training data
 
 We want to create a final recipe that reproduces the whole pipeline. We start by creating a recipe that combines all features used to train the model. This ensures that when we run `predict`, we only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), and all other features will be added as part of the `tidymodels` workflow.
 
@@ -412,8 +414,6 @@ pin_write(
 )
 ```
 
-## Consolidating features
-
 As we are planning to train many models, it is efficient to apply these initial recipes to the training and testing data once. This avoids repeating the same steps for each training resample.
 
 ```{r}
@@ -439,7 +439,7 @@ pin_write(
 TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 ```
 
-## Common steps for all recipes
+### Defining recipes based on model type
 
 Before creating the first recipe, it is important to consider that we want to keep `performance_per_hour` and `percentile_75_performance` available to calculate how much money we could be losing due to incorrect predictions.
 
@@ -459,8 +459,6 @@ start_recipe <- function(df) {
   return(new_recipe)
 }
 ```
-
-## Defining recipes for models that need normalized data
 
 The models trained on this data are very affected by class imbalance. We will downsample to avoid these problems and speed up training time. Note that we have many examples of both cases and are looking for general rules that could be used by taxi drivers.
 
@@ -498,7 +496,7 @@ NormalizedUmapRecipe <-
   step_normalize(all_numeric_predictors())
 ```
 
-## Defining recipes for tree based models
+As tree based models are affected due having too many categories and xgboost needs numeric predictors here is the need changes.
 
 ```{r}
 ReducedLevelsRecipe <-
@@ -509,7 +507,7 @@ ReducedLevelsRecipe <-
   step_nzv(all_predictors())
 ```
 
-## Defining workflows to evaluate
+### Consolidating workflows to evaluate
 
 ```{r}
 #| eval: false
@@ -573,7 +571,7 @@ pin_write(
 )
 ```
 
-## Tuning grid for each workflow
+### Tuning grid for each workflow
 
 Here is the code used to train and evaluate the different models.
 
@@ -592,23 +590,22 @@ Here is the code used to train and evaluate the different models.
 #| file: ../multicore-scripts/03c-tuning-tree-models.R
 ```
 
-## Exploring results
+### Exploring results
 
 Our initial model exploration revealed that **tree-based models**, specifically Random Forest and Bagged Trees, delivered the best raw performance. However, a regularized Logistic Regression was a strong and much simpler contender.
 
 Let's import the results of the exploration.
 
 ```{r}
+#| eval: false
+
 WorkFlowTuned <- c(
   pin_read(BoardLocal, "WorkFlowSimpleTuned"),
   pin_read(BoardLocal, "WorkFlowDimReductionTuned"),
   pin_read(BoardLocal, "WorkFlowTreesTuned")
 )
-```
 
-We will consolidate the results for one of the metrics.
 
-```{r}
 WorkFlowTunedBest <- lapply(
   names(WorkFlowTuned),
   FUN = \(x) {
@@ -616,6 +613,14 @@ WorkFlowTunedBest <- lapply(
   }
 ) |>
   bind_rows()
+
+pin_write(
+  BoardLocal,
+  WorkFlowTunedBest,
+  "WorkFlowTunedBest",
+  type = "qs2",
+  title = "Work Flow Tuned Best"
+)
 ```
 
 Now we can confirm that the best models were `Logistic Regression` and `Random Forest` based on the number of correct predictions. However, we also need to consider that the relative cost of taking or rejecting the wrong trip can change from trip to trip. It is crucial that the metric used to select the best model takes these economic implications into consideration.
@@ -624,7 +629,10 @@ Now we can confirm that the best models were `Logistic Regression` and `Random F
 #| code-fold: true
 #| code-summary: "Show the code"
 
-WorkFlowTunedBest |>
+pin_read(
+  BoardLocal,
+  "WorkFlowTunedBest"
+) |>
   group_by(model) |>
   mutate(meadian_of_mean_score = quantile(mean, probs = 0.75)) |>
   ungroup() |>
@@ -719,15 +727,13 @@ Its really important to highlight the following points:
 - **pls_mars** regardless of presenting a relatively high **Brier Score** presented similar cost reduction to the *normalized_reg_logistic*.
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
 PredictionsCosts <- pin_read(
   BoardLocal,
   name = "PredictionsCosts"
 )
 
-PredictionsCosts |>
+PredictionsCostsSummary =
+  PredictionsCosts |>
   # Defining cost of model and fold
   group_by(model_name, id) |>
   summarize(
@@ -743,6 +749,16 @@ PredictionsCosts |>
     total_benefit = current_method_cost - model_method_cost,
     model_name = reorder(model_name, total_benefit)
   ) |>
+  arrange(desc(total_benefit))
+
+PredictionsCostsSummary
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+PredictionsCostsSummary |>
   ggplot(aes(model_method_cost, model_name)) +
   geom_segment(
     aes(x = current_method_cost, xend = model_method_cost),
@@ -783,6 +799,7 @@ PredictionsCosts |>
 
 ## Fine tunning Xgboost
 
+
 ```{r}
 # Especificación del modelo XGBoost con parámetros a tunear
 XgboostSpecToTune <-
@@ -804,16 +821,6 @@ WorkFlowXgboost <-
   pins::pin_read(BoardLocal, "WorkFlowTrees") |>
   extract_workflow(id = "reduced_levels_xgboost") |>
   update_model(XgboostSpecToTune)
-```
-
-```{r}
-
-WorkFlowTuned[["reduced_levels_xgboost"]] |>
-  collect_metrics() |>
-  filter(.metric == "brier_class") |>
-  select(mtry:threshold, mean, std_err) |>
-  arrange(mean) |>
-  head(5L)
 ```
 
 ```{r}
@@ -910,9 +917,21 @@ if (!is.null(WorkFlowXgboostTuned)) {
 }
 ```
 
+### Comparting results
+
+Here is the initial metric.
 
 ```{r}
+pin_read(BoardLocal, "WorkFlowTreesTuned")[["reduced_levels_xgboost"]] |>
+  collect_metrics() |>
+  filter(.metric == "brier_class") |>
+  select(mtry:threshold, mean, std_err) |>
+  arrange(mean) |>
+  head(3L)
+```
 
+
+```{r}
 MetricsXgboostHistory = pin_read(
   BoardLocal,
   name = "MetricsXgboostHistory"
@@ -922,14 +941,14 @@ MetricsXgboostHistory |>
   filter(.metric == "brier_class") |>
   select(mtry:threshold, mean, std_err, .iter) |>
   arrange(mean) |>
-  head(5L)
+  head(3L)
 ```
 
 ## Exploring variable importance
 
 ```{r}
 #| output: false
-#| false: false
+#| echo: false
 
 rm(list = grep("^WorkFlowTuned$|^(Normalized|Basic)", ls(), value = TRUE))
 gc()
@@ -1019,6 +1038,8 @@ ExplainerXgboostVipSummary |>
   as.data.frame()
 ```
 
+### Removing variables with negative importance
+
 Based on this results let's validate the if the brier class score decreasing after removing all negative variables.
 
 ```{r}
@@ -1031,10 +1052,9 @@ AllVariablesToRemove <-
 AllVariablesToRemove
 ```
 
-
-## Evaluating model after variable removal
-
 ```{r}
+#| eval: false
+
 BestXgboostConfig = pin_read(
   BoardLocal,
   name = "BestXgboostConfig"
@@ -1060,10 +1080,6 @@ WorkFlowXgboostRevAll <-
   WorkFlowXgboost |>
   update_recipe(RemovingAllRecipe) |>
   finalize_workflow(BestXgboostConfig)
-```
-
-```{r}
-#| eval: false
 
 XgboostRevAllEvaluted <- fit_resamples(
   WorkFlowXgboostRevAll,
@@ -1088,15 +1104,35 @@ pin_write(
 After evaluating the resamples we can confirm that the **108 variables** ere not needed to keep the same level of predictions, which is a great new  due the computation constrains we have.
 
 ```{r}
-MetricsXgboostHistory = pin_read(
+MetricsXgboostHistory <- pin_read(
   BoardLocal,
   name = "MetricsXgboostHistory"
 )
 
-XgboostRevAllEvaluted = pin_read(
+XgboostRevAllEvaluted <- pin_read(
   BoardLocal,
   name = "XgboostRevAllEvaluted"
 )
+
+estimate_prediction_benefit <- function(evaluted_model, thresholdl = 0.5) {
+  collect_predictions(evaluted_model) |>
+    NycTaxi::add_performance_variables(training_data = TrainingSampleJoined) |>
+    NycTaxi::add_pred_class(0.5) |>
+    NycTaxi::calculate_costs() |>
+    group_by(id) |>
+    summarize(
+      current_method_cost = mean(current_method_cost, na.rm = TRUE),
+      model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
+    ) |>
+    # Defining cost of model across folds
+    summarize(
+      current_method_cost = mean(current_method_cost),
+      model_method_cost = mean(model_method_cost)
+    ) |>
+    mutate(
+      total_benefit = current_method_cost - model_method_cost
+    )
+}
 
 MetricsXgboostHistory |>
   filter(.metric == "brier_class") |>
@@ -1105,11 +1141,16 @@ MetricsXgboostHistory |>
   head(5L)
 
 collect_metrics(XgboostRevAllEvaluted)
+
+estimate_prediction_benefit(XgboostRevAllEvaluted)
+
 ```
 
-## Training new model
+#### Variable importance of new model
 
 ```{r}
+#| eval: false
+
 XgboostWfRevAllFitted <- fit(WorkFlowXgboostRevAll, data = ExplainerTraining)
 
 pin_write(
@@ -1170,10 +1211,220 @@ ExplainerXgboostVipRevAllSummary |>
   as.data.frame()
 ```
 
+As we have new negative variables let's remove the new negative variables.
+
+### Removing new variables with negative importance
+
+```{r}
+AllVariablesToRemove2 <-
+  ExplainerXgboostVipRevAllSummary |>
+  filter(dropout_loss < 0) |>
+  pull(variable) |>
+  head(n = -1L)
+
+AllVariablesToRemove2
+```
+
+
+```{r}
+#| eval: false
+
+BestXgboostConfig = pin_read(
+  BoardLocal,
+  name = "BestXgboostConfig"
+)
+
+set.seed(65416)
+TrainingSampleJoinedResamples <- vfold_cv(
+  TrainingSampleJoined,
+  v = 5,
+  strata = take_current_trip
+)
+
+RemovingAllRecipe2 <-
+  TrainingSampleJoined |>
+  select(-all_of(c(AllVariablesToRemove, AllVariablesToRemove2))) |>
+  start_recipe() |>
+  step_novel(all_nominal_predictors()) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
+
+WorkFlowXgboost2 <-
+  WorkFlowXgboost |>
+  update_recipe(RemovingAllRecipe2)
+
+XgboostRevAllEvaluted2 <-
+  WorkFlowXgboost2 |>
+  finalize_workflow(BestXgboostConfig) |>
+  fit_resamples(
+    WorkFlowXgboostRevAll2,
+    resamples = TrainingSampleJoinedResamples,
+    metrics = metric_set(brier_class),
+    control = control_resamples(
+      verbose = TRUE,
+      allow_par = FALSE,
+      save_pred = TRUE
+    )
+  )
+
+pin_write(
+  BoardLocal,
+  x = WorkFlowXgboost2,
+  name = "WorkFlowXgboost2",
+  type = "qs2",
+  title = "Work Flow Xgboost 2"
+)
+
+pin_write(
+  BoardLocal,
+  x = XgboostRevAllEvaluted2,
+  name = "XgboostRevAllEvaluted2",
+  type = "qs2",
+  title = "Xgboost Rev All Evaluted2"
+)
+```
+
+After evaluating the resamples we can confirm that the **108 variables** ere not needed to keep the same level of predictions, which is a great new  due the computation constrains we have.
+
+```{r}
+XgboostRevAllEvaluted2 <- pin_read(
+  BoardLocal,
+  name = "XgboostRevAllEvaluted2"
+)
+
+collect_metrics(XgboostRevAllEvaluted2)
+
+estimate_prediction_benefit(XgboostRevAllEvaluted2)
+
+```
+
+#### Fine tuning the new model
+
+```{r}
+#| eval: false
+
+WorkFlowXgboost2 <- pin_read(
+  BoardLocal,
+  name = "WorkFlowXgboost2"
+)
+
+XgboostParamsRefined2 <-
+  extract_parameter_set_dials(WorkFlowXgboost2) |>
+  update(
+    # Search range slightly above and below 221
+    trees = trees(range = c(200L, 350L)),
+
+    # Search range slightly above and below 18
+    min_n = min_n(range = c(15L, 25L)),
+
+    # Focused range around 96 (Ensure it doesn't exceed total features - 1)
+    mtry = mtry(range = c(70L, min(100L, ncol(TrainingSampleJoined) - 1L))),
+
+    # Focused range around 6 (allowing for slightly deeper or shallower trees)
+    tree_depth = tree_depth(range = c(5L, 8L)),
+
+    # Linear search range around 0.104
+    learn_rate = learn_rate(range = c(0.05, 0.20), trans = NULL),
+
+    # Focused range around log10(0.000556) which is about -3.25
+    loss_reduction = loss_reduction(range = c(-4, -3)),
+
+    # Focused range around 0.784
+    sample_size = sample_prop(range = c(0.70, 0.90))
+  )
+
+# Defining resamples
+set.seed(5878)
+TrainingSampleJoinedResamples <- vfold_cv(TrainingSampleJoined, v = 5)
+
+# Optimización Bayesiana
+set.seed(91254)
+WorkFlowXgboostTuned <-
+  tryCatch(
+    WorkFlowXgboost2 |>
+      tune_bayes(
+        resamples = TrainingSampleJoinedResamples,
+        metrics = metric_set(brier_class, roc_auc),
+        initial = 10, # Start with 10 random points (recommended)
+        param_info = XgboostParamsRefined2, # Allow 25 Bayesian optimization iterations to find a better peak
+        iter = 25L,
+
+        control = control_bayes(
+          verbose = TRUE,
+          verbose_iter = TRUE,
+          seed = 91254,
+          save_pred = FALSE,
+
+          # Parallelize folds (requires xgboost nthread=1)
+          parallel_over = "resamples",
+
+          # Allow more iterations without improvement before stopping
+          no_improve = 20L,
+
+          # Explore uncertain regions
+          uncertain = 5L,
+
+          extract = NULL
+        )
+      ),
+    error = function(e) {
+      message("Error during tuning: ", e$message)
+      return(NULL)
+    }
+  )
+
+
+# Process results if tuning succeeded
+if (!is.null(WorkFlowXgboostTuned)) {
+  BestXgboostConfig2 <- select_best(
+    WorkFlowXgboostTuned,
+    metric = "brier_class"
+  )
+  MetricsXgboostHistory2 <- collect_metrics(WorkFlowXgboostTuned)
+
+  pin_write(
+    BoardLocal,
+    x = BestXgboostConfig2,
+    name = "BestXgboostConfig2",
+    type = "qs2",
+    title = "Best Xgboost Config2"
+  )
+
+  pin_write(
+    BoardLocal,
+    x = MetricsXgboostHistory2,
+    name = "MetricsXgboostHistory2",
+    type = "qs2",
+    title = "Metrics Xgboost History2"
+  )
+}
+```
+
+Even after fine tuning the model the metrics keep working worst that the model after first removal
+
+```{r}
+MetricsXgboostHistory2 <- pin_read(
+  BoardLocal,
+  name = "MetricsXgboostHistory2"
+)
+
+MetricsXgboostHistory2 |>
+  filter(.metric == "brier_class") |>
+  select(mean, std_err, .iter) |>
+  arrange(mean) |>
+  head(5L)
+```
 
 ```{r}
 ExplainerXgboostVipRevAllSummary |>
-  mutate(variable = reorder(variable, dropout_loss)) |>
-  ggplot() +
-  geom_col(aes(dropout_loss, variable))
+  mutate(dropout_loss = round(dropout_loss, 5)) |>
+  filter(dropout_loss > 0)
 ```
+
+
+### Defining the best theosold
+
+
+
+
