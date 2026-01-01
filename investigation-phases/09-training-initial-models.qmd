@@ -107,8 +107,6 @@ XgboostSpec <-
 Here we import the data to use from the remote Board located in a GitHub repo.
 
 ```{r}
-#| eval: false
-
 AcsVariablesByZoneId <-
   pin_read(BoardLocal, "AcsVariablesByZoneId")[,
     LocationID := as.character(LocationID)
@@ -159,10 +157,8 @@ ConsolidationRecipe <-
     take_current_trip ~
       PULocationID +
       DOLocationID +
-      wav_match_flag +
       hvfhs_license_num +
       trip_miles +
-      trip_time +
       driver_pay +
       request_datetime +
       trip_id +
@@ -1114,10 +1110,10 @@ XgboostRevAllEvaluted <- pin_read(
   name = "XgboostRevAllEvaluted"
 )
 
-estimate_prediction_benefit <- function(evaluted_model, thresholdl = 0.5) {
+estimate_prediction_benefit <- function(evaluted_model, threshold = 0.5) {
   collect_predictions(evaluted_model) |>
     NycTaxi::add_performance_variables(training_data = TrainingSampleJoined) |>
-    NycTaxi::add_pred_class(0.5) |>
+    NycTaxi::add_pred_class(threshold) |>
     NycTaxi::calculate_costs() |>
     group_by(id) |>
     summarize(
@@ -1130,6 +1126,7 @@ estimate_prediction_benefit <- function(evaluted_model, thresholdl = 0.5) {
       model_method_cost = mean(model_method_cost)
     ) |>
     mutate(
+      threshold = threshold,
       total_benefit = current_method_cost - model_method_cost
     )
 }
@@ -1423,8 +1420,315 @@ ExplainerXgboostVipRevAllSummary |>
 ```
 
 
-### Defining the best theosold
+### Defining the best Threshold
+
+```{r}
+ThresholdlExploration <-
+  seq(0, 0.8, 0.02) |>
+  lapply(
+    FUN = estimate_prediction_benefit,
+    evaluted_model = XgboostRevAllEvaluted
+  ) |>
+  bind_rows()
+
+LinealThresholdlModel <-
+  recipe(total_benefit ~ threshold, data = ThresholdlExploration) |>
+  step_poly(threshold, degree = 4) |>
+  workflow(spec = linear_reg()) |>
+  fit(data = ThresholdlExploration)
+
+LinealThresholdlModel |>
+  extract_fit_engine() |>
+  summary()
+```
+
+```{r}
+predict_fun <- function(x) {
+  predict(LinealThresholdlModel, data.frame(threshold = x))[[".pred"]]
+}
+
+BestThresholdValue <- optimize(\(x) -predict_fun(x), c(0, 0.8))$minimum
+BestBenefitValue <- predict_fun(BestThresholdValue)
+
+ThresholdlExploration |>
+  ggplot(aes(threshold, total_benefit)) +
+  geom_point() +
+  geom_function(fun = predict_fun, color = Params$ColorHighlight) +
+  annotate(
+    "segment",
+    x = BestThresholdValue,
+    y = BestBenefitValue * 0.4,
+    xend = BestThresholdValue,
+    yend = BestBenefitValue,
+    arrow = arrow(angle = 15, type = "closed")
+  ) +
+  annotate(
+    geom = "text",
+    x = BestThresholdValue,
+    y = BestBenefitValue * 0.3,
+    label = round(BestThresholdValue, 2)
+  ) +
+  labs(
+    title = paste0(
+      "The Best Threshold for Predicting New Trips is ",
+      round(BestThresholdValue, 2L)
+    ),
+    y = "Average Benefit by Trip",
+    x = "Threshold Evaluated"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    plot.title = element_text(face = "bold", size = 15)
+  )
+```
 
 
+## Training Final Model
+
+### Creating new recipe
+
+```{r}
+GeneralVarsToRemove <- grepv(
+  AllVariablesToRemove,
+  pattern = "DO|PU",
+  invert = TRUE
+) |>
+  sort()
+
+PositionVarsToRemove <-
+  AllVariablesToRemove |>
+  grepv(pattern = "DO|PU") |>
+  sub(pattern = "(DO|PU)_", replacement = "") |>
+  table()
+
+PositionVarsToRemoveBothSides <-
+  PositionVarsToRemove[PositionVarsToRemove > 1L] |>
+  names() |>
+  sort()
+
+PositionVarsToRemoveOneSide <-
+  PositionVarsToRemove[PositionVarsToRemove == 1L] |>
+  names() |>
+  paste(collapse = "|") |>
+  paste0("(", a = _, ")$") |>
+  grepv(x = AllVariablesToRemove) |>
+  sort()
 
 
+MapVarsToRemove <- grepv("-", PositionVarsToRemoveBothSides)
+AcsVarsToRemove <- setdiff(PositionVarsToRemoveBothSides, MapVarsToRemove)
+
+identical(
+  sort(AllVariablesToRemove),
+  sort(c(
+    GeneralVarsToRemove,
+    paste0("PU_", c(MapVarsToRemove, AcsVarsToRemove)),
+    paste0("DO_", c(MapVarsToRemove, AcsVarsToRemove)),
+    PositionVarsToRemoveOneSide
+  ))
+)
+```
+
+```{r}
+
+AcsVariablesToUse <- AcsVariablesByZoneId[, .SD, .SDcols = !AcsVarsToRemove]
+OmsVariablesToUse <- OmsDensityFeatures[, .SD, .SDcols = !MapVarsToRemove]
+
+XgboostFinalRecipe <-
+  # Starting Recipe
+  recipe(
+    take_current_trip ~
+      PULocationID +
+      DOLocationID +
+      request_datetime +
+      trip_time +
+      trip_id +
+      performance_per_hour +
+      percentile_75_performance,
+    data = TrainingSample
+  ) |>
+
+  # Updating roles of variables important for trip identification
+  update_role(
+    trip_id,
+    performance_per_hour,
+    percentile_75_performance,
+    new_role = "additional info"
+  ) |>
+
+  # Selecting variables over 2 min
+  step_filter(trip_time >= (60 * 2)) |>
+
+  # Renaming variables to join
+  step_rename(PU_LocationID = PULocationID, DO_LocationID = DOLocationID) |>
+
+  # Adding Geospatial Data
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = ZoneCodesRef,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = AcsVariablesToUse,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = OmsVariablesToUse,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+
+  # Extracting additional information
+  step_date(
+    request_datetime,
+    features = c(
+      "year",
+      "semester",
+      "quarter"
+    )
+  ) |>
+
+  step_holiday(
+    request_datetime,
+    holidays = c(
+      'USChristmasDay',
+      'USColumbusDay',
+      'USCPulaskisBirthday',
+      'USDecorationMemorialDay',
+      'USElectionDay',
+      'USGoodFriday',
+      'USInaugurationDay',
+      'USIndependenceDay',
+      'USJuneteenthNationalIndependenceDay',
+      'USLaborDay',
+      'USLincolnsBirthday',
+      'USMemorialDay',
+      'USMLKingsBirthday',
+      'USNewYearsDay',
+      'USPresidentsDay',
+      'USThanksgivingDay',
+      'USVeteransDay',
+      'USWashingtonsBirthday'
+    )
+  ) |>
+
+  step_mutate(
+    .pkgs = c("data.table", "lubridate", "timeDate"),
+
+    request_datetime_pm = pm(request_datetime) |> as.integer(),
+
+    `Days to USCPulaskisBirthday` = difftime(
+      USCPulaskisBirthday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USElectionDay` = difftime(
+      USElectionDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USInaugurationDay` = difftime(
+      USInaugurationDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USIndependenceDay` = difftime(
+      USIndependenceDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USJuneteenthNationalIndependenceDay` = difftime(
+      USJuneteenthNationalIndependenceDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USPresidentsDay` = difftime(
+      USPresidentsDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USThanksgivingDay` = difftime(
+      USThanksgivingDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer()
+  ) |>
+
+  # Removing variables
+  step_rm(ends_with(c(
+    "LocationID",
+    "request_datetime",
+    "trip_time",
+    PositionVarsToRemoveOneSide
+  ))) |>
+
+  # Steps for Xgboost
+  step_novel(all_nominal_predictors()) |>
+  step_other(all_nominal_predictors()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors())
+```
+
+### Defining Tuned workflow
+
+
+```{r}
+
+BestXgboostConfig = pin_read(
+  BoardLocal,
+  name = "BestXgboostConfig"
+)
+
+XgboostFinalWorkflow <-
+  workflow() |>
+  add_recipe(XgboostFinalRecipe) |>
+  add_model(XgboostSpec) |>
+  add_tailor(tailor::adjust_probability_threshold(
+    tailor::tailor(),
+    BestThresholdValue
+  )) |>
+  finalize_workflow(BestXgboostConfig)
+
+XgboostFinalWorkflow
+```
+
+
+### Evaluating new model
+
+```{r}
+set.seed(65416)
+TrainingSampleResamples <- vfold_cv(
+  TrainingSample,
+  v = 5,
+  strata = take_current_trip
+)
+
+XgboostFinalEvaluation <- fit_resamples(
+  XgboostFinalWorkflow,
+  resamples = TrainingSampleResamples,
+  metrics = metric_set(brier_class),
+  control = control_resamples(
+    verbose = TRUE,
+    allow_par = FALSE,
+    save_pred = TRUE
+  )
+)
+
+pin_write(
+  BoardLocal,
+  x = XgboostFinalEvaluation,
+  name = "XgboostFinalEvaluation",
+  type = "qs2",
+  title = "Xgboost Final Evaluation"
+)
+```
