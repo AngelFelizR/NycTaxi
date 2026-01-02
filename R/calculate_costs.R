@@ -47,8 +47,10 @@ add_performance_variables <- function(training_data, predictions) {
       .row = dplyr::row_number(),
       trip_id,
       performance_per_hour,
-      percentile_75_performance
+      percentile_75_performance,
+      trip_time
     ) |>
+    dplyr::filter(trip_time >= (60 * 2)) |>
     dplyr::right_join(predictions, by = ".row")
 
   return(predict_with_performace)
@@ -81,36 +83,53 @@ add_pred_class <- function(predictions, threshold) {
 
 #' Calculate Prediction Costs
 #'
-#' Computes various cost metrics based on prediction accuracy, including
-#' current method cost and costs for different types of prediction errors.
+#' The "current method" is: ACCEPT ALL TRIPS (don't filter anything)
+#' The "model method" is: ACCEPT only trips predicted as "yes"
 #'
 #' @param predictions_with_threshold A data frame with predictions, thresholds,
 #'   and cost-related variables (performance_per_hour, percentile_75_performance,
 #'   take_current_trip, .pred_class)
 #'
-#' @return A tibble with added cost columns: current_method_cost, cost_wrong_no,
-#'   cost_wrong_yes, and cost_wrong_total
+#' @return A tibble with added cost columns
 #'
 #' @export
 calculate_costs <- function(predictions_with_threshold) {
   predictions_with_cost =
     predictions_with_threshold |>
     dplyr::mutate(
+      # COST OF CURRENT METHOD (accepting ALL trips)
+      # For every trip we accept, if it's bad (below 75th percentile), we lose money
+      # take_current_trip == "no" means this trip IS BAD (should be rejected)
+      # take_current_trip == "yes" means this trip IS GOOD (should be accepted)
       current_method_cost = dplyr::if_else(
-        take_current_trip == "no",
-        percentile_75_performance - performance_per_hour,
+        take_current_trip == "no", # This is a BAD trip
+        # By accepting this bad trip, we lose the difference vs 75th percentile
+        (percentile_75_performance - performance_per_hour) * (trip_time / 3600),
+        # This is a GOOD trip - no cost to accepting it
         0
       ),
+
+      # COST OF MODEL PREDICTION - FALSE NEGATIVE
+      # Model predicted "no" (reject) but should have predicted "yes" (accept)
+      # We rejected a GOOD trip
       cost_wrong_no = dplyr::if_else(
-        take_current_trip != .pred_class & .pred_class == "no",
-        performance_per_hour - percentile_75_performance,
+        take_current_trip == "yes" & .pred_class == "no",
+        # We lost the opportunity to earn more than 75th percentile
+        (performance_per_hour - percentile_75_performance) * (trip_time / 3600),
         0
       ),
+
+      # COST OF MODEL PREDICTION - FALSE POSITIVE
+      # Model predicted "yes" (accept) but should have predicted "no" (reject)
+      # We accepted a BAD trip
       cost_wrong_yes = dplyr::if_else(
-        take_current_trip != .pred_class & .pred_class == "yes",
-        percentile_75_performance - performance_per_hour,
+        take_current_trip == "no" & .pred_class == "yes",
+        # We lost by earning less than 75th percentile
+        (percentile_75_performance - performance_per_hour) * (trip_time / 3600),
         0
       ),
+
+      # TOTAL MODEL COST
       cost_wrong_total = cost_wrong_no + cost_wrong_yes
     )
 
