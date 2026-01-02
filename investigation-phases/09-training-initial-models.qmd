@@ -756,6 +756,12 @@ PredictionsCostsSummary
 
 PredictionsCostsSummary |>
   ggplot(aes(model_method_cost, model_name)) +
+  geom_vline(
+    xintercept = PredictionsCostsSummary$current_method_cost[1L],
+    color = Params$ColorGray,
+    linetype = 2,
+    linewidth = 1.5
+  ) +
   geom_segment(
     aes(x = current_method_cost, xend = model_method_cost),
     color = Params$ColorGray,
@@ -768,7 +774,7 @@ PredictionsCostsSummary |>
     stroke = 0.5,
     size = 3
   ) +
-  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  scale_x_continuous(breaks = scales::breaks_width(0.2)) +
   expand_limits(x = 0) +
   labs(
     title = paste0(
@@ -794,7 +800,6 @@ PredictionsCostsSummary |>
 ```
 
 ## Fine tunning Xgboost
-
 
 ```{r}
 # Especificación del modelo XGBoost con parámetros a tunear
@@ -1465,6 +1470,12 @@ ThresholdlExploration |>
   annotate(
     geom = "text",
     x = BestThresholdValue,
+    y = BestBenefitValue * 1.2,
+    label = round(BestBenefitValue, 2)
+  ) +
+  annotate(
+    geom = "text",
+    x = BestThresholdValue,
     y = BestBenefitValue * 0.3,
     label = round(BestThresholdValue, 2)
   ) +
@@ -1532,7 +1543,6 @@ identical(
 ```
 
 ```{r}
-
 AcsVariablesToUse <- AcsVariablesByZoneId[, .SD, .SDcols = !AcsVarsToRemove]
 OmsVariablesToUse <- OmsDensityFeatures[, .SD, .SDcols = !MapVarsToRemove]
 
@@ -1683,7 +1693,6 @@ XgboostFinalRecipe <-
 
 
 ```{r}
-
 BestXgboostConfig = pin_read(
   BoardLocal,
   name = "BestXgboostConfig"
@@ -1706,6 +1715,8 @@ XgboostFinalWorkflow
 ### Evaluating new model
 
 ```{r}
+#| eval: false
+
 set.seed(65416)
 TrainingSampleResamples <- vfold_cv(
   TrainingSample,
@@ -1730,5 +1741,88 @@ pin_write(
   name = "XgboostFinalEvaluation",
   type = "qs2",
   title = "Xgboost Final Evaluation"
+)
+```
+
+The new model keeps the brier_class and total_benefit keep similar as expected.
+
+```{r}
+XgboostFinalEvaluation <- pin_read(
+  BoardLocal,
+  name = "XgboostFinalEvaluation"
+)
+
+collect_metrics(XgboostFinalEvaluation)
+
+estimate_prediction_benefit(XgboostRevAllEvaluted, BestThresholdValue)
+```
+
+
+### Evaluating based on testing data
+
+```{r}
+#| eval: false
+
+XgboostFinalFit <- last_fit(
+  XgboostFinalWorkflow,
+  split = SampledDataSplit
+)
+
+pin_write(
+  BoardLocal,
+  x = XgboostFinalFit,
+  name = "XgboostFinalFit",
+  type = "qs2",
+  title = "Xgboost Final Fit"
+)
+```
+
+```{r}
+XgboostFinalFit <- pin_read(
+  BoardLocal,
+  name = "XgboostFinalFit"
+)
+
+collect_metrics(XgboostFinalFit)
+
+TestingPredictionCost <-
+  collect_predictions(XgboostFinalFit) |>
+  NycTaxi::add_performance_variables(training_data = SampledData) |>
+  NycTaxi::calculate_costs() |>
+  arrange(desc(current_method_cost))
+
+TestingPredictionCost |>
+  summarize(
+    current_method_cost = mean(current_method_cost, na.rm = TRUE),
+    model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
+  ) |>
+  mutate(
+    total_benefit = current_method_cost - model_method_cost
+  )
+```
+
+### Explaining Worst prediction
+
+```{r}
+ExplainerXgboostFinal <-
+  extract_workflow(XgboostFinalFit) |>
+  DALEXtra::explain_tidymodels(
+    data = TestingSample |> select(-take_current_trip),
+    y = TestingSample$take_current_trip
+  )
+```
+
+```{r}
+WorstFinalPrediction <-
+  TestingSample |>
+  filter(trip_id == TestingPredictionCost$trip_id[1L]) |>
+  select(-take_current_trip)
+
+set.seed(1980)
+ShapWorstPrediction <- predict_parts(
+  explainer = ExplainerXgboostFinal,
+  new_observation = WorstFinalPrediction,
+  type = "shap",
+  B = 25
 )
 ```
