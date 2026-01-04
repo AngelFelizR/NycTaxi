@@ -17,6 +17,7 @@ rix(
     "stringr", # To work with the text
     "tibble", # Modern data frames
     "timeDate", # Financial time/date handling
+    "fuzzyjoin", # Joining not exact matches
 
     # Import/export & storage
     "fst", # Fast serialization of data
