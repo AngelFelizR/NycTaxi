@@ -72,6 +72,7 @@ rix(
     "ggplot2", # Core plotting system
     "scales", # Scales for ggplot2
     "ggiraph", # Interactive ggplot graphics
+    "plotly", # Interactive ggplot with more options
     "DiagrammeR", # Graphs and diagrams
     "patchwork", # Combine ggplot2 plots
     "gt", # To create html tables
