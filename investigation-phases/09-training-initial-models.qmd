@@ -1202,7 +1202,6 @@ bind_rows(
 
 ## Exploring variable importance - Xgboost
 
-
 ```{r}
 ExplainerXgboostVipNativeSummary <-
   extract_fit_engine(XgboostWfFitted) |>
@@ -1286,12 +1285,16 @@ ggplot(ExplainerXgboostConsolidation, aes(x = Gain, y = dropout_loss)) +
     alpha = 0.8
   ) +
   geom_smooth(method = "lm", color = "red", se = TRUE, linetype = "dashed") + # Línea de regresión con CI
-  geom_hline(yintercept = 0, linetype = "solid", color = "gray", size = 0.5) + # Línea en 0 para resaltar negativos
+  geom_hline(
+    yintercept = 0,
+    linetype = "solid",
+    color = "gray",
+    linewidth = 0.5
+  ) + # Línea en 0 para resaltar negativos
   geom_text(
     aes(label = variable),
     size = 3,
-    max.overlaps = 10,
-    data = ExplainerXgboostConsolidation %>%
+    data = ExplainerXgboostConsolidation |>
       filter(abs(dropout_loss) > 0.01 | Gain > 0.05)
   ) + # Label tops
   scale_color_manual(
@@ -1426,6 +1429,126 @@ ThresholdlExploration |>
     panel.grid.minor.x = element_blank(),
     plot.title = element_text(face = "bold", size = 15)
   )
+```
+
+
+## Dimentional reduction
+
+```{r}
+TrainingAfterFilterNewFeatures <-
+  TrainingSampleJoined |>
+  filter(driver_pay > 0, trip_miles > 0) |>
+  mutate(
+    driver_pay_per_hour = driver_pay / (trip_time / 3600),
+    driver_pay_per_mile = driver_pay / trip_miles
+  )
+
+ReducedLevelsPls <-
+  start_recipe(TrainingAfterFilterNewFeatures) |>
+  step_novel(all_nominal_predictors()) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors()) |>
+  step_pls(all_predictors(), outcome = take_current_trip, num_comp = tune())
+
+WorkFlowPls <-
+  WorkFlowXgboost |>
+  update_recipe(ReducedLevelsPls)
+```
+
+
+```{r}
+#| eval: false
+
+set.seed(65416)
+TrainingAfterFilterNewFeaturesResamples <- vfold_cv(
+  TrainingAfterFilterNewFeatures,
+  v = 5,
+  strata = take_current_trip
+)
+
+XgboostParamsPls <-
+  extract_parameter_set_dials(WorkFlowPls) |>
+  update(
+    mtry = mtry(range = c(5L, ncol(TrainingAfterVarRemoval) - 1L)),
+    num_comp = num_comp(range = c(5L, ncol(TrainingAfterVarRemoval) - 1L))
+  )
+
+
+set.seed(91254)
+WorkFlowXgboostTunedPls <-
+  tryCatch(
+    WorkFlowPls |>
+      tune_bayes(
+        resamples = TrainingAfterFilterNewFeaturesResamples,
+        metrics = metric_set(brier_class, sensitivity, specificity),
+        initial = 10L,
+        iter = 25L,
+        param_info = XgboostParamsPls,
+        control = control_bayes(
+          verbose = TRUE,
+          verbose_iter = TRUE,
+          seed = 91254,
+          save_pred = FALSE,
+
+          # Parallelize folds (requires xgboost nthread=1)
+          parallel_over = "resamples",
+
+          # Allow more iterations without improvement before stopping
+          no_improve = 20L,
+
+          # Explore uncertain regions
+          uncertain = 5L,
+
+          extract = NULL
+        )
+      ),
+    error = function(e) {
+      message("Error during tuning: ", e$message)
+      return(NULL)
+    }
+  )
+
+
+# Process results if tuning succeeded
+if (!is.null(WorkFlowXgboostTunedPls)) {
+  BestXgboostConfigPls <- select_best(
+    WorkFlowXgboostTunedPls,
+    metric = "brier_class"
+  )
+  MetricsXgboostHistoryPls <- collect_metrics(WorkFlowXgboostTunedPls)
+
+  pin_write(
+    BoardLocal,
+    x = BestXgboostConfigPls,
+    name = "BestXgboostConfigPls",
+    type = "qs2",
+    title = "Best Xgboost Config Pls"
+  )
+
+  pin_write(
+    BoardLocal,
+    x = MetricsXgboostHistoryPls,
+    name = "MetricsXgboostHistoryPls",
+    type = "qs2",
+    title = "Metrics Xgboost History Pls"
+  )
+}
+```
+
+```{r}
+BestXgboostConfigPls <- pin_read(
+  BoardLocal,
+  name = "BestXgboostConfigPls"
+)
+
+MetricsXgboostHistoryPls <- pin_read(
+  BoardLocal,
+  name = "MetricsXgboostHistoryPls"
+)
+
+MetricsXgboostHistoryPls |>
+  arrange(mean)
 ```
 
 
@@ -1687,7 +1810,7 @@ XgboostFinalEvaluation <- pin_read(
 
 collect_metrics(XgboostFinalEvaluation)
 
-estimate_prediction_benefit(XgboostRevAllEvaluted, BestThresholdValue)
+# estimate_prediction_benefit(XgboostRevAllEvaluted, BestThresholdValue)
 ```
 
 
