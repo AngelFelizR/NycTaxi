@@ -12,6 +12,13 @@ After extensive data exploration and feature engineering, we developed a classif
 
 The goal is to maximize driver earnings by helping them identify the most valuable trips while minimizing time spent on low-value assignments. This optimization problem directly impacts driver income and operational efficiency across the NYC taxi network.
 
+**Key Takeaways**
+
+- Logistic regression and random forest achieved the lowest Brier scores, but only XGBoost translated into meaningful cost savings when evaluated against a profit‑based metric.
+- Bayesian optimization reduced XGBoost’s Brier score by ~4% and improved consistency.
+- Location IDs (pickup/dropoff zones) show low individual importance, yet they collectively contribute crucial information through interactions with other features.
+- Dimensionality reduction via PLS did **not** improve performance, likely because it compressed the interaction signals that tree‑based models rely on.
+
 # Phase 1: Model Selection & Initial Training
 
 ## 1.1 Problem Context & Algorithm Selection
@@ -445,12 +452,12 @@ TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 
 ## 1.5 Feature Engineering Pipeline
 
-As we need to create recipe for each model as they have deferent asumptiones, then it's better to create a simple  function to start all the following recipes as we need to apply the next steps in all of then:
+Because each model family has different assumptions, we created a common starting function that applies the same basic steps to any training data:
 
-1. Select `take_current_trip` as variable to predict and the rest of columns as predictors.
-2. Downsample the train data to about creating models that only predict the most common decision, which is to take the trip.
-3. Use the median to impute any missing value based on training data.
-4. Confirm that `trip_id`, `performance_per_hour` and `percentile_75_performance` won't be used as predictors, but to track the results.
+1. Select `take_current_trip` as the target and all other columns as predictors.
+2. Downsample the majority class (`yes`) to balance the training set.
+3. Impute missing numeric values with the median (learned from training data).
+4. Retain `trip_id`, `performance_per_hour`, and `percentile_75_performance` as non‑predictor metadata for later evaluation.
 
 ```{r}
 start_recipe <- function(df) {
@@ -471,13 +478,14 @@ start_recipe <- function(df) {
 
 ### 1.5.1 Normalization & Dimensionality Reduction
 
-For models sensitive to the scale and distribution of predictors (such as Logistic Regression, FDA, and MARS), we implement a "Basic Normalized" pipeline. This involves applying a Yeo-Johnson transformation to handle non-normality, creating dummy variables for categorical data, and filtering out near-zero variance (NZV) predictors.
+For models sensitive to the scale and distribution of predictors (such as Logistic Regression, FDA, and MARS), we implement a "Basic Normalized" pipeline. This involves applying a Yeo‑Johnson transformation to handle non‑normality, creating dummy variables for categorical data, and filtering out near‑zero variance (NZV) predictors.
 
 Building upon this base, we define three distinct dimensionality reduction strategies to capture latent patterns in the taxi data:
 
 * **Principal Component Analysis (PCA):** An unsupervised approach to reduce collinearity by creating orthogonal linear combinations of predictors.
 * **Partial Least Squares (PLS):** A supervised approach that reduces dimensions while maximizing the covariance between predictors and the trip acceptance outcome.
-* **Uniform Manifold Approximation and Projection (UMAP):** A non-linear technique used here to capture complex, manifold-based relationships in the high-dimensional feature space.
+* **Uniform Manifold Approximation and Projection (UMAP):** A non‑linear technique used here to capture complex, manifold‑based relationships in the high‑dimensional feature space.
+
 
 ```{r}
 BasicNormalizedRecipe <-
@@ -515,7 +523,7 @@ NormalizedUmapRecipe <-
 
 ### 1.5.2 Sparsity Management
 
-Tree-based models like Random Forest and XGBoost are generally robust to monotonic transformations but can struggle with high-cardinality categorical variables (like specific NYC neighborhoods). To address this, we define a "Reduced Levels" recipe. This approach uses `step_other()` to collapse infrequent categories into an "other" bucket, followed by one-hot encoding to allow the ensemble models to partition the data effectively.
+Tree‑based models like Random Forest and XGBoost are generally robust to monotonic transformations but can struggle with high‑cardinality categorical variables (e.g., the 263 NYC taxi zones). To address this, we define a "Reduced Levels" recipe that uses `step_other()` to collapse infrequent categories into an "other" bucket, followed by one‑hot encoding to allow the ensemble models to partition the data effectively.
 
 ```{r}
 ReducedLevelsRecipe <-
@@ -534,9 +542,9 @@ The workflows are organized into three groups based on their computational profi
 
 - **`WorkFlowSimple`** pairs the `BasicNormalizedRecipe` with regularized logistic regression. This group is lightweight in memory and serves as our interpretable baseline, establishing a performance floor against which more complex models are compared.
 
-- **`WorkFlowDimReduction`** combines the three dimensionality-reduction recipes (PCA, PLS, and UMAP) with FDA and MARS. These combinations are memory-intensive due to the additional transformation steps, but allow the non-linear models to operate on a compressed, lower-dimensional representation of the feature space.
+- **`WorkFlowDimReduction`** combines the three dimensionality‑reduction recipes (PCA, PLS, and UMAP) with FDA and MARS. These combinations are memory‑intensive due to the additional transformation steps, but allow the non‑linear models to operate on a compressed, lower‑dimensional representation of the feature space.
 
-- **`WorkFlowTrees`** pairs the `ReducedLevelsRecipe` with Random Forest and XGBoost. Since tree-based models are scale-invariant but sensitive to high-cardinality categoricals, this workflow applies the sparse category collapsing strategy defined in [section 1.5.2](#sparsity-management).
+- **`WorkFlowTrees`** pairs the `ReducedLevelsRecipe` with Random Forest and XGBoost. Since tree‑based models are scale‑invariant but sensitive to high‑cardinality categoricals, this workflow applies the sparse category collapsing strategy defined in [section 1.5.2](#sparsity-management).
 
 Each workflow set is serialized and saved to the local pin board for downstream hyperparameter tuning and model selection. This **modular structure** makes it straightforward to add new recipe–model combinations or rerun individual groups without retraining the entire pipeline.
 
@@ -609,9 +617,9 @@ With the three workflow groups saved to disk, we now run hyperparameter tuning f
 Each script follows the same overall pattern: 
 
 1. Load the saved workflow from the pin board. 
-2. Define a 5-fold cross-validation scheme on the joined training data
-3. Generate a small space-filling grid of 5 hyperparameter configurations using the Audze-Eglais design.
-4. Evaluate every configuration across all folds using both ROC-AUC and Brier Score as metrics.
+2. Define a 5‑fold cross‑validation scheme on the joined training data.
+3. Generate a small space‑filling grid of 5 hyperparameter configurations using the Audze‑Eglais design.
+4. Evaluate every configuration across all folds using both ROC‑AUC and Brier Score as metrics.
 
 Once tuning is complete, the results are saved back to the pin board so [section 1.8](#performance-comparison) can load and compare them together.
 
@@ -759,11 +767,11 @@ pin_write(
 
 The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $3.8 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
 
-Its really important to highlight the following points:
+Several important observations emerge from this cost‑based evaluation:
 
-- **normalized_reg_logistic** was the best model in terms of **Brier Score** and cost reduction.
-- **reduced_levels_random_forest** and **reduced_levels_xgboost** regardless of performing similarly to *normalized_reg_logistic* in the **Brier Score** didn't achieve similar cost reduction.
-- **pls_mars** regardless of presenting a relatively high **Brier Score** presented similar cost reduction to the *normalized_reg_logistic*.
+- **`normalized_reg_logistic`** achieved the lowest Brier score and the largest cost reduction — an ideal outcome.
+- **`reduced_levels_random_forest`** and **`reduced_levels_xgboost`** performed similarly to the logistic model in terms of Brier score, but their cost savings were substantially smaller. This highlights that a purely statistical metric can be misleading when the ultimate business goal is profit optimization.
+- **`pls_mars`** exhibited a relatively high Brier score yet delivered cost reductions comparable to the best logistic model, again underscoring the need to align evaluation metrics with the application’s economic objective.
 
 ```{r}
 PredictionsCosts <- pin_read(
@@ -847,7 +855,7 @@ Based on initial results, we identified XGBoost as the most promising algorithm.
 
 ## 2.1 Expanded XGBoost Hyperparameter Search
 
-The frist step is to define a new model specification with more params to be tuned and update the original workflow used.
+The first step is to define a new model specification with more parameters to be tuned and update the original workflow.
 
 ```{r}
 XgboostSpecToTune <-
@@ -873,15 +881,15 @@ WorkFlowXgboost <-
 
 ## 2.2 Bayesian Hyperparameter Optimization
 
-After identifying XGBoost as the lead candidate, we implement **Bayesian Optimization** to fine-tune the model. Unlike a standard grid search that tests combinations in isolation, Bayesian optimization uses the results of previous evaluations to form a probabilistic model of the hyperparameter space, allowing it to "search" for the most promising configurations more efficiently.
+After identifying XGBoost as the lead candidate, we implement **Bayesian Optimization** to fine‑tune the model. Unlike a standard grid search that tests combinations in isolation, Bayesian optimization uses the results of previous evaluations to form a probabilistic model of the hyperparameter space, allowing it to "search" for the most promising configurations more efficiently.
 
 ### The Refinement Strategy
 
 In this implementation, we focus the search on specific ranges informed by our initial findings:
 
-- **Targeted Search Spaces:** We defined refined ranges for key parameters such as `trees` (200–350), `min_n` (15–25), and `tree_depth` (5–8) to explore the neighborhood of our best-performing initial results.
-- **Resource Management:** The XGBoost engine is set to single-thread (`nthread = 1`) specifically about stop testing models due RAM limitations.
-- **Iterative Tuning:** We start with 10 random initial points and allow the algorithm up to 25 iterations to find an optimal "peak" in performance, using both **Brier Score** and **ROC-AUC** as the guiding metrics.
+- **Targeted Search Spaces:** We defined refined ranges for key parameters such as `trees` (200–350), `min_n` (15–25), and `tree_depth` (5–8) to explore the neighborhood of our best‑performing initial results.
+- **Resource Management:** The XGBoost engine is set to single‑thread (`nthread = 1`) to avoid RAM limitations when parallelizing across folds.
+- **Iterative Tuning:** We start with 10 random initial points and allow the algorithm up to 25 iterations to find an optimal "peak" in performance, using both **Brier Score** and **ROC‑AUC** as the guiding metrics.
 - **Convergence Controls:** To prevent wasted computation, we set a `no_improve` threshold of 20 iterations, ensuring the process stops if it reaches a performance plateau.
 
 Once the tuning completes, the best configuration is extracted based on the lowest Brier Score and saved to the local board for final model finalization.
@@ -980,16 +988,16 @@ if (!is.null(WorkFlowXgboostTuned)) {
 
 ### Results
 
-The new XGBoost model is **more precise and consistent** than the original. By looking at more data and using a deeper, more refined tree structure, we successfully reduced the error rate (Brier Score) by approximately **4%**:
+The new XGBoost model is **more precise and consistent** than the original. By exploring more data and using a deeper, more refined tree structure, we successfully reduced the error rate (Brier Score) by approximately **4%**:
 
 * **Better Accuracy:** The Brier Score dropped from **0.1502 to 0.1443**. Since a lower score is better, this means the new model's predictions are more accurate and reliable.
 * **Greater Stability:** The standard error is lower (**0.0008**), meaning the model is more consistent and less likely to give "lucky" or erratic results.
 
-The new model achieved these better results by becoming more complex and thorough:
+The new model achieved these improvements by becoming more complex and thorough:
 
-* **Deeper Learning:** It uses deeper trees (**7 levels** instead of 4) and more "trees" overall (**347**), allowing it to catch more complicated patterns in your data.
+* **Deeper Learning:** It uses deeper trees (**7 levels** instead of 4) and more trees overall (**347**), allowing it to capture more complicated patterns in the data.
 * **More Data Usage:** It looks at almost **90%** of the available sample size, compared to only 50% in the first model.
-* **Slower, Careful Learning:** The learning rate was lowered to **0.106**. This means it learns more slowly but more precisely, avoiding the "over-correction" issues the initial model might have had.
+* **Slower, Careful Learning:** The learning rate was lowered to **0.106**. This means it learns more slowly but more precisely, avoiding the "over‑correction" issues the initial model might have had.
 
 ```{r}
 #| code-fold: true
@@ -1103,9 +1111,9 @@ gc()
 
 # Phase 3: Exploring Variable Importance
 
-Another way to improve model perfomance is to reduce feature with low prediction power. To make this possible the need to idenfity feature importance of all feature in under to select the one keep using.
+Another way to improve model performance is to reduce features with low predictive power. To do this, we need to identify feature importance and then select a subset of the most informative variables.
 
-As we didn't define a validation set to create DALEX explaners let's split the testing data.
+Because we did not reserve a validation set specifically for DALEX explainers, we now split the training data further.
 
 ```{r}
 set.seed(2971)
@@ -1139,7 +1147,7 @@ pin_write(
 )
 ```
 
-Then we can create the explainer for `DALEX`.
+Then we create the explainer for `DALEX`.
 
 ```{r}
 XgboostWfFitted <- pin_read(BoardLocal, "XgboostWfFitted")
@@ -1151,7 +1159,7 @@ ExplainerXgboost <- DALEXtra::explain_tidymodels(
 )
 ```
 
-Now we can evaluate how the model performs after permutating each of the variables.
+Now we evaluate how the model performs after permuting each variable.
 
 ```{r}
 #| eval: false
@@ -1202,10 +1210,10 @@ pin_write(
 )
 ```
 
-Check the the distribution of the importance of variables we can confirm that:
+Examining the distribution of variable importance, we observe:
 
-- The most important variables present a negative metric change.
-- More that 95% of variable present an importance close to 0, but around 43% of variables a positive
+- The most important variables yield a **negative** change in Brier score when permuted, indicating that the model relies heavily on them.
+- More than 95% of variables have an importance close to zero, but about 43% of them show a **positive** change—meaning that permuting those variables *improves* the Brier score slightly, suggesting they may contribute noise.
 
 ```{r}
 #| code-fold: true
@@ -1244,12 +1252,12 @@ ggplot(
   )
 ```
 
-By takin the top 20 variables and worst 5 we can see that:
+Looking at the top 20 and bottom 5 variables reveals:
 
-- `trip_time`, `driver_pay`, `trip_miles`, `cos_daily` and `company` are the most important variable.
-- All the rest of the variables are really close to 0 as all of they are related to the position where the trips start or end.
+- `trip_time`, `driver_pay`, `trip_miles`, `cos_daily`, and `company` are the most important individual features.
+- All remaining variables have importance scores very close to zero, and many of them are related to the geographic location of pickups or dropoffs (e.g., `PU_...`, `DO_...`).
 
-As result we say that `PULocationID` and `DOLocationID` are very important to predict the target variable but studing the individual effect of each variable don't make much sense. To explain this, we can imagine that the signal the model can find in one variable is also available combining other variables keeping the response simular to the original.
+This pattern suggests that **`PULocationID` and `DOLocationID` are collectively vital** for prediction, but studying the effect of any single location‑derived variable in isolation obscures their true contribution. The model likely captures complex interactions between pickup and dropoff zones — for example, the combination of a specific pickup zone and a specific dropoff zone may be highly informative, even though each zone alone appears unimportant. This phenomenon is common in tree‑based models, which can exploit high‑order interactions.
 
 ```{r}
 #| code-fold: true
@@ -1283,7 +1291,7 @@ bind_rows(
   )
 ```
 
-To have a better understanding of variable importance let's also take in consideartion the variabe importance metric provided by the training data, as it has the avantage that all the importance metric for all variables is positive and can be added to confirm the total importance based on the original variables used.
+To gain an alternative perspective, we also examine the native variable importance from XGBoost (based on gain). This metric has the advantage of being always positive and summing to the total importance explained by the original features.
 
 ```{r}
 ExplainerXgboostVipNativeSummary <-
@@ -1293,7 +1301,7 @@ ExplainerXgboostVipNativeSummary <-
   arrange(desc(Gain))
 ```
 
-By plotting the results we can see similar distribution where `trip_time`, `driver_pay`, `trip_miles` and `cos_daily` keep as top variables leaving `company` out of the top list but the rest of the variable keep having a low importance.
+Plotting these results reveals a similar distribution: `trip_time`, `driver_pay`, `trip_miles`, and `cos_daily` remain at the top, while `company` drops out of the top tier. The location‑related features again appear with low individual gain, reinforcing the interpretation that their predictive signal is distributed across interactions.
 
 ```{r}
 #| code-fold: true
@@ -1322,11 +1330,11 @@ bind_rows(
   )
 ```
 
-# Phase 4: Dimentional reduction
+# Phase 4: Dimensionality Reduction
 
-As we cannot confirm the individual importance of available features, let's take a different strategy by using **Partial Least Squares (PLS)** as tool for dimensional reduction.
+Given that we cannot confirm strong individual importance for most features, we try a different strategy: using **Partial Least Squares (PLS)** as a supervised dimensionality reduction technique. The hope is that PLS will compress the many weakly informative features into a smaller set of components that retain the predictive signal.
 
-To make the model more affective let's also exclude cases where the `driver_pay` or `trip_miles` are 0 or lower as those trips must be errors in the data to update the workflow.
+To make the model more effective, we also exclude trips where `driver_pay` or `trip_miles` are zero or negative (likely data errors) and engineer two new ratio features.
 
 ```{r}
 TrainingAfterFilterNewFeatures <-
@@ -1350,7 +1358,7 @@ WorkFlowPls <-
   update_recipe(ReducedLevelsPls)
 ```
 
-Now we just need to finetune the new workflow to find out whether we can find a better model to predict the target variable.
+Now we fine‑tune the new workflow.
 
 ```{r}
 #| eval: false
@@ -1431,7 +1439,9 @@ if (!is.null(WorkFlowXgboostTunedPls)) {
 }
 ```
 
-After running several iteretation we weren't able to find a better model after reducing the number of features.
+After running several iterations, we were unable to find a better model after reducing the number of features via PLS. In fact, the PLS‑based model produced a **higher Brier score** (0.1581) than both the initial and the optimized XGBoost models.
+
+This outcome can be explained by the nature of PLS: it constructs components that maximize covariance with the target, but in doing so it may compress the very interaction signals that tree‑based models excel at exploiting. The original high‑dimensional space, with many weakly informative features, allows XGBoost to form splits that capture complex combinations of pickup and dropoff zones. PLS, by projecting the data onto a smaller number of linear combinations, likely loses this granular interaction information, leading to a degradation in predictive performance.
 
 ```{r}
 #| code-fold: true
