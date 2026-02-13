@@ -18,17 +18,17 @@ The goal is to maximize driver earnings by helping them identify the most valuab
 
 To solve this binary classification problem (accept trip: yes/no), we evaluated a diverse range of machine learning algorithms. Our selection strategy balances interpretability, performance, and computational efficiency:
 
-**Simple, Interpretable Models:**
-- Regularized Logistic Regression via `glmnet`
-- Flexible Discriminant Analysis (FDA)
+- **Simple, Interpretable Models:**
+  - Regularized Logistic Regression via `glmnet`
+  - Flexible Discriminant Analysis (FDA)
 
-**Non-linear, Moderate Complexity Models:**
-- MARS (Multivariate Adaptive Regression Splines) via `earth`
-- Bagged Trees via `rpart`
+- **Non-linear, Moderate Complexity Models:**
+  - MARS (Multivariate Adaptive Regression Splines) via `earth`
+  - Bagged Trees via `rpart`
 
-**Advanced Ensemble Models:**
-- Random Forests via `ranger`
-- Gradient Boosted Trees via `xgboost`
+- **Advanced Ensemble Models:**
+  - Random Forests via `ranger`
+  - Gradient Boosted Trees via `xgboost`
 
 This progression from simple to complex allows us to identify the optimal balance between model performance and computational requirements for production deployment.
 
@@ -1014,72 +1014,82 @@ NewPerformance <-
 
 ModelComparison <- bind_rows(OriginalPerformace, NewPerformance)
 
-ModelComparison |>
-  gt() |>
-  # 1. Header & Titles
-  tab_header(
-    title = "XGBoost Model Performance Comparison",
-    subtitle = "Comparing Brier Score and Hyperparameters: Initial vs. New Model"
-  ) |>
+create_performance_gt <- function(
+  df,
+  title = "XGBoost Model Performance Comparison",
+  subtitle = "Comparing Brier Score and Hyperparameters: Initial vs. New Model",
+  color_highlight_low = Params$ColorHighlightLow
+) {
+  created_table =
+    gt(df) |>
+    # 1. Header & Titles
+    tab_header(
+      title = title,
+      subtitle = subtitle
+    ) |>
 
-  # 2. Apply styling to Header (Matching your example)
-  tab_style(
-    style = cell_text(color = "white", weight = "bold"),
-    locations = cells_title()
-  ) |>
-  tab_style(
-    style = cell_fill(color = "#2c3e50"),
-    locations = cells_title()
-  ) |>
+    # 2. Apply styling to Header (Matching your example)
+    tab_style(
+      style = cell_text(color = "white", weight = "bold"),
+      locations = cells_title()
+    ) |>
+    tab_style(
+      style = cell_fill(color = "#2c3e50"),
+      locations = cells_title()
+    ) |>
 
-  # 3. Formatting Numbers
-  fmt_number(
-    columns = c(mean, std_err),
-    decimals = 4
-  ) |>
-  fmt_number(
-    columns = c(learn_rate, loss_reduction, threshold),
-    decimals = 3
-  ) |>
+    # 3. Formatting Numbers
+    fmt_number(
+      columns = c(mean, std_err),
+      decimals = 4
+    ) |>
+    fmt_number(
+      columns = c(learn_rate, loss_reduction, threshold),
+      decimals = 3
+    ) |>
 
-  # 4. Conditional Formatting (Highlighting the lower Brier Score)
-  data_color(
-    columns = mean,
-    fn = scales::col_numeric(
-      palette = c("#d4edda", "white"), # Green for lower (better) values
-      domain = c(min(ModelComparison$mean), max(ModelComparison$mean))
+    # 4. Conditional Formatting (Highlighting the lower Brier Score)
+    data_color(
+      columns = mean,
+      colors = function(x) {
+        ifelse(
+          x == min(x, na.rm = TRUE),
+          color_highlight_low,
+          "white"
+        )
+      }
+    ) |>
+
+    # 5. Column Labels
+    cols_label(
+      source = "MODEL SOURCE",
+      mean = "BRIER SCORE (MEAN)",
+      std_err = "STD ERROR",
+      mtry = "MTRY",
+      min_n = "MIN N",
+      tree_depth = "DEPTH",
+      learn_rate = "LEARN RATE",
+      loss_reduction = "LOSS RED.",
+      sample_size = "SAMPLE SIZE",
+      threshold = "THRESHOLD",
+      trees = "TREES"
+    ) |>
+
+    # 6. General Table Options
+    tab_options(
+      table.font.names = "Arial",
+      table.background.color = "white",
+      column_labels.font.weight = "bold",
+      column_labels.background.color = "#f8f9fa",
+      table.width = pct(100),
+      quarto.disable_processing = TRUE
     )
-  ) |>
 
-  # 5. Column Labels
-  cols_label(
-    source = "MODEL SOURCE",
-    mean = "BRIER SCORE (MEAN)",
-    std_err = "STD ERROR",
-    mtry = "MTRY",
-    min_n = "MIN N",
-    tree_depth = "DEPTH",
-    learn_rate = "LEARN RATE",
-    loss_reduction = "LOSS RED.",
-    sample_size = "SAMPLE SIZE",
-    threshold = "THRESHOLD",
-    trees = "TREES"
-  ) |>
+  return(created_table)
+}
 
-  # 6. General Table Options
-  tab_options(
-    table.font.names = "Arial",
-    table.background.color = "white",
-    column_labels.font.weight = "bold",
-    column_labels.background.color = "#f8f9fa",
-    table.width = pct(100),
-    quarto.disable_processing = TRUE
-  ) |>
+create_performance_gt(ModelComparison)
 
-  # 7. Source Note
-  tab_source_note(
-    source_note = "Metrics extracted from BoardLocal pins: MetricsXgboostHistory and WorkFlowTreesTuned"
-  )
 ```
 
 ```{r}
@@ -1091,11 +1101,9 @@ gc()
 ```
 
 
-## 2.3 Feature Selection
+# Phase 3: Exploring Variable Importance
 
 Another way to improve model perfomance is to reduce feature with low prediction power. To make this possible the need to idenfity feature importance of all feature in under to select the one keep using.
-
-### Variable importance - DALEX
 
 As we didn't define a validation set to create DALEX explaners let's split the testing data.
 
@@ -1156,23 +1164,6 @@ ExplainerXgboostVip <- model_parts(
   type = "difference"
 )
 
-pin_write(
-  BoardLocal,
-  x = ExplainerXgboostVip,
-  name = "ExplainerXgboostVip",
-  type = "qs2",
-  title = "Explainer Xgboost Vip"
-)
-```
-
-The results doesn't match with what were expecting. As the top
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-ExplainerXgboostVip <- pin_read(BoardLocal, "ExplainerXgboostVip")
-
 ExplainerXgboostVipSummary <-
   as.data.frame(ExplainerXgboostVip) |>
   filter(
@@ -1189,24 +1180,139 @@ ExplainerXgboostVipSummary <-
   summarize(dropout_loss = mean(dropout_loss)) |>
   mutate(
     is_positive = dropout_loss >= 0,
-    variable = reorder(variable, dropout_loss)
+    variable = reorder(variable, -dropout_loss)
   ) |>
   arrange(dropout_loss)
+
+
+pin_write(
+  BoardLocal,
+  x = ExplainerXgboostVip,
+  name = "ExplainerXgboostVip",
+  type = "qs2",
+  title = "Explainer Xgboost Vip"
+)
+
+pin_write(
+  BoardLocal,
+  x = ExplainerXgboostVipSummary,
+  name = "ExplainerXgboostVipSummary",
+  type = "qs2",
+  title = "Explainer Xgboost Vip Summary"
+)
+```
+
+Check the the distribution of the importance of variables we can confirm that:
+
+- The most important variables present a negative metric change.
+- More that 95% of variable present an importance close to 0, but around 43% of variables a positive
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+ExplainerXgboostVipSummary <- pin_read(
+  BoardLocal,
+  "ExplainerXgboostVipSummary"
+)
+
+ggplot(
+  ExplainerXgboostVipSummary,
+  aes(x = dropout_loss, y = after_stat(count / sum(count)))
+) +
+  geom_histogram(
+    aes(fill = is_positive),
+    color = "black",
+    binwidth = 0.01
+  ) +
+  scale_fill_manual(
+    values = c("FALSE" = Params$ColorGray, "TRUE" = Params$ColorHighlight)
+  ) +
+  scale_y_continuous(labels = percent_format(), breaks = breaks_width(0.1)) +
+  scale_x_continuous(n.breaks = 12) +
+  labs(
+    title = "Big Majority of Variables Present Low Importance",
+    x = "Brier Class Change",
+    y = "Proportion of Variables",
+    fill = "The Importance is Positive"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold", size = 15),
+    panel.grid.minor = element_blank()
+  )
+```
+
+By takin the top 20 variables and worst 5 we can see that:
+
+- `trip_time`, `driver_pay`, `trip_miles`, `cos_daily` and `company` are the most important variable.
+- All the rest of the variables are really close to 0 as all of they are related to the position where the trips start or end.
+
+As result we say that `PULocationID` and `DOLocationID` are very important to predict the target variable but studing the individual effect of each variable don't make much sense. To explain this, we can imagine that the signal the model can find in one variable is also available combining other variables keeping the response simular to the original.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 
 bind_rows(
   head(ExplainerXgboostVipSummary, 5L),
   tail(ExplainerXgboostVipSummary, 20L)
 ) |>
   ggplot(aes(dropout_loss, variable)) +
+  geom_col(aes(fill = is_positive), color = "black", width = 0.5) +
+  scale_fill_manual(
+    values = c("FALSE" = Params$ColorGray, "TRUE" = Params$ColorHighlight)
+  ) +
+  scale_x_continuous(labels = comma_format()) +
+  scale_y_discrete(label = \(x) {
+    if_else(nchar(x) > 20, substr(x, nchar(x) - 20, nchar(x)), x)
+  }) +
+  labs(
+    title = "Location Related Variable Present Low Individual VIP",
+    y = "Variables",
+    x = "Brier Class Change",
+    fill = "The Importance is Positive"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold", size = 15),
+    axis.text.x.top = element_text(angle = 90, hjust = 0)
+  )
+```
+
+To have a better understanding of variable importance let's also take in consideartion the variabe importance metric provided by the training data, as it has the avantage that all the importance metric for all variables is positive and can be added to confirm the total importance based on the original variables used.
+
+```{r}
+ExplainerXgboostVipNativeSummary <-
+  extract_fit_engine(XgboostWfFitted) |>
+  xgboost::xgb.importance(model = _) |>
+  transmute(Feature = reorder(Feature, Gain), Gain) |>
+  arrange(desc(Gain))
+```
+
+By plotting the results we can see similar distribution where `trip_time`, `driver_pay`, `trip_miles` and `cos_daily` keep as top variables leaving `company` out of the top list but the rest of the variable keep having a low importance.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
+bind_rows(
+  head(ExplainerXgboostVipNativeSummary, 5L),
+  tail(ExplainerXgboostVipNativeSummary, 20L)
+) |>
+  ggplot(aes(Gain, Feature)) +
   geom_col(fill = Params$ColorGray, color = "black", width = 0.5) +
   scale_x_continuous(labels = comma_format()) +
   scale_y_discrete(label = \(x) {
     if_else(nchar(x) > 20, substr(x, nchar(x) - 20, nchar(x)), x)
   }) +
   labs(
-    title = "Top variables were reported as negative",
-    x = "",
-    y = "Brier Class Change"
+    title = "Xgboost present similar VIP",
+    y = "Variables",
+    x = "Gain Importance"
   ) +
   theme_minimal() +
   theme(
@@ -1216,386 +1322,11 @@ bind_rows(
   )
 ```
 
-### Removing variables with negative importance
-  
-Based on this results let's validate the if the brier class score decreasing after removing all negative variables.
-  
-```{r}
-AllVariablesToRemove <-
-  ExplainerXgboostVipSummary |>
-  filter(dropout_loss < 0) |>
-  pull(variable) |>
-  head(n = -1L) |>
-  setdiff(y = c("driver_pay", "trip_miles", "trip_time"))
+# Phase 4: Dimentional reduction
 
-AllVariablesToRemove
-```
+As we cannot confirm the individual importance of available features, let's take a different strategy by using **Partial Least Squares (PLS)** as tool for dimensional reduction.
 
-```{r}
-TrainingAfterVarRemoval <-
-  TrainingSampleJoined |>
-  select(-all_of(AllVariablesToRemove)) |>
-  filter(driver_pay > 0, trip_miles > 0) |>
-  mutate(
-    driver_pay_per_hour = driver_pay / (trip_time / 3600),
-    driver_pay_per_mile = driver_pay / trip_miles
-  ) |>
-  select(-c(driver_pay, trip_miles))
-
-RemovingAllRecipe <-
-  start_recipe(TrainingAfterVarRemoval) |>
-  update_role(trip_time, new_role = "additional info") |>
-  step_novel(all_nominal_predictors()) |>
-  step_other(all_nominal_predictors(), threshold = tune()) |>
-  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
-  step_nzv(all_predictors())
-
-WorkFlowAfterVarRemoval <-
-  WorkFlowXgboost |>
-  update_recipe(RemovingAllRecipe)
-```
-
-```{r}
-#| eval: false
-
-set.seed(65416)
-TrainingAfterVarRemovalResamples <- vfold_cv(
-  TrainingAfterVarRemoval,
-  v = 5,
-  strata = take_current_trip
-)
-
-XgboostParamsAfterVarRemoval <-
-  extract_parameter_set_dials(WorkFlowAfterVarRemoval) |>
-  update(
-    mtry = mtry(range = c(5L, ncol(TrainingAfterVarRemoval) - 1L))
-  )
-
-set.seed(91254)
-WorkFlowXgboostTuned2 <-
-  tryCatch(
-    WorkFlowAfterVarRemoval |>
-      tune_bayes(
-        resamples = TrainingAfterVarRemovalResamples,
-        metrics = metric_set(brier_class, sensitivity, specificity),
-        initial = 10L,
-        iter = 25L,
-        param_info = XgboostParamsAfterVarRemoval,
-        control = control_bayes(
-          verbose = TRUE,
-          verbose_iter = TRUE,
-          seed = 91254,
-          save_pred = FALSE,
-
-          # Parallelize folds (requires xgboost nthread=1)
-          parallel_over = "resamples",
-
-          # Allow more iterations without improvement before stopping
-          no_improve = 20L,
-
-          # Explore uncertain regions
-          uncertain = 5L,
-
-          extract = NULL
-        )
-      ),
-    error = function(e) {
-      message("Error during tuning: ", e$message)
-      return(NULL)
-    }
-  )
-
-
-# Process results if tuning succeeded
-if (!is.null(WorkFlowXgboostTuned2)) {
-  BestXgboostConfig2 <- select_best(
-    WorkFlowXgboostTuned2,
-    metric = "brier_class"
-  )
-  MetricsXgboostHistory2 <- collect_metrics(WorkFlowXgboostTuned2)
-
-  pin_write(
-    BoardLocal,
-    x = BestXgboostConfig2,
-    name = "BestXgboostConfig2",
-    type = "qs2",
-    title = "Best Xgboost Config2"
-  )
-
-  pin_write(
-    BoardLocal,
-    x = MetricsXgboostHistory2,
-    name = "MetricsXgboostHistory2",
-    type = "qs2",
-    title = "Metrics Xgboost History 2"
-  )
-}
-```
-
-Removing the variables impected in a bad way the model perfomance. We need a new way to explore variable importance.
-
-```{r}
-MetricsXgboostHistory <- pin_read(
-  BoardLocal,
-  name = "MetricsXgboostHistory"
-)
-
-MetricsXgboostHistory2 <- pin_read(
-  BoardLocal,
-  name = "MetricsXgboostHistory2"
-)
-
-select_best_history <- function(df) {
-  df |>
-    filter(.metric == "brier_class") |>
-    select(-c(.config, .iter, .metric, .estimator, n)) |>
-    arrange(mean) |>
-    head(1L)
-}
-
-bind_rows(
-  select_best_history(MetricsXgboostHistory),
-  select_best_history(MetricsXgboostHistory2)
-) |>
-  bind_cols(
-    tibble(Description = c("Original", "After Var Removal")),
-    cols = _
-  )
-```
-
-## Exploring variable importance - Xgboost
-
-```{r}
-ExplainerXgboostVipNativeSummary <-
-  extract_fit_engine(XgboostWfFitted) |>
-  xgboost::xgb.importance(model = _) |>
-  select(Feature, Gain) |>
-  arrange(desc(Gain))
-
-ExplainerXgboostVipNativeSummary |>
-  mutate(Gain = round(Gain, 5)) |>
-  head(6L)
-```
-
-
-```{r}
-ExplainerXgboostPerfectJoin <- inner_join(
-  ExplainerXgboostVipSummary,
-  ExplainerXgboostVipNativeSummary,
-  by = c(variable = "Feature")
-)
-
-ExplainerXgboostVipRemain <- anti_join(
-  ExplainerXgboostVipSummary,
-  ExplainerXgboostPerfectJoin,
-  by = "variable"
-)
-
-ExplainerXgboostVipNativeRemain <- anti_join(
-  ExplainerXgboostVipNativeSummary,
-  ExplainerXgboostPerfectJoin,
-  by = c(Feature = "variable")
-)
-
-exclude_wrong_cases <- function(var1, var2, x) {
-  !((var1 == x & !grepl(paste0("^", x), var2)) |
-    (var1 != x & grepl(paste0("^", x), var2)))
-}
-
-ExplainerXgboostConsolidation <-
-  fuzzyjoin::stringdist_full_join(
-    ExplainerXgboostVipRemain,
-    ExplainerXgboostVipNativeRemain,
-    by = c(variable = "Feature"),
-    method = "jw",
-    max_dist = 0.05,
-    p = 0.2
-  ) |>
-  mutate(Gain = if_else(is.na(Feature), 0, Gain)) |>
-  filter(
-    exclude_wrong_cases(variable, Feature, "request_datetime_month"),
-    exclude_wrong_cases(variable, Feature, "request_datetime_dow")
-  ) |>
-  group_by(variable) |>
-  summarize(dropout_loss = mean(dropout_loss), Gain = sum(Gain)) |>
-  bind_rows(ExplainerXgboostPerfectJoin)
-```
-
-
-```{r}
-lm(dropout_loss ~ Gain, data = ExplainerXgboostConsolidation) |>
-  summary()
-
-cor.test(
-  ExplainerXgboostConsolidation$dropout_loss,
-  ExplainerXgboostConsolidation$Gain
-)
-```
-
-```{r}
-# plotly::ggplotly()
-
-ggplot(ExplainerXgboostConsolidation, aes(x = Gain, y = dropout_loss)) +
-  geom_point(
-    aes(
-      color = ifelse(
-        dropout_loss < 0,
-        "Negativo (DALEX sugiere dañino)",
-        "Positivo"
-      )
-    ),
-    size = 3,
-    alpha = 0.8
-  ) +
-  geom_smooth(method = "lm", color = "red", se = TRUE, linetype = "dashed") + # Línea de regresión con CI
-  geom_hline(
-    yintercept = 0,
-    linetype = "solid",
-    color = "gray",
-    linewidth = 0.5
-  ) + # Línea en 0 para resaltar negativos
-  geom_text(
-    aes(label = variable),
-    size = 3,
-    data = ExplainerXgboostConsolidation |>
-      filter(abs(dropout_loss) > 0.01 | Gain > 0.05)
-  ) + # Label tops
-  scale_color_manual(
-    values = c("Negativo (DALEX sugiere dañino)" = "red", "Positivo" = "blue")
-  ) +
-  labs(
-    title = "Comparación: Importancia Nativa (Gain) vs. DALEX (Dropout Loss)",
-    subtitle = "Correlación negativa fuerte (-0.993): Features clave en XGBoost empeoran el modelo según DALEX",
-    x = "Gain (Importancia Nativa de XGBoost)",
-    y = "Dropout Loss (DALEX por Permutación)",
-    color = "Tipo de Dropout Loss",
-    caption = "Fuente: Análisis propio. Remover negativas empeora Brier score de 0.144 a 0.164."
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold", size = 14),
-    axis.title = element_text(size = 12),
-    legend.position = "bottom"
-  ) +
-  annotate(
-    "text",
-    x = max(ExplainerXgboostConsolidation$Gain) * 0.7,
-    y = min(ExplainerXgboostConsolidation$dropout_loss) * 0.8,
-    label = "Slope: -0.378 (p < 2e-16)\nR²: 0.987",
-    color = "red",
-    size = 4
-  )
-```
-
-### Defining the best Threshold
-
-```{r}
-estimate_prediction_benefit <- function(evaluted_model, threshold = 0.5) {
-  collect_predictions(evaluted_model) |>
-    NycTaxi::add_performance_variables(
-      training_data = TrainingAfterVarRemoval
-    ) |>
-    NycTaxi::add_pred_class(threshold) |>
-    NycTaxi::calculate_costs() |>
-    group_by(id) |>
-    summarize(
-      current_method_cost = mean(current_method_cost, na.rm = TRUE),
-      model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
-    ) |>
-    # Defining cost of model across folds
-    summarize(
-      current_method_cost = mean(current_method_cost),
-      model_method_cost = mean(model_method_cost)
-    ) |>
-    mutate(
-      threshold = threshold,
-      total_benefit = current_method_cost - model_method_cost
-    )
-}
-
-collect_metrics(XgboostRevAllEvaluted)
-
-# estimate_prediction_benefit(XgboostRevAllEvaluted)
-```
-
-
-```{r}
-ExplainerXgboostVipRevAllSummary |>
-  mutate(dropout_loss = round(dropout_loss, 5)) |>
-  filter(dropout_loss > 0)
-```
-
-
-```{r}
-ThresholdlExploration <-
-  seq(0, 0.8, 0.02) |>
-  lapply(
-    FUN = estimate_prediction_benefit,
-    evaluted_model = XgboostRevAllEvaluted
-  ) |>
-  bind_rows()
-
-LinealThresholdlModel <-
-  recipe(total_benefit ~ threshold, data = ThresholdlExploration) |>
-  step_poly(threshold, degree = 4) |>
-  workflow(spec = linear_reg()) |>
-  fit(data = ThresholdlExploration)
-
-LinealThresholdlModel |>
-  extract_fit_engine() |>
-  summary()
-```
-
-```{r}
-predict_fun <- function(x) {
-  predict(LinealThresholdlModel, data.frame(threshold = x))[[".pred"]]
-}
-
-BestThresholdValue <- optimize(\(x) -predict_fun(x), c(0, 0.8))$minimum
-BestBenefitValue <- predict_fun(BestThresholdValue)
-
-ThresholdlExploration |>
-  ggplot(aes(threshold, total_benefit)) +
-  geom_point() +
-  geom_function(fun = predict_fun, color = Params$ColorHighlight) +
-  annotate(
-    "segment",
-    x = BestThresholdValue,
-    y = BestBenefitValue * 0.4,
-    xend = BestThresholdValue,
-    yend = BestBenefitValue,
-    arrow = arrow(angle = 15, type = "closed")
-  ) +
-  annotate(
-    geom = "text",
-    x = BestThresholdValue,
-    y = BestBenefitValue * 1.2,
-    label = round(BestBenefitValue, 2)
-  ) +
-  annotate(
-    geom = "text",
-    x = BestThresholdValue,
-    y = BestBenefitValue * 0.3,
-    label = round(BestThresholdValue, 2)
-  ) +
-  labs(
-    title = paste0(
-      "The Best Threshold for Predicting New Trips is ",
-      round(BestThresholdValue, 2L)
-    ),
-    y = "Average Benefit by Trip",
-    x = "Threshold Evaluated"
-  ) +
-  theme_minimal() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    plot.title = element_text(face = "bold", size = 15)
-  )
-```
-
-
-## Dimentional reduction
+To make the model more affective let's also exclude cases where the `driver_pay` or `trip_miles` are 0 or lower as those trips must be errors in the data to update the workflow.
 
 ```{r}
 TrainingAfterFilterNewFeatures <-
@@ -1619,6 +1350,7 @@ WorkFlowPls <-
   update_recipe(ReducedLevelsPls)
 ```
 
+Now we just need to finetune the new workflow to find out whether we can find a better model to predict the target variable.
 
 ```{r}
 #| eval: false
@@ -1699,363 +1431,29 @@ if (!is.null(WorkFlowXgboostTunedPls)) {
 }
 ```
 
+After running several iteretation we weren't able to find a better model after reducing the number of features.
+
 ```{r}
-BestXgboostConfigPls <- pin_read(
-  BoardLocal,
-  name = "BestXgboostConfigPls"
-)
+#| code-fold: true
+#| code-summary: "Show the code"
 
-MetricsXgboostHistoryPls <- pin_read(
-  BoardLocal,
-  name = "MetricsXgboostHistoryPls"
-)
-
-MetricsXgboostHistoryPls |>
-  filter(.metric == "brier_class") |>
-  select(mtry:threshold, mean, std_err, .iter) |>
+NewPerformancePls <-
+  pin_read(
+    BoardLocal,
+    name = "MetricsXgboostHistoryPls"
+  ) |>
+  select(mean, std_err, mtry:threshold) |>
+  bind_cols(source = "pls_model", raw = _) |>
   arrange(mean) |>
-  head(3L)
-```
+  head(1L)
 
-
-# Phase 3: Training Final Model
-
-### Creating new recipe
-
-```{r}
-GeneralVarsToRemove <- grepv(
-  AllVariablesToRemove,
-  pattern = "DO|PU",
-  invert = TRUE
-) |>
-  sort()
-
-PositionVarsToRemove <-
-  AllVariablesToRemove |>
-  grepv(pattern = "DO|PU") |>
-  sub(pattern = "(DO|PU)_", replacement = "") |>
-  table()
-
-PositionVarsToRemoveBothSides <-
-  PositionVarsToRemove[PositionVarsToRemove > 1L] |>
-  names() |>
-  sort()
-
-PositionVarsToRemoveOneSide <-
-  PositionVarsToRemove[PositionVarsToRemove == 1L] |>
-  names() |>
-  paste(collapse = "|") |>
-  paste0("(", a = _, ")$") |>
-  grepv(x = AllVariablesToRemove) |>
-  sort()
-
-
-MapVarsToRemove <- grepv("-", PositionVarsToRemoveBothSides)
-AcsVarsToRemove <- setdiff(PositionVarsToRemoveBothSides, MapVarsToRemove)
-
-identical(
-  sort(AllVariablesToRemove),
-  sort(c(
-    GeneralVarsToRemove,
-    paste0("PU_", c(MapVarsToRemove, AcsVarsToRemove)),
-    paste0("DO_", c(MapVarsToRemove, AcsVarsToRemove)),
-    PositionVarsToRemoveOneSide
-  ))
-)
-```
-
-```{r}
-AcsVariablesToUse <- AcsVariablesByZoneId[, .SD, .SDcols = !AcsVarsToRemove]
-OmsVariablesToUse <- OmsDensityFeatures[, .SD, .SDcols = !MapVarsToRemove]
-
-XgboostFinalRecipe <-
-  # Starting Recipe
-  recipe(
-    take_current_trip ~
-      PULocationID +
-      DOLocationID +
-      request_datetime +
-      trip_time +
-      trip_id +
-      performance_per_hour +
-      percentile_75_performance,
-    data = TrainingSample
-  ) |>
-
-  # Updating roles of variables important for trip identification
-  update_role(
-    trip_id,
-    performance_per_hour,
-    percentile_75_performance,
-    new_role = "additional info"
-  ) |>
-
-  # Selecting variables over 2 min
-  step_filter(trip_time >= (60 * 2)) |>
-
-  # Renaming variables to join
-  step_rename(PU_LocationID = PULocationID, DO_LocationID = DOLocationID) |>
-
-  # Adding Geospatial Data
-  step_join_geospatial_features(
-    ends_with("LocationID"),
-    spatial_features = ZoneCodesRef,
-    col_prefix = c("DO_", "PU_")
-  ) |>
-  step_join_geospatial_features(
-    ends_with("LocationID"),
-    spatial_features = AcsVariablesToUse,
-    col_prefix = c("DO_", "PU_")
-  ) |>
-  step_join_geospatial_features(
-    ends_with("LocationID"),
-    spatial_features = OmsVariablesToUse,
-    col_prefix = c("DO_", "PU_")
-  ) |>
-
-  # Extracting additional information
-  step_date(
-    request_datetime,
-    features = c(
-      "year",
-      "semester",
-      "quarter"
-    )
-  ) |>
-
-  step_holiday(
-    request_datetime,
-    holidays = c(
-      'USChristmasDay',
-      'USColumbusDay',
-      'USCPulaskisBirthday',
-      'USDecorationMemorialDay',
-      'USElectionDay',
-      'USGoodFriday',
-      'USInaugurationDay',
-      'USIndependenceDay',
-      'USJuneteenthNationalIndependenceDay',
-      'USLaborDay',
-      'USLincolnsBirthday',
-      'USMemorialDay',
-      'USMLKingsBirthday',
-      'USNewYearsDay',
-      'USPresidentsDay',
-      'USThanksgivingDay',
-      'USVeteransDay',
-      'USWashingtonsBirthday'
-    )
-  ) |>
-
-  step_mutate(
-    .pkgs = c("data.table", "lubridate", "timeDate"),
-
-    request_datetime_pm = pm(request_datetime) |> as.integer(),
-
-    `Days to USCPulaskisBirthday` = difftime(
-      USCPulaskisBirthday(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USElectionDay` = difftime(
-      USElectionDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USInaugurationDay` = difftime(
-      USInaugurationDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USIndependenceDay` = difftime(
-      USIndependenceDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USJuneteenthNationalIndependenceDay` = difftime(
-      USJuneteenthNationalIndependenceDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USPresidentsDay` = difftime(
-      USPresidentsDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer(),
-    `Days to USThanksgivingDay` = difftime(
-      USThanksgivingDay(year(request_datetime)),
-      request_datetime,
-      units = 'days'
-    ) |>
-      as.integer()
-  ) |>
-
-  # Removing variables
-  step_rm(ends_with(c(
-    "LocationID",
-    "request_datetime",
-    "trip_time",
-    PositionVarsToRemoveOneSide
-  ))) |>
-
-  # Steps for Xgboost
-  step_novel(all_nominal_predictors()) |>
-  step_other(all_nominal_predictors()) |>
-  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
-  step_nzv(all_predictors())
-```
-
-### Defining Tuned workflow
-
-```{r}
-BestXgboostConfig = pin_read(
-  BoardLocal,
-  name = "BestXgboostConfig"
+ModelComparisonPls <- bind_rows(
+  ModelComparison,
+  NewPerformancePls
 )
 
-XgboostFinalWorkflow <-
-  workflow() |>
-  add_recipe(XgboostFinalRecipe) |>
-  add_model(XgboostSpec) |>
-  add_tailor(tailor::adjust_probability_threshold(
-    tailor::tailor(),
-    BestThresholdValue
-  )) |>
-  finalize_workflow(BestXgboostConfig)
-
-XgboostFinalWorkflow
-```
-
-
-### Evaluating new model
-
-```{r}
-#| eval: false
-
-set.seed(65416)
-TrainingSampleResamples <- vfold_cv(
-  TrainingSample,
-  v = 5,
-  strata = take_current_trip
+create_performance_gt(
+  ModelComparisonPls,
+  subtitle = "Comparing Brier Score and Hyperparameters: Initial vs. New Model vs. PLS Model"
 )
-
-XgboostFinalEvaluation <- fit_resamples(
-  XgboostFinalWorkflow,
-  resamples = TrainingSampleResamples,
-  metrics = metric_set(brier_class),
-  control = control_resamples(
-    verbose = TRUE,
-    allow_par = FALSE,
-    save_pred = TRUE
-  )
-)
-
-pin_write(
-  BoardLocal,
-  x = XgboostFinalEvaluation,
-  name = "XgboostFinalEvaluation",
-  type = "qs2",
-  title = "Xgboost Final Evaluation"
-)
-```
-
-The new model keeps the brier_class and total_benefit keep similar as expected.
-
-```{r}
-XgboostFinalEvaluation <- pin_read(
-  BoardLocal,
-  name = "XgboostFinalEvaluation"
-)
-
-collect_metrics(XgboostFinalEvaluation)
-
-# estimate_prediction_benefit(XgboostRevAllEvaluted, BestThresholdValue)
-```
-
-
-### Evaluating based on testing data
-
-```{r}
-#| eval: false
-
-XgboostFinalFit <- last_fit(
-  XgboostFinalWorkflow,
-  split = SampledDataSplit
-)
-
-pin_write(
-  BoardLocal,
-  x = XgboostFinalFit,
-  name = "XgboostFinalFit",
-  type = "qs2",
-  title = "Xgboost Final Fit"
-)
-```
-
-```{r}
-XgboostFinalFit <- pin_read(
-  BoardLocal,
-  name = "XgboostFinalFit"
-)
-
-collect_metrics(XgboostFinalFit)
-
-TestingPredictionCost <-
-  collect_predictions(XgboostFinalFit) |>
-  NycTaxi::add_performance_variables(training_data = SampledData) |>
-  NycTaxi::calculate_costs() |>
-  arrange(desc(current_method_cost))
-
-TestingPredictionCost |>
-  summarize(
-    current_method_cost = mean(current_method_cost, na.rm = TRUE),
-    model_method_cost = mean(cost_wrong_total, na.rm = TRUE)
-  ) |>
-  mutate(
-    total_benefit = current_method_cost - model_method_cost
-  )
-```
-
-### Explaining Worst prediction
-
-```{r}
-ExplainerXgboostFinal <-
-  extract_workflow(XgboostFinalFit) |>
-  DALEXtra::explain_tidymodels(
-    data = TestingSample |> select(-take_current_trip),
-    y = TestingSample$take_current_trip
-  )
-```
-
-```{r}
-WorstFinalPrediction <-
-  TestingSample |>
-  filter(trip_id == TestingPredictionCost$trip_id[1L]) |>
-  select(-take_current_trip)
-
-set.seed(1980)
-ShapWorstPrediction <- predict_parts(
-  explainer = ExplainerXgboostFinal,
-  new_observation = WorstFinalPrediction,
-  type = "shap",
-  B = 25
-)
-
-pin_write(
-  BoardLocal,
-  x = ShapWorstPrediction,
-  name = "ShapWorstPrediction",
-  type = "qs2",
-  title = "Shap Worst Prediction"
-)
-```
-
-```{r}
-plot(ShapWorstPrediction)
 ```
