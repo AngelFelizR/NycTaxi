@@ -1,5 +1,6 @@
 ---
-title: "Training Model to use"
+title: "Model Development & Optimization Pipeline"
+subtitle: "A Machine Learning Approach to Taxi Trip Acceptance Prediction"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -7,22 +8,33 @@ execute:
   warning: false
 ---
 
-After exploring the data and engineering new features, the next step is to evaluate the data using Machine Learning models. Our goal is to extract insights that will inform the creation of the final production model.
+After extensive data exploration and feature engineering, we developed a classification model to predict whether drivers should accept incoming trip requests based on expected profitability.
 
-In this section, we define the models to be trained. We have selected a diverse set of algorithms, ranging from simple, interpretable ones (like Logistic Regression) to complex, powerful ones (like Random Forests). This allows us to determine which approach best suits our data and hardware constraints:
+The goal is to maximize driver earnings by helping them identify the most valuable trips while minimizing time spent on low-value assignments. This optimization problem directly impacts driver income and operational efficiency across the NYC taxi network.
 
+# Phase 1: Model Selection & Initial Training
+
+## 1.1 Problem Context & Algorithm Selection
+
+To solve this binary classification problem (accept trip: yes/no), we evaluated a diverse range of machine learning algorithms. Our selection strategy balances interpretability, performance, and computational efficiency:
+
+**Simple, Interpretable Models:**
 - Regularized Logistic Regression via `glmnet`
 - Flexible Discriminant Analysis (FDA)
-- MARS via `earth`
+
+**Non-linear, Moderate Complexity Models:**
+- MARS (Multivariate Adaptive Regression Splines) via `earth`
 - Bagged Trees via `rpart`
+
+**Advanced Ensemble Models:**
 - Random Forests via `ranger`
-- Boosted Trees via `xgboost`
+- Gradient Boosted Trees via `xgboost`
 
-We will fit 5 random variations of the tuning parameters over 5-fold cross-validation, then explore the results of each model.
-    
-## Setting up the environment
+This progression from simple to complex allows us to identify the optimal balance between model performance and computational requirements for production deployment.
 
-Here are the loaded libraries to start the process.
+**Training Strategy:** We employ 5-fold cross-validation with 5 random hyperparameter configurations per model to ensure robust performance estimates while managing computational costs.
+
+## 1.2 Environment Setup
 
 ```{r}
 ## To manage relative paths
@@ -40,11 +52,11 @@ library(themis)
 library(discrim)
 library(DALEX)
 
-## Publish data sets, models, and other R objects
-library(pins)
-
 ## For table formatting
 library(gt)
+
+## Publish data sets, models, and other R objects
+library(pins)
 
 ## Custom functions
 devtools::load_all()
@@ -57,11 +69,9 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-## Training initial models
+## 1.3 Model Specification
 
-### Defining models to train
-
-Now we can define the models to be trained and tuned.
+Each model is configured with hyperparameters marked for tuning. The tuning process will identify optimal values within predefined search spaces.
 
 ```{r}
 # Regularized logistic regression
@@ -102,9 +112,9 @@ XgboostSpec <-
   set_engine("xgboost")
 ```
 
-### Importing training data
+## 1.4 Data Loading & Preparation
 
-Here we import the data to use from the remote Board located in a GitHub repo.
+We load pre-processed datasets from our local pin board. These datasets include trip-level features, geographic zone characteristics, demographic variables from the American Community Survey (ACS), and spatial density metrics.
 
 ```{r}
 AcsVariablesByZoneId <-
@@ -144,9 +154,13 @@ TrainingSample <- training(SampledDataSplit)
 TestingSample <- testing(SampledDataSplit)
 ```
 
-### Adding all features to training data
+This comprehensive recipe transforms raw trip data into a rich feature set by incorporating geospatial, temporal, and contextual information. The pipeline is designed to be reproducible—new predictions require only basic trip data from the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), as all feature engineering is embedded in the workflow.
 
-We want to create a final recipe that reproduces the whole pipeline. We start by creating a recipe that combines all features used to train the model. This ensures that when we run `predict`, we only need to provide the basic data from the original source of [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), and all other features will be added as part of the `tidymodels` workflow.
+**Key Feature Categories:**
+- **Geospatial Features:** Zone characteristics, demographic data, density metrics for pickup and dropoff locations
+- **Temporal Features:** Daily and weekly cyclical patterns, calendar features, holiday proximity
+- **Trip Characteristics:** Duration, distance, payment information
+- **Company Identity:** Rideshare platform (Uber, Lyft, Via, Juno)
 
 ```{r}
 #| eval: false
@@ -401,6 +415,10 @@ ConsolidationRecipe <-
     "hvfhs_license_num"
   )))
 
+TrainingSampleJoined <-
+  prep(ConsolidationRecipe) |>
+  bake(new_data = NULL)
+
 pin_write(
   BoardLocal,
   ConsolidationRecipe,
@@ -408,16 +426,6 @@ pin_write(
   type = "qs2",
   title = "Consolidation Recipe"
 )
-```
-
-As we are planning to train many models, it is efficient to apply these initial recipes to the training and testing data once. This avoids repeating the same steps for each training resample.
-
-```{r}
-#| eval: false
-
-TrainingSampleJoined <-
-  prep(ConsolidationRecipe) |>
-  bake(new_data = NULL)
 
 pin_write(
   BoardLocal,
@@ -435,9 +443,14 @@ pin_write(
 TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 ```
 
-### Defining recipes based on model type
+## 1.5 Feature Engineering Pipeline
 
-Before creating the first recipe, it is important to consider that we want to keep `performance_per_hour` and `percentile_75_performance` available to calculate how much money we could be losing due to incorrect predictions.
+As we need to create recipe for each model as they have deferent asumptiones, then it's better to create a simple  function to start all the following recipes as we need to apply the next steps in all of then:
+
+1. Select `take_current_trip` as variable to predict and the rest of columns as predictors.
+2. Downsample the train data to about creating models that only predict the most common decision, which is to take the trip.
+3. Use the median to impute any missing value based on training data.
+4. Confirm that `trip_id`, `performance_per_hour` and `percentile_75_performance` won't be used as predictors, but to track the results.
 
 ```{r}
 start_recipe <- function(df) {
@@ -456,7 +469,15 @@ start_recipe <- function(df) {
 }
 ```
 
-The models trained on this data are very affected by class imbalance. We will downsample to avoid these problems and speed up training time. Note that we have many examples of both cases and are looking for general rules that could be used by taxi drivers.
+### 1.5.1 Normalization & Dimensionality Reduction
+
+For models sensitive to the scale and distribution of predictors (such as Logistic Regression, FDA, and MARS), we implement a "Basic Normalized" pipeline. This involves applying a Yeo-Johnson transformation to handle non-normality, creating dummy variables for categorical data, and filtering out near-zero variance (NZV) predictors.
+
+Building upon this base, we define three distinct dimensionality reduction strategies to capture latent patterns in the taxi data:
+
+* **Principal Component Analysis (PCA):** An unsupervised approach to reduce collinearity by creating orthogonal linear combinations of predictors.
+* **Partial Least Squares (PLS):** A supervised approach that reduces dimensions while maximizing the covariance between predictors and the trip acceptance outcome.
+* **Uniform Manifold Approximation and Projection (UMAP):** A non-linear technique used here to capture complex, manifold-based relationships in the high-dimensional feature space.
 
 ```{r}
 BasicNormalizedRecipe <-
@@ -492,7 +513,9 @@ NormalizedUmapRecipe <-
   step_normalize(all_numeric_predictors())
 ```
 
-As tree based models are affected due having too many categories and xgboost needs numeric predictors here is the need changes.
+### 1.5.2 Sparsity Management
+
+Tree-based models like Random Forest and XGBoost are generally robust to monotonic transformations but can struggle with high-cardinality categorical variables (like specific NYC neighborhoods). To address this, we define a "Reduced Levels" recipe. This approach uses `step_other()` to collapse infrequent categories into an "other" bucket, followed by one-hot encoding to allow the ensemble models to partition the data effectively.
 
 ```{r}
 ReducedLevelsRecipe <-
@@ -503,7 +526,19 @@ ReducedLevelsRecipe <-
   step_nzv(all_predictors())
 ```
 
-### Consolidating workflows to evaluate
+## 1.6 Model Training Workflows
+
+With all recipes and model specifications defined, we now assemble them into unified training workflows using `workflow_set()`. Each workflow pairs a preprocessing recipe with one or more model specifications, allowing tidymodels to jointly tune and evaluate every recipe–model combination in a systematic way.
+
+The workflows are organized into three groups based on their computational profiles and the assumptions of the underlying models:
+
+- **`WorkFlowSimple`** pairs the `BasicNormalizedRecipe` with regularized logistic regression. This group is lightweight in memory and serves as our interpretable baseline, establishing a performance floor against which more complex models are compared.
+
+- **`WorkFlowDimReduction`** combines the three dimensionality-reduction recipes (PCA, PLS, and UMAP) with FDA and MARS. These combinations are memory-intensive due to the additional transformation steps, but allow the non-linear models to operate on a compressed, lower-dimensional representation of the feature space.
+
+- **`WorkFlowTrees`** pairs the `ReducedLevelsRecipe` with Random Forest and XGBoost. Since tree-based models are scale-invariant but sensitive to high-cardinality categoricals, this workflow applies the sparse category collapsing strategy defined in [section 1.5.2](#sparsity-management).
+
+Each workflow set is serialized and saved to the local pin board for downstream hyperparameter tuning and model selection. This **modular structure** makes it straightforward to add new recipe–model combinations or rerun individual groups without retraining the entire pipeline.
 
 ```{r}
 #| eval: false
@@ -567,9 +602,18 @@ pin_write(
 )
 ```
 
-### Tuning grid for each workflow
+## 1.7 Tuning Workflows
 
-Here is the code used to train and evaluate the different models.
+With the three workflow groups saved to disk, we now run hyperparameter tuning for each group in separate scripts. Running them separately **keeps memory usage manageable**, since some combinations — particularly those involving dimensionality reduction — are considerably more expensive to train than others.
+
+Each script follows the same overall pattern: 
+
+1. Load the saved workflow from the pin board. 
+2. Define a 5-fold cross-validation scheme on the joined training data
+3. Generate a small space-filling grid of 5 hyperparameter configurations using the Audze-Eglais design.
+4. Evaluate every configuration across all folds using both ROC-AUC and Brier Score as metrics.
+
+Once tuning is complete, the results are saved back to the pin board so [section 1.8](#performance-comparison) can load and compare them together.
 
 ```{r}
 #| eval: false
@@ -586,11 +630,9 @@ Here is the code used to train and evaluate the different models.
 #| file: ../multicore-scripts/03c-tuning-tree-models.R
 ```
 
-### Exploring results
+## 1.8 Performance Comparison
 
-Our initial model exploration revealed that **tree-based models**, specifically Random Forest and Bagged Trees, delivered the best raw performance. However, a regularized Logistic Regression was a strong and much simpler contender.
-
-Let's import the results of the exploration.
+We load the trained models and compare their cross-validated performance using the Brier score metric.
 
 ```{r}
 #| eval: false
@@ -600,7 +642,6 @@ WorkFlowTuned <- c(
   pin_read(BoardLocal, "WorkFlowDimReductionTuned"),
   pin_read(BoardLocal, "WorkFlowTreesTuned")
 )
-
 
 WorkFlowTunedBest <- lapply(
   names(WorkFlowTuned),
@@ -681,8 +722,6 @@ pin_read(
 To estimate the cost, we select the best model of each type and calculate the difference between the `performance_per_hour` of each trip and the `performance_per_hour` of the 75th percentile, depending on whether the final prediction was correct or not.
 
 ```{r}
-#| eval: false
-
 collect_prediction_cost <- function(
   training_data,
   tuned_wf,
@@ -695,6 +734,10 @@ collect_prediction_cost <- function(
     NycTaxi::add_pred_class(threshold) |>
     NycTaxi::calculate_costs()
 }
+```
+
+```{r}
+#| eval: false
 
 PredictionsCosts <- lapply(
   names(WorkFlowTuned),
@@ -728,7 +771,7 @@ PredictionsCosts <- pin_read(
   name = "PredictionsCosts"
 )
 
-PredictionsCostsSummary =
+PredictionsCostsSummary <-
   PredictionsCosts |>
   # Defining cost of model and fold
   group_by(model_name, id) |>
@@ -746,8 +789,6 @@ PredictionsCostsSummary =
     model_name = reorder(model_name, total_benefit)
   ) |>
   arrange(desc(total_benefit))
-
-PredictionsCostsSummary
 ```
 
 ```{r}
@@ -799,10 +840,16 @@ PredictionsCostsSummary |>
   )
 ```
 
-## Fine tunning Xgboost
+
+# Phase 2: XGBoost Deep Dive & Optimization
+
+Based on initial results, we identified XGBoost as the most promising algorithm. This section details an expanded hyperparameter search to maximize model performance.
+
+## 2.1 Expanded XGBoost Hyperparameter Search
+
+The frist step is to define a new model specification with more params to be tuned and update the original workflow used.
 
 ```{r}
-# Especificación del modelo XGBoost con parámetros a tunear
 XgboostSpecToTune <-
   boost_tree(
     trees = tune(),
@@ -824,11 +871,24 @@ WorkFlowXgboost <-
   update_model(XgboostSpecToTune)
 ```
 
+## 2.2 Bayesian Hyperparameter Optimization
+
+After identifying XGBoost as the lead candidate, we implement **Bayesian Optimization** to fine-tune the model. Unlike a standard grid search that tests combinations in isolation, Bayesian optimization uses the results of previous evaluations to form a probabilistic model of the hyperparameter space, allowing it to "search" for the most promising configurations more efficiently.
+
+### The Refinement Strategy
+
+In this implementation, we focus the search on specific ranges informed by our initial findings:
+
+- **Targeted Search Spaces:** We defined refined ranges for key parameters such as `trees` (200–350), `min_n` (15–25), and `tree_depth` (5–8) to explore the neighborhood of our best-performing initial results.
+- **Resource Management:** The XGBoost engine is set to single-thread (`nthread = 1`) specifically about stop testing models due RAM limitations.
+- **Iterative Tuning:** We start with 10 random initial points and allow the algorithm up to 25 iterations to find an optimal "peak" in performance, using both **Brier Score** and **ROC-AUC** as the guiding metrics.
+- **Convergence Controls:** To prevent wasted computation, we set a `no_improve` threshold of 20 iterations, ensuring the process stops if it reaches a performance plateau.
+
+Once the tuning completes, the best configuration is extracted based on the lowest Brier Score and saved to the local board for final model finalization.
+
 ```{r}
 #| eval: false
 
-# Setting very narrow ranges centered around the best-performing iteration (Iter 9):
-# mtry=96, trees=221, min_n=18, tree_depth=6, learn_rate=0.104, loss_reduction=0.000556, sample_size=0.784
 XgboostParamsRefined <-
   extract_parameter_set_dials(WorkFlowXgboost) |>
   update(
@@ -918,34 +978,109 @@ if (!is.null(WorkFlowXgboostTuned)) {
 }
 ```
 
-### Comparting results
+### Results
 
-Here is the initial metric.
+The new XGBoost model is **more precise and consistent** than the original. By looking at more data and using a deeper, more refined tree structure, we successfully reduced the error rate (Brier Score) by approximately **4%**:
+
+* **Better Accuracy:** The Brier Score dropped from **0.1502 to 0.1443**. Since a lower score is better, this means the new model's predictions are more accurate and reliable.
+* **Greater Stability:** The standard error is lower (**0.0008**), meaning the model is more consistent and less likely to give "lucky" or erratic results.
+
+The new model achieved these better results by becoming more complex and thorough:
+
+* **Deeper Learning:** It uses deeper trees (**7 levels** instead of 4) and more "trees" overall (**347**), allowing it to catch more complicated patterns in your data.
+* **More Data Usage:** It looks at almost **90%** of the available sample size, compared to only 50% in the first model.
+* **Slower, Careful Learning:** The learning rate was lowered to **0.106**. This means it learns more slowly but more precisely, avoiding the "over-correction" issues the initial model might have had.
 
 ```{r}
-pin_read(BoardLocal, "WorkFlowTreesTuned")[["reduced_levels_xgboost"]] |>
+#| code-fold: true
+#| code-summary: "Show the code"
+
+OriginalPerformace <-
+  pin_read(BoardLocal, "WorkFlowTreesTuned")[["reduced_levels_xgboost"]] |>
   collect_metrics() |>
   filter(.metric == "brier_class") |>
-  select(mtry:threshold, mean, std_err) |>
+  select(mean, std_err, mtry:threshold) |>
+  bind_cols(source = "initial_model", raw = _) |>
   arrange(mean) |>
-  head(3L)
-```
+  head(1L)
 
-
-```{r}
-MetricsXgboostHistory = pin_read(
-  BoardLocal,
-  name = "MetricsXgboostHistory"
-)
-
-MetricsXgboostHistory |>
+NewPerformance <-
+  pin_read(BoardLocal, name = "MetricsXgboostHistory") |>
   filter(.metric == "brier_class") |>
-  select(mtry:threshold, mean, std_err, .iter) |>
+  select(mean, std_err, mtry:threshold) |>
+  bind_cols(source = "new_model", raw = _) |>
   arrange(mean) |>
-  head(3L)
-```
+  head(1L)
 
-## Exploring variable importance - DALEX
+ModelComparison <- bind_rows(OriginalPerformace, NewPerformance)
+
+ModelComparison |>
+  gt() |>
+  # 1. Header & Titles
+  tab_header(
+    title = "XGBoost Model Performance Comparison",
+    subtitle = "Comparing Brier Score and Hyperparameters: Initial vs. New Model"
+  ) |>
+
+  # 2. Apply styling to Header (Matching your example)
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#2c3e50"),
+    locations = cells_title()
+  ) |>
+
+  # 3. Formatting Numbers
+  fmt_number(
+    columns = c(mean, std_err),
+    decimals = 4
+  ) |>
+  fmt_number(
+    columns = c(learn_rate, loss_reduction, threshold),
+    decimals = 3
+  ) |>
+
+  # 4. Conditional Formatting (Highlighting the lower Brier Score)
+  data_color(
+    columns = mean,
+    fn = scales::col_numeric(
+      palette = c("#d4edda", "white"), # Green for lower (better) values
+      domain = c(min(ModelComparison$mean), max(ModelComparison$mean))
+    )
+  ) |>
+
+  # 5. Column Labels
+  cols_label(
+    source = "MODEL SOURCE",
+    mean = "BRIER SCORE (MEAN)",
+    std_err = "STD ERROR",
+    mtry = "MTRY",
+    min_n = "MIN N",
+    tree_depth = "DEPTH",
+    learn_rate = "LEARN RATE",
+    loss_reduction = "LOSS RED.",
+    sample_size = "SAMPLE SIZE",
+    threshold = "THRESHOLD",
+    trees = "TREES"
+  ) |>
+
+  # 6. General Table Options
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    table.width = pct(100),
+    quarto.disable_processing = TRUE
+  ) |>
+
+  # 7. Source Note
+  tab_source_note(
+    source_note = "Metrics extracted from BoardLocal pins: MetricsXgboostHistory and WorkFlowTreesTuned"
+  )
+```
 
 ```{r}
 #| output: false
@@ -955,7 +1090,14 @@ rm(list = grep("^WorkFlowTuned$|^(Normalized|Basic)", ls(), value = TRUE))
 gc()
 ```
 
-Now we can explit the training data to validate what the the most important features behind the predictions.
+
+## 2.3 Feature Selection
+
+Another way to improve model perfomance is to reduce feature with low prediction power. To make this possible the need to idenfity feature importance of all feature in under to select the one keep using.
+
+### Variable importance - DALEX
+
+As we didn't define a validation set to create DALEX explaners let's split the testing data.
 
 ```{r}
 set.seed(2971)
@@ -966,7 +1108,7 @@ ExplainerTraining <- training(ExplainerSplit)
 ExplainerTesting <- testing(ExplainerSplit)
 ```
 
-We need to fit a new model based on this data.
+Using the new configuration, let's fit a model with the corresponding part of the training set.
 
 ```{r}
 #| eval: false
@@ -989,7 +1131,7 @@ pin_write(
 )
 ```
 
-Then create the explainer for `DALEX`.
+Then we can create the explainer for `DALEX`.
 
 ```{r}
 XgboostWfFitted <- pin_read(BoardLocal, "XgboostWfFitted")
@@ -1023,9 +1165,12 @@ pin_write(
 )
 ```
 
-The results are interesting as the model didn't show strong positive but strong negative predictors as we can see the after comparting the top 10 of positive predictors and the top 20 of negative predictors.
+The results doesn't match with what were expecting. As the top
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
 ExplainerXgboostVip <- pin_read(BoardLocal, "ExplainerXgboostVip")
 
 ExplainerXgboostVipSummary <-
@@ -1042,14 +1187,32 @@ ExplainerXgboostVipSummary <-
   ) |>
   group_by(variable) |>
   summarize(dropout_loss = mean(dropout_loss)) |>
-  arrange(desc(abs(dropout_loss)))
+  mutate(
+    is_positive = dropout_loss >= 0,
+    variable = reorder(variable, dropout_loss)
+  ) |>
+  arrange(dropout_loss)
 
-ExplainerXgboostVipSummary |>
-  mutate(variable_type = if_else(dropout_loss <= 0, "negative", "positive")) |>
-  group_by(variable_type) |>
-  summarize(
-    n = n(),
-    top_5 = head(variable, 3) |> paste0(collapse = ", ")
+bind_rows(
+  head(ExplainerXgboostVipSummary, 5L),
+  tail(ExplainerXgboostVipSummary, 20L)
+) |>
+  ggplot(aes(dropout_loss, variable)) +
+  geom_col(fill = Params$ColorGray, color = "black", width = 0.5) +
+  scale_x_continuous(labels = comma_format()) +
+  scale_y_discrete(label = \(x) {
+    if_else(nchar(x) > 20, substr(x, nchar(x) - 20, nchar(x)), x)
+  }) +
+  labs(
+    title = "Top variables were reported as negative",
+    x = "",
+    y = "Brier Class Change"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold", size = 15),
+    axis.text.x.top = element_text(angle = 90, hjust = 0)
   )
 ```
 
@@ -1352,7 +1515,7 @@ estimate_prediction_benefit <- function(evaluted_model, threshold = 0.5) {
 
 collect_metrics(XgboostRevAllEvaluted)
 
-estimate_prediction_benefit(XgboostRevAllEvaluted)
+# estimate_prediction_benefit(XgboostRevAllEvaluted)
 ```
 
 
@@ -1548,11 +1711,14 @@ MetricsXgboostHistoryPls <- pin_read(
 )
 
 MetricsXgboostHistoryPls |>
-  arrange(mean)
+  filter(.metric == "brier_class") |>
+  select(mtry:threshold, mean, std_err, .iter) |>
+  arrange(mean) |>
+  head(3L)
 ```
 
 
-## Training Final Model
+# Phase 3: Training Final Model
 
 ### Creating new recipe
 
@@ -1746,7 +1912,6 @@ XgboostFinalRecipe <-
 ```
 
 ### Defining Tuned workflow
-
 
 ```{r}
 BestXgboostConfig = pin_read(
