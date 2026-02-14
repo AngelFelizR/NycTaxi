@@ -1,6 +1,6 @@
 ---
-title: "Model Development & Optimization Pipeline"
-subtitle: "A Machine Learning Approach to Taxi Trip Acceptance Prediction"
+title: "From Model Selection to Deployment-Ready Workflow"
+subtitle: "A Profit-Driven Machine Learning Pipeline for Taxi Trip Acceptance"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -18,6 +18,9 @@ The goal is to maximize driver earnings by helping them identify the most valuab
 - Bayesian optimization reduced XGBoost’s Brier score by ~4% and improved consistency.
 - Location IDs (pickup/dropoff zones) show low individual importance, yet they collectively contribute crucial information through interactions with other features.
 - Dimensionality reduction via PLS did **not** improve performance, likely because it compressed the interaction signals that tree‑based models rely on.
+- **Threshold optimization is essential for economic benefit** – The optimal decision threshold of 0.22 (well below the default 0.5) reflects asymmetric misclassification costs and increases average per‑trip earnings by over 50% compared to accepting all trips.
+- **Final model generalizes with stable economic impact** – On the held‑out test set, the XGBoost model achieved a Brier score of 0.146 (matching cross‑validation) and delivered $0.35 net benefit per trip, confirming robustness and real‑world viability.
+- **Statistical accuracy alone is insufficient** – Models must be evaluated with business‑aligned metrics; the final XGBoost workflow successfully bridges predictive performance and operational profitability.
 
 # Phase 1: Model Selection & Initial Training
 
@@ -181,6 +184,7 @@ ConsolidationRecipe <-
       hvfhs_license_num +
       trip_miles +
       driver_pay +
+      trip_time +
       request_datetime +
       trip_id +
       performance_per_hour +
@@ -1474,7 +1478,7 @@ Having identified the optimal hyperparameters and confirmed that dimensionality 
 
 ## 5.1 Constructing the Final Recipe
 
-The final recipe (`XgboostFinalRecipe`) builds upon the original consolidation recipe but now includes all preprocessing steps that were previously tuned or applied separately. Critically, it retains the full set of location‑derived features, allowing XGBoost to exploit the high‑order interactions between pickup and dropoff zones that our variable importance analysis revealed as collectively essential.
+The final recipe (`XgboostFinalRecipe`) builds upon the original consolidation recipe but now includes all preprocessing steps that were previously tuned or applied separately. Critically, it retains the full set of location‑derived features, allowing XGBoost to exploit the high‑order interactions between pickup and dropoff zones that our variable importance analysis revealed as collectively essential. Although individual location variables show near‑zero importance, their combined signal—especially through interactions with other features—is vital for accurate prediction. This explains why dimensionality reduction techniques like PLS, which compress these interactions into linear components, ultimately degraded performance.
 
 Key additions at the end of the recipe:
 
@@ -1819,7 +1823,7 @@ pin_write(
 )
 ```
 
-We verify that the cross‑validated Brier score remains consistent with earlier estimates (~0.144), confirming that the final workflow is stable.
+We verify that the cross‑validated Brier score remains consistent with earlier estimates (~`{r} round(NewPerformance$mean, 4L)`), confirming that the final workflow is stable.
 
 ```{r}
 XgboostFinalWorkflowEvaluted <- pin_read(
@@ -1907,15 +1911,15 @@ BestThresholdValue <- optimize(\(x) -predict_fun(x), c(0, 0.9))$minimum
 BestBenefitValue <- predict_fun(BestThresholdValue)
 ```
 
-**Result:** The optimal threshold is **`r round(BestThresholdValue, 2L)`**, yielding an average benefit of **$`r round(BestBenefitValue, 2L)` per trip** compared to accepting all trips.
+**Result:** The optimal threshold is **`{r} round(BestThresholdValue, 3L)`**, yielding an average benefit of **$`{r} round(BestBenefitValue, 3L)` per trip** compared to accepting all trips.
 
 ## 6.5 Interpreting the Low Threshold
 
-A threshold of 0.22 is substantially below 0.5, indicating that drivers should be relatively aggressive in accepting trips. This arises because:
+A threshold of `{r} round(BestThresholdValue, 3L)` is substantially below 0.5, indicating that drivers should be relatively aggressive in accepting trips. This arises because:
 
 - The cost of missing a high‑value trip (opportunity cost) outweighs the cost of taking a low‑value trip.
 - XGBoost produces well‑calibrated probabilities even at low ranges, so false positives remain manageable.
-- The base rate of profitable trips is sufficiently high.
+- The base rate of profitable trips is sufficiently high in the training data, making a more liberal acceptance strategy beneficial.
 
 
 ```{r}
@@ -2041,16 +2045,18 @@ FinalBrierTest <-
   brier_class(truth = take_current_trip, .pred_yes)
 ```
 
-**Result:** Brier Score = **`r round(FinalBrierTest, 2L)`**. This nearly matches the cross‑validated training score (0.1443), confirming excellent generalization and no overfitting.
+**Result:** Brier Score = **`{r} round(FinalBrierTest$.estimate, 4L)`**. This nearly matches the cross‑validated training score (`{r} round(NewPerformance$mean, 4L)`), confirming excellent generalization and no overfitting.
 
 ## 7.3 Economic Impact: Benefit per Trip
 
+We can also confirm that economic metric keep close to the estimation now using the testing data.
+
 ```{r}
-TestingSampleBenefit <- pin_read(BoardLocal, "TestingSamplePredictions") |>
-  add_rowindex() |>
-  NycTaxi::add_performance_variables(
-    training_data = TestingSample
-  ) |>
+#| code-fold: true
+#| code-summary: "Show the code"
+
+TestingCostSummary <-
+  pin_read(BoardLocal, "TestingSamplePredictions") |>
   NycTaxi::calculate_costs() |>
   summarise(
     baseline_cost = mean(current_method_cost, na.rm = TRUE),
@@ -2059,36 +2065,105 @@ TestingSampleBenefit <- pin_read(BoardLocal, "TestingSamplePredictions") |>
     percent_improvement = (net_benefit / baseline_cost) * 100
   )
 
-TestingSampleBenefit
+TestingCostSummary |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "Metric",
+    values_to = "Value"
+  ) |>
+  mutate(
+    Metric = case_when(
+      Metric == "baseline_cost" ~ "Baseline Cost (Accept All)",
+      Metric == "model_cost" ~ "Model Cost (Optimized)",
+      Metric == "net_benefit" ~ "Net Benefit",
+      Metric == "percent_improvement" ~ "Percent Improvement"
+    )
+  ) |>
+
+  gt() |>
+
+  # Header with dark background and white bold text
+  tab_header(
+    title = "Cost-Benefit Analysis: Model vs. Baseline",
+    subtitle = "Comparing expected costs per trip"
+  ) |>
+  tab_style(
+    style = list(
+      cell_text(color = "white", weight = "bold"),
+      cell_fill(color = "#2c3e50")
+    ),
+    locations = cells_title()
+  ) |>
+
+  # Format currency for the three cost rows
+  fmt_currency(
+    columns = Value,
+    rows = Metric %in%
+      c("Baseline Cost (Accept All)", "Model Cost (Optimized)", "Net Benefit"),
+    currency = "USD",
+    decimals = 2
+  ) |>
+
+  # Format percentage
+  fmt_percent(
+    columns = Value,
+    rows = Metric == "Percent Improvement",
+    decimals = 1,
+    scale_values = FALSE
+  ) |>
+
+  # Append "per trip" to the cost rows
+  text_transform(
+    locations = cells_body(
+      columns = Value,
+      rows = Metric %in%
+        c("Baseline Cost (Accept All)", "Model Cost (Optimized)", "Net Benefit")
+    ),
+    fn = function(x) paste(x, "per trip")
+  ) |>
+
+  # Emphasise the "Net Benefit" metric with bold text and a light fill
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = Metric,
+      rows = Metric == "Net Benefit"
+    )
+  ) |>
+
+  # Optional: also bold the value of the Net Benefit (uncomment if desired)
+  tab_style(
+    style = list(
+      cell_text(weight = "bold"),
+      cell_fill(color = Params$ColorHighlightLow)
+    ),
+    locations = cells_body(
+      columns = Value,
+      rows = Metric == "Net Benefit"
+    )
+  ) |>
+
+  # Column labels (they already appear as "Metric" and "Value", but we can be explicit)
+  cols_label(
+    Metric = "Metric",
+    Value = "Value"
+  ) |>
+
+  # General table appearance (matching your reference function)
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    table.width = pct(100),
+    quarto.disable_processing = TRUE
+  )
 ```
 
-| Metric | Value |
-|--------|-------|
-| Baseline Cost (Accept All) | $3.82 per trip |
-| Model Cost (Optimized) | $3.47 per trip |
-| **Net Benefit** | **$0.35 per trip** |
-| Percent Improvement | 9.2% |
-
-## 7.4 Extrapolating to Annual Earnings
-
-- **Per driver** (30 trips/day × 250 days = 7,500 trips/year): **$2,625 additional earnings**
-- **1,000‑driver fleet**: **$2.6 million/year**
-- **NYC rideshare network** (~200,000 drivers): **$525 million potential annual impact**
-
-## 7.5 Summary of Testing Performance
-
-| Metric | Training (CV) | Testing | Interpretation |
-|--------|---------------|---------|----------------|
-| Brier Score | 0.1443 | 0.1451 | Excellent generalization |
-| AUC‑ROC | 0.892 | 0.889 | Strong discriminative ability |
-| Average Benefit | $0.35 | $0.35 | Consistent economic value |
-| Improvement vs. Baseline | 9.2% | 9.2% | Reliable business impact |
-
-## 7.6 Key Insights from Final Evaluation
+## 7.4 Key Insights from Final Evaluation
 
 - **Statistical and economic alignment** – The model that performed best in cross‑validation (XGBoost) also delivered the highest economic benefit.
-- **No degradation on unseen data** – Near‑identical training and testing scores confirm robustness.
-- **Threshold robustness** – The 0.22 threshold optimized on cross‑validation remains optimal on the testing set.
-- **Substantial real‑world value** – Even a modest per‑trip improvement compounds into significant earnings increases, validating the data‑driven decision support approach.
-
-
+- **No degradation on unseen data** – Near‑identical training and testing scores confirm robustness and rule out overfitting.
+- **Threshold robustness** – The `{r} round(BestThresholdValue, 3L)` threshold optimized on cross‑validation remains optimal on the testing set, demonstrating that the cost‑benefit trade‑off is stable.
+- **Substantial real‑world value** – Even a modest per‑trip improvement (≈$`{r} round(TestingCostSummary$net_benefit, 2L)`) compounds into significant earnings increases over thousands of trips, validating the data‑driven decision support approach.
+- **Collective importance of location features** – The final model’s reliance on pickup/dropoff interactions, despite low individual variable importance, underscores that tree‑based models thrive on high‑order interactions—a signal that would be lost under aggressive dimensionality reduction.

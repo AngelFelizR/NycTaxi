@@ -32,10 +32,8 @@ website:
             href: investigation-phases/07-expanding-geospatial-data.qmd
           - text: "08 - Exploring Transportation and Socioeconomic Patterns"
             href: investigation-phases/08-expanding-transportation-socioeconomic.qmd
-          - text: "09 - Training Initial models"
-            href: investigation-phases/09-training-initial-models.qmd
-          - text: "10 - Explaining Top Models"
-            href: investigation-phases/10-explaining-top-models.qmd        
+          - text: "09 - From Model Selection to Deployment-Ready Workflow"
+            href: investigation-phases/09-model-selection-to-deployment.qmd  
     right:
       - text: "About Angel Feliz"
         href: about.qmd
