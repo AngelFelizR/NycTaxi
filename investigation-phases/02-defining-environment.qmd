@@ -11,18 +11,16 @@ knitr::opts_chunk$set(
 )
 ```
 
-To reproduce the results of this project, follow these steps to set up the same environment:
+To reproduce the results of this project, follow these steps to set up the same environment using Docker and Nix.
 
-### 1. Install Docker
+### 1. Install Docker and Docker Compose
 
-You'll need to install **Docker**. Choose the appropriate installation method for your operating system:
+You need **Docker** and **Docker Compose**. Choose the appropriate installation method for your operating system:
 
-  * **Windows or macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-  * **Linux**: Install the [Docker Engine](https://docs.docker.com/engine/install/).
+* **Windows or macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose).
+* **Linux**: Install the [Docker Engine](https://docs.docker.com/engine/install/) and then [Docker Compose](https://docs.docker.com/compose/install/).
 
-For Debian 13:
-
-The following script is an adapted version for **Debian 13**. Run it as a superuser to install Docker Engine:
+For **Debian 13** (as an example), run the following as root:
 
 ```bash
 apt update
@@ -30,27 +28,27 @@ apt install -y apt-transport-https ca-certificates curl gnupg2 software-properti
 curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian trixie stable"
 apt update
-apt-cache policy docker-ce
-apt install -y docker-ce
-systemctl status docker
+apt install -y docker-ce docker-compose-plugin
+systemctl enable docker && systemctl start docker
 usermod -aG docker <YOUR-USER>
 su - <YOUR-USER>
 ```
 
 **Note:** Replace `<YOUR-USER>` with your actual username.
 
+### 2. Pull the Pre‑built Docker Image
 
-### 2. Download the Project Image
-
-Pull the Docker image associated with this project using the following command:
+The project environment is available on Docker Hub. Pull the image with:
 
 ```bash
-docker pull angelfelizr/nyc-taxi-nix:4.5.1
+docker pull angelfelizr/nyc-taxi:4.5.2
 ```
 
-### 3. Clone the Repository
+(If you prefer to build the image locally, you can run `docker compose build` instead, but pulling is faster and guarantees the same environment.)
 
-Navigate to the parent directory where you want to store the project and another folder to store big data files. Then, clone the repository:
+### 3. Clone the Repository and Prepare Directories
+
+Navigate to the parent directory where you want to store the project and the data folders. Then run:
 
 ```bash
 cd <parent-dir-path>
@@ -59,60 +57,94 @@ mkdir NycTaxiPins
 git clone https://github.com/AngelFelizR/NycTaxi
 ```
 
-### 4. Run the Docker Container
+Your directory structure should look like:
 
-Execute the command below to run the container based on the `angelfelizr/nyc-taxi-nix:4.5.1` image. This command will:
-
-  * Remove the container when you exit (`--rm`).
-  * Give the container a name for easy identification (`--name nyc-taxi-container`).
-  * Publish port 2222 on the host and map it to port 22 inside the container, enabling SSH access.
-  * Mount the cloned repository to the `/home/nyc/NycTaxi` directory within the container (`-v <parent-dir-path>/NycTaxi:/home/nyc/NycTaxi`).
-
-
-```bash
-docker run --rm -tid \
-  --name nyc-taxi-container \
-  -p 2222:22 \
-  -v ~/r-projects/NycTaxi:/home/nyc/NycTaxi \
-  -v ~/r-projects/NycTaxiPins:/home/nyc/NycTaxiPins \
-  -v ~/r-projects/NycTaxiBigFiles:/home/nyc/NycTaxiBigFiles \
-  angelfelizr/nyc-taxi-nix:4.5.1 && sleep 2 && \
-  docker cp ~/.ssh/id_rsa.pub nyc-taxi-container:/home/nyc/.ssh/authorized_keys && \
-  docker exec nyc-taxi-container chown nyc:nyc /home/nyc/.ssh/authorized_keys && \
-  docker exec nyc-taxi-container chmod 600 /home/nyc/.ssh/authorized_keys
+```
+<parent-dir-path>/
+├── NycTaxi/               # cloned repository
+├── NycTaxiBigFiles/       # large data files (mounted into container)
+└── NycTaxiPins/           # pin board storage (mounted into container)
 ```
 
-### 5. Access the Container
+### 4. Start the Container with Docker Compose
 
-You have two options to access the container:
-
-1.  **Using the Terminal**: Run the following command and use `"r"` as the password to SSH into the container:
-
-```bash
-ssh nyc@localhost -p 2222
-```
-
-2.  **Using Positron**: Select the **"Connect to Host"** option in **Positron** and enter `nyc@localhost:2222` with `"r"` as the password. Then we just need to install the [direnv](https://open-vsx.org/vscode/item?itemName=mkhl.direnv) extention by **mkhl**.
-
-
-### 6. Start the Nix Shell
-
-Once inside the container, navigate to the `NycTaxi` folder and start the Nix shell by running the following command:
+The repository contains a `docker-compose.yml` file that defines the service. From inside the `NycTaxi` folder, start the container in detached mode:
 
 ```bash
 cd NycTaxi
-nix-shell
+docker compose up -d
 ```
 
-### 7. Remote Pin board
+This will:
+
+- Use the image `angelfelizr/nyc-taxi:4.5.2` (or build it if you haven’t pulled it).
+- Map port `2222` on your host to port `22` inside the container (for SSH).
+- Mount the three directories you created (`NycTaxi`, `NycTaxiBigFiles`, `NycTaxiPins`) into the container under `/root/`.
+
+You can verify the container is running with `docker compose ps`.
+
+### 5. Access the Container
+
+You have two options to connect to the container:
+
+#### Option A: SSH with password (simplest)
+
+The container is configured to allow root login with the password `sbs`. Connect using:
 
 ```bash
-mkdir ../NycTaxiBoardCache
+ssh root@localhost -p 2222
+# password: sbs
 ```
+
+#### Option B: SSH with a public key (optional)
+
+If you prefer key‑based authentication, copy your public key into the container:
+
+```bash
+docker compose cp ~/.ssh/id_rsa.pub nyc-taxi:/root/.ssh/authorized_keys
+docker compose exec nyc-taxi chown root:root /root/.ssh/authorized_keys
+docker compose exec nyc-taxi chmod 600 /root/.ssh/authorized_keys
+```
+
+Then add the next text to `~/.ssh/config`
+
+```bash
+Host NycTaxi
+    HostName 127.0.0.1
+    User root
+    Port 2222
+    IdentityFile ~/.ssh/id_rsa
+```
+
+Then you can SSH without a password.
+
+### 6. Using Positron (or VS Code) with direnv
+
+As `direnv` is configured based on the `.envrc`, you can use Positron with the SSH remote development feature.
+
+1. In Positron, select **“Connect to Host…”** (or use the Remote Explorer).
+2. Enter `root@localhost:2222` and authenticate with the password `sbs` (or your SSH key).
+3. Once connected, open the folder `/root/NycTaxi`.
+4. Install the **direnv extension** by **mkhl** from the Open VSX Registry. This extension automatically activates direnv when you open a folder containing an `.envrc` file.
+
+After the extension loads, you should see a notification that direnv is active. Now, any terminal you open inside Positron will have the Nix environment loaded, and the **R interactive console** will have access to all the R packages defined in `default.nix` after removing the one that comes as default.
+
+### 7. Remote Pin Board (Optional)
+
+If you need to use the shared pin board, create a cache directory on your host (outside the container) and then, inside R, set up the board as follows:
+
+```bash
+# On your host (in <parent-dir-path>)
+mkdir NycTaxiBoardCache
+```
+
+In your R session (inside the Nix shell), use:
 
 ```r
 BoardRemote <- board_url(
   "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
-  cache = here("../NycTaxiBoardCache")
+  cache = here::here("../NycTaxiBoardCache")
 )
 ```
+
+The cache directory is mounted into the container at `/root/NycTaxiBoardCache`, so pins will be stored on your host and persist between container restarts.

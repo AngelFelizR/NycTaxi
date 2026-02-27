@@ -2,14 +2,11 @@ services:
   nyc-taxi:
     build:
       context: .
-    image: angelfelizr/nyc-taxi-nix:4.5.2
-    container_name: nyc-taxi-container
+    image: angelfelizr/nyc-taxi:4.5.2
+    container_name: nyc-taxi
     ports:
       - "2222:22"
     volumes:
-      - /home/angelfeliz/r-projects/NycTaxi:/root/NycTaxi
-      - /home/angelfeliz/r-projects/NycTaxiPins:/root/NycTaxiPins
-      - /home/angelfeliz/r-projects/NycTaxiBigFiles:/root/NycTaxiBigFiles
-    tty: true          # Equivale a -t
-    stdin_open: true   # Equivale a -i
-    restart: "no"      # Para reflejar --rm
+      - .:/root/NycTaxi
+      - ../NycTaxiPins:/root/NycTaxiPins
+      - ../NycTaxiBigFiles:/root/NycTaxiBigFiles
