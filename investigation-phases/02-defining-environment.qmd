@@ -36,17 +36,7 @@ su - <YOUR-USER>
 
 **Note:** Replace `<YOUR-USER>` with your actual username.
 
-### 2. Pull the Pre‑built Docker Image
-
-The project environment is available on Docker Hub. Pull the image with:
-
-```bash
-docker pull angelfelizr/nyc-taxi:4.5.2
-```
-
-(If you prefer to build the image locally, you can run `docker compose build` instead, but pulling is faster and guarantees the same environment.)
-
-### 3. Clone the Repository and Prepare Directories
+### 2. Clone the Repository and Prepare Directories
 
 Navigate to the parent directory where you want to store the project and the data folders. Then run:
 
@@ -66,49 +56,31 @@ Your directory structure should look like:
 └── NycTaxiPins/           # pin board storage (mounted into container)
 ```
 
-### 4. Start the Container with Docker Compose
+### 3. Run the Setup Script
 
-The repository contains a `docker-compose.yml` file that defines the service. From inside the `NycTaxi` folder, start the container in detached mode:
+The repository includes a `setup.sh` script that automates all remaining steps: pulling the image, starting the container, and configuring SSH key-based authentication using your existing `~/.ssh/id_rsa.pub`.
+
+From inside the `NycTaxi` folder, run:
 
 ```bash
 cd NycTaxi
-docker compose up -d
+chmod +x setup.sh
+./setup.sh
 ```
 
-This will:
+The script will:
 
-- Use the image `angelfelizr/nyc-taxi:4.5.2` (or build it if you haven’t pulled it).
-- Map port `2222` on your host to port `22` inside the container (for SSH).
-- Mount the three directories you created (`NycTaxi`, `NycTaxiBigFiles`, `NycTaxiPins`) into the container under `/root/`.
+- Pull the pre-built image `angelfelizr/nyc-taxi:4.5.2` from Docker Hub.
+- Start the container in detached mode, mapping port `2222` for SSH and mounting the three directories under `/root/`.
+- Register your public key (`~/.ssh/id_rsa.pub`) inside the container so you can connect without a password.
 
 You can verify the container is running with `docker compose ps`.
 
-### 5. Access the Container
+### 4. Configure SSH
 
-You have two options to connect to the container:
+Add the following to your `~/.ssh/config` so you can connect with a simple alias:
 
-#### Option A: SSH with password (simplest)
-
-The container is configured to allow root login with the password `sbs`. Connect using:
-
-```bash
-ssh root@localhost -p 2222
-# password: sbs
 ```
-
-#### Option B: SSH with a public key (optional)
-
-If you prefer key‑based authentication, copy your public key into the container:
-
-```bash
-docker compose cp ~/.ssh/id_rsa.pub nyc-taxi:/root/.ssh/authorized_keys
-docker compose exec nyc-taxi chown root:root /root/.ssh/authorized_keys
-docker compose exec nyc-taxi chmod 600 /root/.ssh/authorized_keys
-```
-
-Then add the next text to `~/.ssh/config`
-
-```bash
 Host NycTaxi
     HostName 127.0.0.1
     User root
@@ -116,9 +88,13 @@ Host NycTaxi
     IdentityFile ~/.ssh/id_rsa
 ```
 
-Then you can SSH without a password.
+Then connect with:
 
-### 6. Using Positron (or VS Code) with direnv
+```bash
+ssh NycTaxi
+```
+
+### 5. Using Positron (or VS Code) with direnv
 
 As `direnv` is configured based on the `.envrc`, you can use Positron with the SSH remote development feature.
 
@@ -129,7 +105,7 @@ As `direnv` is configured based on the `.envrc`, you can use Positron with the S
 
 After the extension loads, you should see a notification that direnv is active. Now, any terminal you open inside Positron will have the Nix environment loaded, and the **R interactive console** will have access to all the R packages defined in `default.nix` after removing the one that comes as default.
 
-### 7. Remote Pin Board (Optional)
+### 6. Remote Pin Board (Optional)
 
 If you need to use the shared pin board, create a cache directory on your host (outside the container) and then, inside R, set up the board as follows:
 
