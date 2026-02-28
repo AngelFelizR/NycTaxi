@@ -96,14 +96,16 @@ ssh NycTaxi
 
 ### 5. Using Positron (or VS Code) with direnv
 
-As `direnv` is configured based on the `.envrc`, you can use Positron with the SSH remote development feature.
+Since `direnv` is configured via the `.envrc` file in the repository, you can use Positron with the SSH remote development feature to work directly inside the container.
 
-1. In Positron, select **“Connect to Host…”** (or use the Remote Explorer).
-2. Enter `root@localhost:2222` and authenticate with the password `sbs` (or your SSH key).
+1. In Positron, select **"Connect to Host…"** (or use the Remote Explorer).
+2. Enter `root@localhost:2222` and authenticate using your SSH key (configured in Step 3). If prompted for a password instead, use `sbs`.
 3. Once connected, open the folder `/root/NycTaxi`.
 4. Install the **direnv extension** by **mkhl** from the Open VSX Registry. This extension automatically activates direnv when you open a folder containing an `.envrc` file.
 
-After the extension loads, you should see a notification that direnv is active. Now, any terminal you open inside Positron will have the Nix environment loaded, and the **R interactive console** will have access to all the R packages defined in `default.nix` after removing the one that comes as default.
+After the extension loads, you should see a notification confirming that direnv is active. At that point, any terminal you open inside Positron will have the Nix environment loaded automatically.
+
+To make the **R interactive console** use the Nix environment instead of the system default, open the Positron command palette and switch the active R interpreter to the one provided by the Nix shell. Once selected, the console will have access to all the R packages defined in `default.nix`.
 
 ### 6. Remote Pin Board (Optional)
 
