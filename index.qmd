@@ -2,7 +2,7 @@
 title: "Increasing NYC Taxi Drivers Earnings"
 ---
 
-## Problem description
+## Problem Description
 
 **Opportunity**
 
@@ -10,8 +10,8 @@ Taxi drivers could **increase their earnings** by changing their strategy.
 
 **Questions to solve**
 
-- How much a taxi driver can increase its monthly earning just by **skipping trips under defined conditions**?
-- How much a taxi driver can increase its monthly earning just by **changing its initial zone and time**?
+- How much can a taxi driver increase their monthly earnings just by **skipping trips under defined conditions**?
+- How much can a taxi driver increase their monthly earnings just by **changing their initial zone and time**?
 
 **Business success criteria**
 
@@ -21,68 +21,139 @@ Develop a strategy to **increase** NYC taxi drivers' monthly earnings **by 20%**
 
 This project will be limited to **Juno**, **Uber**, **Via** and **Lyft** taxi drivers who work in New York City in trips that take place between any zone of **Manhattan**, **Brooklyn** or **Queens** (the more active ones).
 
-## Metodology
+## Methodology
 
-To solve those questions we are going to use use the **Cross-Industry Standard Process for Data Mining** (CRISP-DM).
+To find the optimal solution for those questions, we will follow the methodology proposed by Warren B. Powell (2022) in **Sequential Decision Analytics and Modeling: Modeling with Python** and combine it with the **Cross-Industry Standard Process for Data Mining** (CRISP-DM) to define a machine learning model that will power the sequential decision to optimize.
 
 <img src="figures/CRISP-DM_Process_Diagram.png" style="display: block; margin-left: auto; margin-right: auto; width: 50%;">
 
-And based on this steps we can organize the articles created in this portfolio web site.
+Following the steps of both methodologies, we have organized the articles created in this portfolio website:
 
-1. **Business Understanding**
+| **Sequential Decision Analytics** | **CRISP-DM** | **Article Name** |
+|:----------------------------------|:-------------|:-----------------|
+| **Core elements of the problem** | **Business Understanding** | 1. Business Understanding Overview |
+|  | **Data Understanding*** | 2. Defining Development Environment <br> 3. Data Collection Process |
+| **Mathematical and uncertainty model** | **Business Understanding** | 4. Defining Base Line |
+| **Designing policies** | **Data Understanding** | 5. Data Sampling <br> 6. Initial Exploration |
+| **Designing policies** | **Data Preparation** | 7. Expanding Geospatial Information <br> 8. Expanding Transportation and Socioeconomic Patterns |
+| **Designing and Evaluating policies** | **Modeling and Evaluation** | 9. From Model Selection to Deployment-Ready Workflow | 
+|  | **Deployment** | 10. Wrap Decision Model into REST API _(Pending)_ <br> 11. Shiny Web App _(Pending)_ |
 
-    1. Business Understanding Overview
+## Data to Use
 
-2. **Data Understanding**
+In this project, we will use a subset of the data available in the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from 2022 to 2023 for **High Volume For-Hire Vehicle** — which covers the Juno, Uber, Via and Lyft trips within our project scope — with the columns described in its [data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
 
-    2. Defining Development Environment
-    3. Data Collection Process
+## Disclaimer
 
-3. **Business Understanding**
+This project was completed under **strong assumptions** given that the data used in the analysis **does not provide any unique identifier for taxi drivers**, which limits the realism of some results.
 
-    4. Defining Base Line
+Additionally, this project aims to increase **taxi driver earnings** at the individual level. However, if applied extensively, it could also produce the following unintended consequences:
 
-4. **Data Understanding**
+1. **Reduced service quality:** Drivers focusing solely on maximizing earnings may avoid less profitable areas or times, potentially leaving some passengers underserved.
 
-    5. Data Sampling
-    6. Initial Exploration
+2. **Increased congestion:** Drivers congregating in high-profit areas could worsen traffic in already busy parts of the city.
 
-5. **Data Preparation** 
+This project is intended as a demonstration of data science methodology rather than a prescriptive business recommendation, and these considerations should be carefully weighed before any real-world implementation.
 
-    7. Expanding Geospatial Information
-    8. Expanding Transportation and Socioeconomic Patterns
-
-6. **Modeling**
-
-    9. Training initial models
-
-
-1. **Evaluation**
-
-    - _(Pending)_
-
-1. **Deployment**
-
-    - _(Pending)_
-
-
-## Data to use
-
-In this project, we will use a subset of the data available in the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) from 2022 to 2023 for **High Volume For-Hire Vehicle** with the columns described in its [data dictionary](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf).
-
-## Results highlight
+## Results Highlight
 
 _(Pending)_
 
+## Project Structure and Tooling
 
-## Disclaimer 
+Reproducibility and long-term maintainability were core priorities from the start, which shaped every tooling decision in this project. The following tools were used to achieve this:
 
-This project was completed by making **strong assumptions** due the reality that the data used to create the analysis **don't provide any unique identifier for taxi drivers**, that could help us to deliver more realistic results.
+1. We use `git` to manage changes in the code and provide an interface to share the project on **GitHub**.
+2. `Docker` and `Nix` are used to build a reproducible dev-container based on `default.nix`. The container can be connected via SSH using a public and private key pair as defined in `setup.sh`, and the `.envrc` sets the Nix environment to use in the Positron console.
+3. For modeling, we used the `tidymodels` framework to ensure we are following good modeling practices.
+4. Since the project follows the basic structure of an R package, we were able to **document** and create **unit tests** for custom functions using `testthat`, `roxygen2` and `devtools`. This was especially important to ensure that the **simulation function** and the custom step function (which extends the `recipes` package) work correctly.
+5. The project also follows the structure of a **Quarto project** and renders all articles into the `docs` folder, giving us full control over the format used to present each article. Results are hosted on GitHub Pages, so they can be shared at no cost.
+6. The `.Rprofile` overrides `install.packages`, `update.packages` and `remove.packages` to make clear that R packages must be defined in `default.nix` to ensure reproducibility.
+7. To manage data larger than RAM, we use `duckdb` and keep large files in a separate folder named `NycTaxiBigFiles` under the same parent directory as this repo.
+8. To cache results generated during the investigation process, we use `.qs2` files and track them with `pins`, stored under the folder `NycTaxiPins` in the same parent directory as this repo.
+9. We use the **air** extension to ensure consistent code formatting across the project.
 
-On the other hand, this project aims to increase **taxi driver earnings**, regardless that if we apply it extensively, it could also end producing the following results:
+The result is a hybrid structure that combines an **R package** (with documented functions and unit tests) and a **Quarto website** (with rendered articles and hosted results), which was one of the most challenging aspects of the project to set up correctly:
 
-1.  **Reduced service quality:** Drivers focusing solely on maximizing earnings may avoid less profitable areas or times, potentially leaving some passengers underserved.
+```bash
+tree -L 2
+.
+├── about.qmd
+├── air.toml
+├── default.nix
+├── DESCRIPTION
+├── docker-compose.yml
+├── Dockerfile
+├── docs
+│   ├── about.html
+│   ├── figures
+│   ├── index.html
+│   ├── investigation-phases
+│   ├── man
+│   ├── search.json
+│   └── site_libs
+├── figures
+│   ├── CRISP-DM_Process_Diagram.png
+│   ├── htop_parallel_process.png
+│   ├── logo-generated.jpeg
+│   ├── nyc-taxi-navbar-logo.png
+│   └── nyc-taxi-navbar-logo.xcf
+├── generate_env.R
+├── index.qmd
+├── investigation-phases
+│   ├── 01-business-understanding.qmd
+│   ├── 02-defining-environment.qmd
+│   ├── 03-data-collection-process.qmd
+│   ├── 04-base-line.qmd
+│   ├── 05-data-sampling.qmd
+│   ├── 06-initial-exploration.qmd
+│   ├── 07-expanding-geospatial-data.qmd
+│   ├── 08-expanding-transportation-socioeconomic.qmd
+│   └── 09-model-selection-to-deployment.qmd
+├── man
+│   ├── add_performance_variables.Rd
+│   ├── add_pred_class.Rd
+│   ├── add_take_current_trip.Rd
+│   ├── calculate_costs.Rd
+│   ├── collect_predictions_best_config.Rd
+│   ├── compare_model_predictions.Rd
+│   ├── figures
+│   ├── NycTaxi-package.Rd
+│   ├── plot_bar.Rd
+│   ├── plot_box.Rd
+│   ├── plot_heap_map.Rd
+│   ├── plot_num_distribution.Rd
+│   ├── required_pkgs.step_join_geospatial_features.Rd
+│   ├── simulate_trips.Rd
+│   └── step_join_geospatial_features.Rd
+├── multicore-scripts
+│   ├── 01-fine-tune-future-process.R
+│   ├── 02-add-target.R
+│   ├── 02-run_add_target.sh
+│   ├── 03a-tuning-simple-models.R
+│   ├── 03b-tuning-dimreduction-models.R
+│   └── 03c-tuning-tree-models.R
+├── NAMESPACE
+├── params.yml
+├── _quarto.yml
+├── R
+│   ├── add_take_current_trip.R
+│   ├── calculate_costs.R
+│   ├── compare_model_predictions.R
+│   ├── NycTaxi-package.R
+│   ├── plot_bar.R
+│   ├── plot_box.R
+│   ├── plot_heap_map.R
+│   ├── plot_num_distribution.R
+│   ├── simulate_trips.R
+│   ├── step_join_geospatial_features.R
+│   └── utils.R
+├── README.md
+├── result -> /nix/store/63jxvg9zwnwab3jmv74pdsp6pmr2hbww-nix-shell
+├── setup.sh
+└── tests
+    ├── testthat
+    └── testthat.R
 
-2.  **Increased congestion:** Drivers congregating in high-profit areas could worsen traffic in already busy parts of the city.
-
-In conclusion, this project was created to show my abilities as Data Scientist, but it is not a project that should be implemented due this considerations.
+14 directories, 63 files
+```
