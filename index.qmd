@@ -25,19 +25,23 @@ This project will be limited to **Juno**, **Uber**, **Via** and **Lyft** taxi dr
 
 To find the optimal solution for those questions, we will follow the methodology proposed by Warren B. Powell (2022) in **Sequential Decision Analytics and Modeling: Modeling with Python** and combine it with the **Cross-Industry Standard Process for Data Mining** (CRISP-DM) to define a machine learning model that will power the sequential decision to optimize.
 
-<img src="figures/CRISP-DM_Process_Diagram.png" style="display: block; margin-left: auto; margin-right: auto; width: 50%;">
+::: {layout-ncol=2}
+![Sequential Decision Modeling Framework](figures/Sequential-Decision-Modeling-Framework.png)
+
+![CRISP-DM Process Diagram](figures/CRISP-DM_Process_Diagram.png)
+:::
 
 Following the steps of both methodologies, we have organized the articles created in this portfolio website:
 
 | **Sequential Decision Analytics** | **CRISP-DM** | **Article Name** |
-|:----------------------------------|:-------------|:-----------------|
+|:-----------------|:-----------------|:-------------------------|
 | **Core elements of the problem** | **Business Understanding** | 1. Business Understanding Overview |
-|  | **Data Understanding*** | 2. Defining Development Environment <br> 3. Data Collection Process |
-| **Mathematical and uncertainty model** | **Business Understanding** | 4. Defining Base Line |
-| **Designing policies** | **Data Understanding** | 5. Data Sampling <br> 6. Initial Exploration |
-| **Designing policies** | **Data Preparation** | 7. Expanding Geospatial Information <br> 8. Expanding Transportation and Socioeconomic Patterns |
-| **Designing and Evaluating policies** | **Modeling and Evaluation** | 9. From Model Selection to Deployment-Ready Workflow | 
-|  | **Deployment** | 10. Wrap Decision Model into REST API _(Pending)_ <br> 11. Shiny Web App _(Pending)_ |
+| **Core elements of the problem** | **Data Understanding** | 2. Data Collection Process |
+| **Mathematical and uncertainty model** | **Business Understanding** | 3. Defining Base Line |
+| **Designing policies** | **Data Understanding** | 4. Data Sampling <br> 5. Initial Exploration |
+| **Designing policies** | **Data Preparation** | 6. Expanding Geospatial Information <br> 7. Expanding Transportation and Socioeconomic Patterns |
+| **Designing and Evaluating policies** | **Modeling and Evaluation** | 8. From Model Selection to Deployment-Ready Workflow | 
+|  | **Deployment** | 9. Wrap Decision Model into REST API _(Pending)_ <br> 10. Serving Model by a Shiny Web App _(Pending)_ |
 
 ## Data to Use
 
@@ -157,3 +161,131 @@ tree -L 2
 
 14 directories, 63 files
 ```
+
+## Defining Development Environment
+
+To reproduce the results of this project, follow these steps to set up the same environment using Docker and Nix.
+
+### 1. Install Docker and Docker Compose
+
+You need **Docker** and **Docker Compose**. Choose the appropriate installation method for your operating system:
+
+* **Windows or macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose).
+* **Linux**: Install the [Docker Engine](https://docs.docker.com/engine/install/) and then [Docker Compose](https://docs.docker.com/compose/install/).
+
+For **Debian 13** (as an example), run the following as root:
+
+```bash
+apt update
+apt install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian trixie stable"
+apt update
+apt install -y docker-ce docker-compose-plugin
+systemctl enable docker && systemctl start docker
+usermod -aG docker <YOUR-USER>
+su - <YOUR-USER>
+```
+
+**Note:** Replace `<YOUR-USER>` with your actual username.
+
+### 2. Clone the Repository and Prepare Directories
+
+Navigate to the parent directory where you want to store the project and the data folders. Then run:
+
+```bash
+cd <parent-dir-path>
+mkdir NycTaxiBigFiles
+mkdir NycTaxiPins
+git clone https://github.com/AngelFelizR/NycTaxi
+```
+
+Your directory structure should look like:
+
+```bash
+<parent-dir-path>/
+├── NycTaxi/               # cloned repository
+├── NycTaxiBigFiles/       # large data files (mounted into container)
+└── NycTaxiPins/           # pin board storage (mounted into container)
+```
+
+### 3. Run the Setup Script
+
+The repository includes a `setup.sh` script that automates all remaining steps: pulling the image, starting the container, and configuring SSH key-based authentication using your existing `~/.ssh/id_rsa.pub`.
+
+From inside the `NycTaxi` folder, run:
+
+```bash
+cd NycTaxi
+chmod +x setup.sh
+./setup.sh
+```
+
+The script will:
+
+- Pull the pre-built image `angelfelizr/nyc-taxi:4.5.2` from Docker Hub.
+- Start the container in detached mode, mapping port `2222` for SSH and mounting the three directories under `/root/`.
+- Register your public key (`~/.ssh/id_rsa.pub`) inside the container so you can connect without a password.
+
+```bash
+#!/bin/bash
+docker compose pull
+docker compose up -d
+docker compose cp ~/.ssh/id_rsa.pub nyc-taxi:/root/.ssh/authorized_keys
+docker compose exec nyc-taxi chown root:root /root/.ssh/authorized_keys
+docker compose exec nyc-taxi chmod 600 /root/.ssh/authorized_keys
+echo "Listo! Conectate con: ssh NycTaxi"
+```
+
+You can verify the container is running with `docker compose ps`.
+
+### 4. Configure SSH
+
+Add the following to your `~/.ssh/config` so you can connect with a simple alias:
+
+```
+Host NycTaxi
+    HostName 127.0.0.1
+    User root
+    Port 2222
+    IdentityFile ~/.ssh/id_rsa
+```
+
+Then connect with:
+
+```bash
+ssh NycTaxi
+```
+
+### 5. Using Positron (or VS Code) with direnv
+
+Since `direnv` is configured via the `.envrc` file in the repository, you can use Positron with the SSH remote development feature to work directly inside the container.
+
+1. In Positron, select **"Connect to Host…"** (or use the Remote Explorer).
+2. Enter `root@localhost:2222` and authenticate using your SSH key (configured in Step 3).
+3. Once connected, open the folder `/root/NycTaxi`.
+4. Install the **direnv extension** by **mkhl** from the Open VSX Registry. This extension automatically activates direnv when you open a folder containing an `.envrc` file.
+
+After the extension loads, you should see a notification confirming that direnv is active. At that point, any terminal you open inside Positron will have the Nix environment loaded automatically.
+
+To make the **R interactive console** use the Nix environment instead of the system default, open the Positron command palette and switch the active R interpreter to the one provided by the Nix shell. Once selected, the console will have access to all the R packages defined in `default.nix`.
+
+### 6. Remote Pin Board (Optional)
+
+If you need to use the shared pin board, create a cache directory on your host (outside the container) and then, inside R, set up the board as follows:
+
+```bash
+# On your host (in <parent-dir-path>)
+mkdir NycTaxiBoardCache
+```
+
+In your R session (inside the Nix shell), use:
+
+```r
+BoardRemote <- board_url(
+  "https://raw.githubusercontent.com/AngelFelizR/NycTaxiPins/refs/heads/main/Board/",
+  cache = here::here("../NycTaxiBoardCache")
+)
+```
+
+The cache directory is mounted into the container at `/root/NycTaxiBoardCache`, so pins will be stored on your host and persist between container restarts.

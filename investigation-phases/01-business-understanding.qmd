@@ -112,3 +112,12 @@ Despite the final values for **trip_time** and **driver_pay** are avaialable at 
 -   Taxi companies
 -   Customers
 -   NYC Taxi and Limousine Commission
+
+
+## Defining Business Metric
+
+Based on the current information, we can say that our objective is to increase the **Daily Hourly Wage** received by each taxi driver defined by the following formula:
+
+$$
+\text{Daily Hourly Wage} = \frac{\text{Total Earnings}}{\text{Total Hours Worked}}
+$$

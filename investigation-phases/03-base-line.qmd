@@ -6,18 +6,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-Defining the baseline based on this data is a challenge as the data doesn't have any *unique id* to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
-
----
-
-## Defining Business Metric
-
-Based on the current information, we can say that our objective is to increase the **Daily Hourly Wage** received by each taxi driver defined by the following formula:
-
-$$
-\text{Daily Hourly Wage} = \frac{\text{Total Earnings}}{\text{Total Hours Worked}}
-$$
-
+Defining the baseline based on this data is a challenge as the data doesn't have any **unique id** to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
 
 ## Simulation Assumptions
 
@@ -47,6 +36,71 @@ The simulation will be based on the following **assumptions** related to the tax
 6.  They have a 30 minutes break after 4 hours working once ending the current trip.
 
 7.  They will take their last trip after working 8 hours, without taking into consideration the 30 minutes break.
+
+## Formalizing simulation
+
+Based on defined rules for the simulation we can define the **mathematical model** following the steps decribed by Warren B. Powell (2022) in **Sequential Decision Analytics and Modeling: Modeling with Python**:
+
+### Mathematical model definition
+
+1. **State variables $S_t^n$ for the $n$ sample**.
+  - Initial state variables $S_0^n$:
+    - *Variables that don't change thier value during the simulation*
+      - *Taxi Company* ($\text{Taxi_Company}^n$) - It is definined by the `hvfhs_license_num` variable of the sampled trip.
+      - *Limit To Take Trips* ($\text{Limit_To_Take_Trips}^n$) - Indentifies the day and time where the driver won't be able to take more trips. It can be found by taking `request_datetime` of the sampled trip add 8 hours with 30 mins.
+      - *Time To Take Break* ($\text{Time_To_Take_Break}^n$) - Indentifies the day and time where the driver will be able to take his 30 min break. It can be found by taking `request_datetime` of the sampled trip and adding 4 hours.
+      - *Taxi is WAV* ($\text{Taxi_Is_WAV}^n$) - Confirms if this taxi can take trips that request to have *wheelchair-accessible vehicle*. This can be found in the `wav_match_flag` variable.
+    - *Variables that change thier value once*
+      - *Taken Break* ($\text{Taken Break}_0^n$) - This variable starts with `r FALSE` and changes to `r TRUE` after taking the break to avoid taking more than 1 break. 
+    - *Initial values of quantities and parameters that change over time*
+      - *Initial Time* ($\text{Current_Time}_0^n$) - Represent the day and hour after ending the initial trip. This value is the result of adding `request_datetime` + `trip_time`.
+      - *Initial Position Zone* ($\text{Current_Zone}_0^n$) - Represent the initial where the taxi is located when we start the simulation. As we are sampling endend trip as the first trip of the driver then we asume the value of the variable `DOLocationID`.
+      - *Initial Trip Time Limit* ($\text{Trip_Time_Limit}_0^n$) - Represent the day and time where we can find a trip at 1 mile. To get this value we need to use `request_datetime` + `trip_time` and add 1 minute.
+      - *Initial Trip Distiance Limit* ($\text{Trip_Dist_Limit}_0^n$) - Represent the distance limit where drivers can find their first and it is represented by 1 mile.
+
+$$
+S_0 = \(\text{Taxi_Company}^n, \text{Limit_To_Take_Trips}^n, \text{Time_To_Take_Break}^n, \text{Taxi_Is_WAV}^n, \text{Taken Break}_0^n, \text{Current_Time}_0^n, \text{Current_Zone}_0^n, \text{Trip_Time_Limit}_0^n, \text{Trip_Dist_Limit}_0^n\)
+$$
+
+  - Dynamic state variables $S_t^n$:
+    - *Taken Break* ($\text{Taken Break}_t^n$) - This variable starts with `r FALSE` and changes to `r TRUE` after taking the break to avoid taking more than 1 break. 
+    - *Current Time* ($\text{Current_Time}_t^n$) - Represent the day and hour in which the driver is looking for a new trip.
+    - *Current Position Zone* ($\text{Current_Zone}_t^n$) - Represent the zone code in which the driver is looking for a new trip.
+    - *Trip Time Limit* ($\text{Trip_Time_Limit}_t^n$) - Represent the day and time where we can find a trip from the data by a particular distance. To get this value we need to use `request_datetime` + `trip_time` and add 1 or 2 minutes depending of we cloudn't find a valid trip in prior iterations.
+    - *Trip Distiance Limit* ($\text{Trip_Dist_Limit}_t^n$) - Represent the distance limit where drivers can find their next trip and increases as the $\text{Trip_Time_Limit}_t^n$ increase its distance from $\text{Current_Time}_t^n$.
+
+$$
+S_t = \(\text{Taken Break}_t^n, \text{Current_Time}_t^n, \text{Current_Zone}_t^n, \text{Trip_Time_Limit}_t^n, \text{Trip_Dist_Limit}_t^n\)
+$$
+
+2. **Decision variables $x_t$**
+
+
+3. **Exogenous information $W_(t+1)$**
+
+4. **Transition function $S^M\(S_t, x_t, W_(t+1)\)$**
+
+$$
+S_(t+1) = S^M\(S_t, x_t, W_(t+1) \)
+$$
+
+5. **The objective function**
+
+-  single period contribution function
+
+$$
+C\(S_t, x_t,  W_(t+1) \)
+$$
+
+- objective function
+
+### Uncertainty model definition
+
+
+### Designing policies
+
+
+### Evaluating policies
 
 
 ## Running trips simulation
@@ -254,10 +308,17 @@ BoardLocal |> pin_write(PointMeanDistance, "PointMeanDistance", type = "qs2")
 
 7.  Running the simulation.
 
-``` r
+```{r}
+#| eval: false
+
 SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
 
-BoardLocal |> pin_write(SimulationHourlyWage, "SimulationHourlyWage", type = "qs2")
+pin_write(
+  LocalBoard,
+  SimulationHourlyWage,
+  "SimulationHourlyWage",
+  type = "qs2"
+)
 ```
 
 ```{r echo=FALSE}

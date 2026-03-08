@@ -38,12 +38,9 @@ EXPOSE 22
 RUN mkdir -p /var/run/sshd && \
     mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh && \
-    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config && \
     echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
-
-RUN echo 'root:sbs' | chpasswd
 
 # Start SSH server
 CMD ["/usr/sbin/sshd", "-D"]

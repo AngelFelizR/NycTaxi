@@ -2167,3 +2167,14 @@ TestingCostSummary |>
 - **Threshold robustness** – The `{r} round(BestThresholdValue, 3L)` threshold optimized on cross‑validation remains optimal on the testing set, demonstrating that the cost‑benefit trade‑off is stable.
 - **Substantial real‑world value** – Even a modest per‑trip improvement (≈$`{r} round(TestingCostSummary$net_benefit, 2L)`) compounds into significant earnings increases over thousands of trips, validating the data‑driven decision support approach.
 - **Collective importance of location features** – The final model’s reliance on pickup/dropoff interactions, despite low individual variable importance, underscores that tree‑based models thrive on high‑order interactions—a signal that would be lost under aggressive dimensionality reduction.
+
+# Phase 8: Evaluating model performance on simulation
+
+```{r}
+#| eval: false
+
+SimulationHourlyWage <- simulate_trips(con, SimulationStartDay)
+
+BoardLocal |>
+  pin_write(SimulationHourlyWage, "SimulationHourlyWage", type = "qs2")
+```

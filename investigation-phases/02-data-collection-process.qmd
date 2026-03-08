@@ -43,7 +43,6 @@ The following code block extracts the download links for the monthly High-Volume
 3.  Using a regular expression (`grep`) to filter this list, keeping only the links for `.parquet` files from the years 2022 and 2023. 
 4.  Cleaning up and sorting the resulting list of URLs. 
 
-<!-- end list -->
 
 ```{r getting-trip-links}
 TripLinks <-
