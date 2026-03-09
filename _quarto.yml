@@ -34,9 +34,9 @@ website:
             href: investigation-phases/08-model-selection.qmd  
     right:
       - text: "About Angel Feliz"
-        href: about.qmd
+        href: https://angelfeliz.com/
       - icon: github
-        href: https://github.com/AngelFelizR/
+        href: https://github.com/AngelFelizR/NycTaxi
       - icon: linkedin
         href: https://do.linkedin.com/in/angel-esteban-feliz-ferreras
 
