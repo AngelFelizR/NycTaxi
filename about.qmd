@@ -2,8 +2,34 @@
 title: "About"
 ---
 
-About this site
+I'm a Data Scientist specializing in R programming with experience in reporting automation, data visualization, and package development. Currently working remotely as a **Leasing Reporting Manager** at Phoenix Tower International, where I lead development of R packages to improve critical business reports and data workflows.
 
-```{r}
-1 + 1
-```
+## Professional Journey
+
+Starting as a junior data analyst, I've grown into a data professional who excels at automating processes, ensuring data quality, and delivering actionable insights. My experience spans financial reporting, data migration, and building validation frameworks that have significantly reduced manual effort while improving accuracy.
+
+I'm passionate about open source contribution and have authored several R packages, including:
+
+- **biblegatewayr**: For scraping Bible verses
+- **tidyvalidate**: For identifying business errors in tables
+- **corrcat**: For exploring correlations between categorical variables
+
+I've also contributed to the `{data.table}` package, writing the primary documentation for [join operations](https://rdatatable.gitlab.io/data.table/articles/datatable-joins.html).
+
+## Current Project
+
+I'm currently working on a [data science portfolio project](https://github.com/AngelFelizR/NycTaxi) focused on **increasing NYC taxi drivers' earnings** through data-driven strategies. Using the CRISP-DM methodology, I'm analyzing rideshare data from Juno, Uber, Via and Lyft to determine:
+
+- How drivers can increase monthly earnings by selectively skipping trips?
+- How changing initial locations and timing can optimize earnings?
+
+This project showcases my skills with the R ecosystem, particularly with:
+
+- Tidyverse packages for data manipulation and visualization
+- Geospatial analysis using sf, leaflet, and tmap
+- Statistical modeling and inference
+- Database connectivity and high-performance data manipulation
+
+## Skills & Education
+
+I hold a Bachelor's in Industrial Engineering from Instituto Tecnológico de Santo Domingo and am fluent in both English and Spanish. I'm certified in [data science](https://www.datacamp.com/statement-of-accomplishment/track/b581b997d94da7a5a9cee1f7aac7f9427d09fd87?raw=1), [R programming](https://www.datacamp.com/statement-of-accomplishment/track/ef90c8e3e4906fa1533a788c7d24c556a7633a2c), and [data analysis](https://www.datacamp.com/statement-of-accomplishment/track/5eb368dc700e523f76bfe13a1f228b8772ebb6a5) through DataCamp.

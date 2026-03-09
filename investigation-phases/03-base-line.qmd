@@ -1,107 +1,174 @@
 ---
-title: "Defining Base Line"
+title: "Defining Baseline"
 params:
   UpdateSimulation: FALSE
 editor_options: 
   chunk_output_type: console
 ---
 
-Defining the baseline based on this data is a challenge as the data doesn't have any **unique id** to make the estimation, but we can **run a simulation** to estimate its value with a confident interval.
+Defining the baseline from the available data is challenging because the data lack a **unique identifier** for direct estimation. However, we can **run a simulation** to estimate the baseline value together with a confidence interval.
 
 ## Simulation Assumptions
 
-The simulation will be based on the following **assumptions** related to the taxi drivers:
+The simulation is built on the following **assumptions** regarding taxi drivers:
 
-1.  They can start to work:
+1.  They can start working:
+    -   From any zone in Manhattan, Brooklyn, or Queens (the most active boroughs).
+    -   In any month, on any weekday, and at any hour.
 
-    -   From any zone of Manhattan, Brooklyn or Queens (the more active ones)
-    -   From any month, weekday or hour.
+2.  The TLC license number (taxi company) must remain constant for all trips within a workday.
 
-2.  The TLC license number (taxi company) needs to keep constant for all trips in workday.
+3.  Only wheelchair‑accessible vehicles can accept trips that request a wheelchair‑accessible vehicle.
 
-3.  Only wheelchair-accessible vehicles can accept trips with that request.
+4.  Because we cannot determine whether each zone has more active taxis than passengers, we assume that there are always more passengers than taxis. Consequently, each taxi driver can **accept the first requested trip** they encounter.
 
-4.  As we cannot estimate whether each zone have more active taxis than passengers we will assume that there is always more passengers than taxis and each taxi driver can **accept the first requested trip**.
+5.  Taxis search for trips based on waiting time and accept the first trip found within an expanding radius:
+    -   0–1 minute: search within a 1‑mile radius.
+    -   1–3 minutes: if no trip is found, expand search to a 3‑mile radius.
+    -   3–5 minutes: if still no trip, expand to a 5‑mile radius.
+    -   Continue adding 2 miles every two minutes until a trip is found.
 
-5.  The taxis will find trips based on their time waiting and will take the first trip in their valid radius:
+6.  Drivers take a 30‑minute break after 4 hours of work, but only after completing the current trip.
 
-    -   0-1 Minute: Search within a 1-mile radius.
+7.  They will accept their last trip after working 8 hours (the 30‑minute break is not counted toward the 8 hours).
 
-    -   1-3 Minutes: Expand search to a 3-mile radius if no trip is found.
+## Formalizing the Simulation
 
-    -   3-5 Minutes: Expand search to a 5-mile radius if still no trip is found.
+Based on the rules above, we define a **mathematical model** following the framework described by Warren B. Powell (2022) in *Sequential Decision Analytics and Modeling: Modeling with Python*.
 
-    -   Keep adding 2 miles every two minutes until finding a trip.
+### Mathematical Model Definition
 
-6.  They have a 30 minutes break after 4 hours working once ending the current trip.
+1.  **State variables $S_t^n$ for the $n$‑th sample**
 
-7.  They will take their last trip after working 8 hours, without taking into consideration the 30 minutes break.
+    -   **Initial state variables $S_0^n$**
 
-## Formalizing simulation
+        *Variables that do not change during the simulation*
 
-Based on defined rules for the simulation we can define the **mathematical model** following the steps decribed by Warren B. Powell (2022) in **Sequential Decision Analytics and Modeling: Modeling with Python**:
+        -   *Taxi Company* ($\text{Taxi\_Company}^n$): Taken from the `hvfhs_license_num` variable of the sampled first trip.
+        -   *Limit To Take Trips* ($\text{Limit\_To\_Take\_Trips}^n$): The date and time after which the driver cannot accept more trips. Obtained by adding 8 hours + 30 minutes to the `request_datetime` of the sampled trip.
+        -   *Time To Take Break* ($\text{Time\_To\_Take\_Break}^n$): The date and time when the driver will take the 30‑minute break. Obtained by adding 4 hours to the `request_datetime` of the sampled trip.
+        -   *Taxi is WAV* ($\text{Taxi\_Is\_WAV}^n$): Indicates whether this taxi can accept wheelchair‑accessible trips. Taken from the `wav_match_flag` variable.
 
-### Mathematical model definition
+        *Variables that change once*
 
-1. **State variables $S_t^n$ for the $n$ sample**.
-  - Initial state variables $S_0^n$:
-    - *Variables that don't change thier value during the simulation*
-      - *Taxi Company* ($\text{Taxi_Company}^n$) - It is definined by the `hvfhs_license_num` variable of the sampled trip.
-      - *Limit To Take Trips* ($\text{Limit_To_Take_Trips}^n$) - Indentifies the day and time where the driver won't be able to take more trips. It can be found by taking `request_datetime` of the sampled trip add 8 hours with 30 mins.
-      - *Time To Take Break* ($\text{Time_To_Take_Break}^n$) - Indentifies the day and time where the driver will be able to take his 30 min break. It can be found by taking `request_datetime` of the sampled trip and adding 4 hours.
-      - *Taxi is WAV* ($\text{Taxi_Is_WAV}^n$) - Confirms if this taxi can take trips that request to have *wheelchair-accessible vehicle*. This can be found in the `wav_match_flag` variable.
-    - *Variables that change thier value once*
-      - *Taken Break* ($\text{Taken Break}_0^n$) - This variable starts with `r FALSE` and changes to `r TRUE` after taking the break to avoid taking more than 1 break. 
-    - *Initial values of quantities and parameters that change over time*
-      - *Initial Time* ($\text{Current_Time}_0^n$) - Represent the day and hour after ending the initial trip. This value is the result of adding `request_datetime` + `trip_time`.
-      - *Initial Position Zone* ($\text{Current_Zone}_0^n$) - Represent the initial where the taxi is located when we start the simulation. As we are sampling endend trip as the first trip of the driver then we asume the value of the variable `DOLocationID`.
-      - *Initial Trip Time Limit* ($\text{Trip_Time_Limit}_0^n$) - Represent the day and time where we can find a trip at 1 mile. To get this value we need to use `request_datetime` + `trip_time` and add 1 minute.
-      - *Initial Trip Distiance Limit* ($\text{Trip_Dist_Limit}_0^n$) - Represent the distance limit where drivers can find their first and it is represented by 1 mile.
+        -   *Taken Break* ($\text{Taken Break}_0^n$): Starts as `FALSE` and changes to `TRUE` after the break is taken, ensuring only one break per workday.
+
+        *Initial values of time‑varying quantities*
+
+        -   *Initial Time* ($\text{Current\_Time}_0^n$): The date and time when the initial trip ends. Computed as `request_datetime` + `trip_time`.
+        -   *Initial Position Zone* ($\text{Current\_Zone}_0^n$): The zone where the taxi is located at the start of the simulation. Because the sampled trip is treated as the driver's first trip, we use its `DOLocationID`.
+        -   *Initial Trip Time Limit* ($\text{Trip\_Time\_Limit}_0^n$): The time until which the driver searches for a trip within 1 mile. Obtained as `request_datetime` + `trip_time` + 1 minute.
+        -   *Initial Trip Distance Limit* ($\text{Trip\_Dist\_Limit}_0^n$): The initial search radius of 1 mile.
+
+        $$
+        \begin{aligned}
+        S_0 = \big( &\text{Taxi\_Company}^n,\; \text{Limit\_To\_Take\_Trips}^n,\; \text{Time\_To\_Take\_Break}^n,\; \text{Taxi\_Is\_WAV}^n, \\
+                   &\text{Taken Break}_0^n,\; \text{Current\_Time}_0^n,\; \text{Current\_Zone}_0^n,\; \text{Trip\_Time\_Limit}_0^n,\; \text{Trip\_Dist\_Limit}_0^n \big)
+        \end{aligned}
+        $$
+
+    -   **Dynamic state variables $S_t^n$**
+        -   *Current Time* ($\text{Current\_Time}_t^n$): The date and time when the driver is searching for a new trip.
+        -   *Current Position Zone* ($\text{Current\_Zone}_t^n$): The zone code where the driver is currently located.
+        -   *Taken Break* ($\text{Taken Break}_t^n$): `FALSE` until the break is taken, then `TRUE`.
+        -   *Trip Time Limit* ($\text{Trip\_Time\_Limit}_t^n$): The time until which the driver searches for a trip within the current distance limit. Updated by adding 1 or 2 minutes to $\text{Current\_Time}_t^n$ depending on previous search outcomes.
+        -   *Trip Distance Limit* ($\text{Trip\_Dist\_Limit}_t^n$): The radius (in miles) within which the driver searches for the next trip. Increases as $\text{Trip\_Time\_Limit}_t^n$ moves further from $\text{Current\_Time}_t^n$.
+
+        $$
+        \begin{aligned}
+        S_t = \big( \text{Current\_Time}_t^n,\; \text{Current\_Zone}_t^n,\; \text{Taken Break}_t^n,\; \text{Trip\_Time\_Limit}_t^n,\; \text{Trip\_Dist\_Limit}_t^n \big)
+        \end{aligned}
+        $$
+
+2.  **Decision variables $x_t$**
+
+    The driver decides whether to accept a sampled trip based on current location and time. Hence $x_t$ is a **binary variable** defined by:
+
+    $$
+    \begin{aligned}
+    x_t = X^\pi\left(S_t \right)
+    \end{aligned}
+    $$
+
+3.  **Exogenous information $W_{t+1}$**
+
+    After completing a trip, the following variables are observed:
+    -   *Trip End Time* ($\text{Trip\_End\_Time}_{t+1}^n$): The date and time when the trip ends: `request_datetime` + `trip_time`.
+    -   *Trip End Zone* ($\text{Trip\_End\_Zone}_{t+1}^n$): The zone where the trip ends, taken from the `DOLocationID` of the accepted trip.
+    -   *Trip Earning* ($\text{Trip\_Earning}_{t+1}^n$): The total earnings from the trip: `driver_pay` + `tips`.
+
+    $$
+    \begin{aligned}
+    W_{t+1} = \big( \text{Trip\_End\_Time}_{t+1}^n,\; \text{Trip\_End\_Zone}_{t+1}^n,\; \text{Trip\_Earning}_{t+1}^n \big)
+    \end{aligned}
+    $$
+
+4.  **Transition function $S^M(S_t, x_t, W_{t+1})$**
+
+    After a trip is taken, the state variables are updated as follows:
+
+    $$
+    \text{Current\_Time}_{t+1}^n = \text{Trip\_End\_Time}_{t+1}^n
+    $$
+
+    $$
+    \text{Current\_Zone}_{t+1}^n = \text{Trip\_End\_Zone}_{t+1}^n
+    $$
+
+    $$
+    \text{Taken Break}_{t+1}^n = \text{Current\_Time}_{t+1}^n > \text{Time\_To\_Take\_Break}^n
+    $$
+
+    $$
+    \text{Trip\_Time\_Limit}_{t+1}^n = \text{Current\_Time}_{t+1}^n + 1 \; \text{min}
+    $$
+
+    $$
+    \text{Trip\_Dist\_Limit}_{t+1}^n = \text{Current\_Zone}_{t+1}^n + 1 \; \text{mile}
+    $$
+
+5.  **Objective function**
+
+    Because we are not optimizing at this stage, we do not define an objective function for the baseline.
+
+### Uncertainty Model
+
+Uncertainty in earnings arises solely from the different initial settings, which are randomly sampled to produce $N$ scenarios.
+
+### Designing Policies
+
+The baseline policy is simply to accept any trip:
 
 $$
-S_0 = \(\text{Taxi_Company}^n, \text{Limit_To_Take_Trips}^n, \text{Time_To_Take_Break}^n, \text{Taxi_Is_WAV}^n, \text{Taken Break}_0^n, \text{Current_Time}_0^n, \text{Current_Zone}_0^n, \text{Trip_Time_Limit}_0^n, \text{Trip_Dist_Limit}_0^n\)
+X^\pi\left(S_t \right) = 1
 $$
 
-  - Dynamic state variables $S_t^n$:
-    - *Taken Break* ($\text{Taken Break}_t^n$) - This variable starts with `r FALSE` and changes to `r TRUE` after taking the break to avoid taking more than 1 break. 
-    - *Current Time* ($\text{Current_Time}_t^n$) - Represent the day and hour in which the driver is looking for a new trip.
-    - *Current Position Zone* ($\text{Current_Zone}_t^n$) - Represent the zone code in which the driver is looking for a new trip.
-    - *Trip Time Limit* ($\text{Trip_Time_Limit}_t^n$) - Represent the day and time where we can find a trip from the data by a particular distance. To get this value we need to use `request_datetime` + `trip_time` and add 1 or 2 minutes depending of we cloudn't find a valid trip in prior iterations.
-    - *Trip Distiance Limit* ($\text{Trip_Dist_Limit}_t^n$) - Represent the distance limit where drivers can find their next trip and increases as the $\text{Trip_Time_Limit}_t^n$ increase its distance from $\text{Current_Time}_t^n$.
+### Evaluating Policies
 
-$$
-S_t = \(\text{Taken Break}_t^n, \text{Current_Time}_t^n, \text{Current_Zone}_t^n, \text{Trip_Time_Limit}_t^n, \text{Trip_Dist_Limit}_t^n\)
-$$
+To evaluate this policy, we estimate the total hours worked and the hourly wage for each simulated driver:
 
-2. **Decision variables $x_t$**
+* Total worked time (hours) for each initial setting:
 
+  $$
+  \text{Hours\_Worked}^n = \text{DropoffTime}*{\max}^n - \text{RequestTime}*{\min}^n
+  $$
 
-3. **Exogenous information $W_(t+1)$**
+* Daily hourly wage for each setting:
 
-4. **Transition function $S^M\(S_t, x_t, W_(t+1)\)$**
+  $$
+  \text{Daily\_Hourly\_Wage}^n =
+  \frac{
+  \sum_{t=0}^{T^n} \left( \text{Trip\_Earning}_{t+1}^n \right)
+  }{
+  \text{Hours\_Worked}^n
+  }
+  $$
 
-$$
-S_(t+1) = S^M\(S_t, x_t, W_(t+1) \)
-$$
+* Estimated performance of the baseline policy (average over $N$ simulated days):
 
-5. **The objective function**
-
--  single period contribution function
-
-$$
-C\(S_t, x_t,  W_(t+1) \)
-$$
-
-- objective function
-
-### Uncertainty model definition
-
-
-### Designing policies
-
-
-### Evaluating policies
-
+  $$
+  \hat{F}^{\pi} = \frac{1}{N} \sum_{n=1}^{N} \text{Daily\_Hourly\_Wage}^n
+  $$
 
 ## Running trips simulation
 

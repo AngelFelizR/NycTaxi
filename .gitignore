@@ -11,7 +11,7 @@
 *.html
 *.pdf
 _site/
-docs/
+!docs/**/*.html
 
 # Project data (large, not for Git)
 .vscode/

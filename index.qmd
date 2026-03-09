@@ -21,6 +21,45 @@ Develop a strategy to **increase** NYC taxi drivers' monthly earnings **by 20%**
 
 This project will be limited to **Juno**, **Uber**, **Via** and **Lyft** taxi drivers who work in New York City in trips that take place between any zone of **Manhattan**, **Brooklyn** or **Queens** (the more active ones).
 
+## Results Highlight
+
+### 🤖 Modeling for Decision Support
+
+* **Calibration over Accuracy:** For a decision model, the probability must be reliable. I focused on the **Brier Score** and **Calibration Plots** to ensure that a 70% predicted probability of success truly corresponds to a 70% real-world outcome.
+* **Robustness:** Evaluation on an **unseen testing set** confirmed that the cost-benefit trade-off remains stable, with the model delivering a **51.5% improvement** over the baseline in simulation-based estimates.
+
+![](figures/model_benefit_curve.png)
+
+![](figures/model-benefit.jpg)
+
+### 🎯 Sequential Decision Framework & Business Logic
+
+The core of this project is not a simple classification task; it is a **Sequential Decision Analytics** problem. I transformed raw observational taxi data into a decision-making tool by addressing two major challenges:
+
+* **The Target Variable Dilemma:** The original dataset lacked a "ground truth" for whether a trip was optimal. I engineered the target variable `take_current_trip` by calculating the **Opportunity Cost** of each trip. This involved simulating the potential earnings of waiting for a high-value fare versus accepting the immediate request, creating a decision-centric label from scratch.
+* **The Baseline Paradox:** I established a **"Take-All Policy"** (accepting every trip) as the baseline. While the ML model shows strong predictive performance (AUC and Brier Score), I have framed the project to acknowledge that predictive accuracy does not automatically equate to policy superiority. The model is designed to optimize a threshold that maximizes net hourly earnings, not just "hits and misses."
+
+### 💾 Engineering for Big Data & Software Reliability (Out-of-Core Processing)
+
+I architected a robust, production-grade pipeline designed to handle datasets **exceeding available RAM while maintaining strict software engineering standards**:
+
+- **Custom Tidymodels Extensions:** To integrate geospatial features seamlessly into the machine learning pipeline, I developed a **custom `recipes` step**. This allows for the automated preprocessing of coordinates and spatial joins within a unified workflow, ensuring that feature engineering is consistent during both training and inference.
+
+- **Production-Grade R Development:** To ensure reliability, the project is structured as a **formal R package**, moving beyond simple scripts to a maintainable codebase.
+
+  - **Unit Testing:** I implemented a comprehensive suite of tests using `testthat` to validate custom logic, specifically for the simulation functions and the custom `recipes` steps.
+
+  - **Rigorous Documentation:** All core functions are fully documented using `roxygen2`, providing clear API definitions, parameter requirements, and usage examples.
+
+- **Hybrid Analytical Engine:** I utilized **DuckDB** as an out-of-core engine to perform heavy aggregations and joins directly on disk. Once filtered, I leveraged **data.table** in R for ultra-efficient in-memory manipulation, combining **SQL’s disk performance** with R’s functional programming power.
+
+- **Reproducible Environments:** The entire stack is managed via **Nix and Docker**, ensuring the environment—including complex geospatial system dependencies—is 100% reproducible across any machine.
+
+### 🗺️ High-Dimensional Feature Engineering & Spatial Intelligence
+
+* **Conceptual Clustering (NLP):** To navigate the "Curse of Dimensionality" presented by **160,000+ US Census variables**, I didn't use arbitrary selection. I applied **NLP (Jaccard Distance)** and **Edge-Betweenness clustering** to group variables into conceptual themes (e.g., "Commuting Habits," "Wealth Distribution"), allowing for a data-driven prioritization of features.
+* **Geospatial Intersections:** Integrated **OpenStreetMap (OSM)** data by performing **complex spatial intersections**. I mapped road lengths and amenity densities (restaurants, transit hubs) to specific taxi zones to capture the geographic "DNA" of NYC.
+
 ## Methodology
 
 To find the optimal solution for those questions, we will follow the methodology proposed by Warren B. Powell (2022) in **Sequential Decision Analytics and Modeling: Modeling with Python** and combine it with the **Cross-Industry Standard Process for Data Mining** (CRISP-DM) to define a machine learning model that will power the sequential decision to optimize.
@@ -35,13 +74,14 @@ Following the steps of both methodologies, we have organized the articles create
 
 | **Sequential Decision Analytics** | **CRISP-DM** | **Article Name** |
 |:-----------------|:-----------------|:-------------------------|
-| **Core elements of the problem** | **Business Understanding** | 1. Business Understanding Overview |
-| **Core elements of the problem** | **Data Understanding** | 2. Data Collection Process |
-| **Mathematical and uncertainty model** | **Business Understanding** | 3. Defining Base Line |
-| **Designing policies** | **Data Understanding** | 4. Data Sampling <br> 5. Initial Exploration |
-| **Designing policies** | **Data Preparation** | 6. Expanding Geospatial Information <br> 7. Expanding Transportation and Socioeconomic Patterns |
-| **Designing and Evaluating policies** | **Modeling and Evaluation** | 8. From Model Selection to Deployment-Ready Workflow | 
-|  | **Deployment** | 9. Wrap Decision Model into REST API _(Pending)_ <br> 10. Serving Model by a Shiny Web App _(Pending)_ |
+| **Core Elements of the Problem** | **Business Understanding** | 1. Business Understanding Overview |
+| | **Data Understanding** | 2. Data Collection Process |
+| **From Defining Mathematical Model to Evaluating Policy** | **Business Understanding** | 3. Defining Base Line |
+| | **Data Understanding** | 4. Data Sampling <br> 5. Initial Exploration |
+| | **Data Preparation** | 6. Expanding Geospatial Information <br> 7. Expanding Transportation and Socioeconomic Patterns |
+| | **Modeling and Evaluation** | 8. Training and Selecting Model To Implement |
+| **From Defining Mathematical Model to Evaluating Policy** |  | 9. Implementing ML Model To Sequential Problem _(Pending)_ | 
+|  | **Deployment** | 10. Wrap Decision Model into REST API _(Pending)_ <br> 11. Serving Model by a Shiny Web App _(Pending)_ |
 
 ## Data to Use
 
@@ -59,9 +99,28 @@ Additionally, this project aims to increase **taxi driver earnings** at the indi
 
 This project is intended as a demonstration of data science methodology rather than a prescriptive business recommendation, and these considerations should be carefully weighed before any real-world implementation.
 
-## Results Highlight
 
-_(Pending)_
+## Roadmap & Future Developments
+
+### Sequential Decision Analytics (Warren Powell Framework)
+
+The next stage involves moving beyond static evaluation to a dynamic environment. I am integrating the ML model into the framework established by **Warren B. Powell (2022)** in *Sequential Decision Analytics and Modeling*.
+
+* **Policy Function Approximation (PFA):** Using the ML model’s calibrated probabilities to define a decision policy.
+* **Four Elements Modeling:** Formally defining the **State** (driver location, time), **Decision** (Accept/Reject), **Exogenous Information** (new trip requests), and the **Objective Function** (Maximizing total daily revenue).
+
+### Deployment & Accessibility
+
+To transition this from a local research project to a production-grade tool, I will implement:
+
+* **REST API:** A R/Plumber API to serve real-time trip recommendations based on the trained XGBoost model.
+* **Shiny Dashboard:** An interactive web application built in **Shiny** to visualize the driver’s predicted earnings, optimal decision thresholds, and spatial demand heatmaps in real-time.
+
+![](figures/screenshot-ui.png)
+
+Try the app in your browser: [NYC Taxi Zone Selector on Hugging Face Spaces](https://huggingface.co/spaces/AngelFelizR/nyc-taxi-zone-selector)
+
+Source code: [https://github.com/AngelFelizR/nyc-taxi-zone-selector](https://github.com/AngelFelizR/nyc-taxi-zone-selector)
 
 ## Project Structure and Tooling
 
@@ -80,7 +139,7 @@ Reproducibility and long-term maintainability were core priorities from the star
 The result is a hybrid structure that combines an **R package** (with documented functions and unit tests) and a **Quarto website** (with rendered articles and hosted results), which was one of the most challenging aspects of the project to set up correctly:
 
 ```bash
-tree -L 2
+tree -L 3
 .
 ├── about.qmd
 ├── air.toml
@@ -89,77 +148,133 @@ tree -L 2
 ├── docker-compose.yml
 ├── Dockerfile
 ├── docs
-│   ├── about.html
-│   ├── figures
-│   ├── index.html
-│   ├── investigation-phases
-│   ├── man
-│   ├── search.json
-│   └── site_libs
+│   ├── about.html
+│   ├── figures
+│   │   ├── CRISP-DM_Process_Diagram.png
+│   │   ├── htop_parallel_process.png
+│   │   ├── logo-generated.jpeg
+│   │   ├── model_benefit_curve.png
+│   │   ├── model-benefit.jpg
+│   │   ├── nyc-taxi-navbar-logo.png
+│   │   ├── nyc-taxi-navbar-logo.xcf
+│   │   └── Sequential-Decision-Modeling-Framework.png
+│   ├── index.html
+│   ├── investigation-phases
+│   │   ├── 01-business-understanding.html
+│   │   ├── 02-data-collection-process.html
+│   │   ├── 03-base-line_files
+│   │   ├── 03-base-line.html
+│   │   ├── 04-data-sampling.html
+│   │   ├── 05-initial-exploration_files
+│   │   ├── 05-initial-exploration.html
+│   │   ├── 06-expanding-geospatial-data_files
+│   │   ├── 06-expanding-geospatial-data.html
+│   │   ├── 07-expanding-transportation-socioeconomic_files
+│   │   ├── 07-expanding-transportation-socioeconomic.html
+│   │   ├── 08-model-selection_files
+│   │   └── 08-model-selection.html
+│   ├── man
+│   │   └── figures
+│   ├── search.json
+│   └── site_libs
+│       ├── bootstrap
+│       ├── clipboard
+│       ├── DiagrammeR-styles-0.2
+│       ├── ggiraphjs-0.9.2
+│       ├── girafe-binding-0.9.2
+│       ├── grViz-binding-1.0.11
+│       ├── htmltools-fill-0.5.8.1
+│       ├── htmlwidgets-1.6.4
+│       ├── jquery-3.6.0
+│       ├── leaflet-1.3.1
+│       ├── leaflet-binding-2.2.3
+│       ├── leafletfix-1.0.0
+│       ├── Leaflet.glify-3.2.0
+│       ├── leaflet-providers-2.0.0
+│       ├── leaflet-providers-plugin-2.2.3
+│       ├── proj4-2.6.2
+│       ├── Proj4Leaflet-1.0.1
+│       ├── quarto-html
+│       ├── quarto-nav
+│       ├── quarto-search
+│       ├── rstudio_leaflet-1.3.1
+│       └── viz-1.8.2
 ├── figures
-│   ├── CRISP-DM_Process_Diagram.png
-│   ├── htop_parallel_process.png
-│   ├── logo-generated.jpeg
-│   ├── nyc-taxi-navbar-logo.png
-│   └── nyc-taxi-navbar-logo.xcf
+│   ├── CRISP-DM_Process_Diagram.png
+│   ├── htop_parallel_process.png
+│   ├── logo-generated.jpeg
+│   ├── model_benefit_curve.png
+│   ├── model-benefit.jpg
+│   ├── nyc-taxi-navbar-logo.png
+│   ├── nyc-taxi-navbar-logo.xcf
+│   └── Sequential-Decision-Modeling-Framework.png
 ├── generate_env.R
 ├── index.qmd
 ├── investigation-phases
-│   ├── 01-business-understanding.qmd
-│   ├── 02-defining-environment.qmd
-│   ├── 03-data-collection-process.qmd
-│   ├── 04-base-line.qmd
-│   ├── 05-data-sampling.qmd
-│   ├── 06-initial-exploration.qmd
-│   ├── 07-expanding-geospatial-data.qmd
-│   ├── 08-expanding-transportation-socioeconomic.qmd
-│   └── 09-model-selection-to-deployment.qmd
+│   ├── 01-business-understanding.qmd
+│   ├── 02-data-collection-process.qmd
+│   ├── 03-base-line.qmd
+│   ├── 04-data-sampling.qmd
+│   ├── 05-initial-exploration.qmd
+│   ├── 06-expanding-geospatial-data.qmd
+│   ├── 07-expanding-transportation-socioeconomic.qmd
+│   └── 08-model-selection.qmd
 ├── man
-│   ├── add_performance_variables.Rd
-│   ├── add_pred_class.Rd
-│   ├── add_take_current_trip.Rd
-│   ├── calculate_costs.Rd
-│   ├── collect_predictions_best_config.Rd
-│   ├── compare_model_predictions.Rd
-│   ├── figures
-│   ├── NycTaxi-package.Rd
-│   ├── plot_bar.Rd
-│   ├── plot_box.Rd
-│   ├── plot_heap_map.Rd
-│   ├── plot_num_distribution.Rd
-│   ├── required_pkgs.step_join_geospatial_features.Rd
-│   ├── simulate_trips.Rd
-│   └── step_join_geospatial_features.Rd
+│   ├── add_performance_variables.Rd
+│   ├── add_pred_class.Rd
+│   ├── add_take_current_trip.Rd
+│   ├── calculate_costs.Rd
+│   ├── collect_predictions_best_config.Rd
+│   ├── compare_model_predictions.Rd
+│   ├── figures
+│   │   ├── logo.hex
+│   │   ├── logo-image.png
+│   │   ├── logo.png
+│   │   └── Logo-source.txt
+│   ├── NycTaxi-package.Rd
+│   ├── plot_bar.Rd
+│   ├── plot_box.Rd
+│   ├── plot_heap_map.Rd
+│   ├── plot_num_distribution.Rd
+│   ├── required_pkgs.step_join_geospatial_features.Rd
+│   ├── simulate_trips.Rd
+│   └── step_join_geospatial_features.Rd
 ├── multicore-scripts
-│   ├── 01-fine-tune-future-process.R
-│   ├── 02-add-target.R
-│   ├── 02-run_add_target.sh
-│   ├── 03a-tuning-simple-models.R
-│   ├── 03b-tuning-dimreduction-models.R
-│   └── 03c-tuning-tree-models.R
+│   ├── 01-fine-tune-future-process.R
+│   ├── 02-add-target.R
+│   ├── 02-run_add_target.sh
+│   ├── 03a-tuning-simple-models.R
+│   ├── 03b-tuning-dimreduction-models.R
+│   └── 03c-tuning-tree-models.R
 ├── NAMESPACE
 ├── params.yml
 ├── _quarto.yml
 ├── R
-│   ├── add_take_current_trip.R
-│   ├── calculate_costs.R
-│   ├── compare_model_predictions.R
-│   ├── NycTaxi-package.R
-│   ├── plot_bar.R
-│   ├── plot_box.R
-│   ├── plot_heap_map.R
-│   ├── plot_num_distribution.R
-│   ├── simulate_trips.R
-│   ├── step_join_geospatial_features.R
-│   └── utils.R
+│   ├── add_take_current_trip.R
+│   ├── calculate_costs.R
+│   ├── compare_model_predictions.R
+│   ├── NycTaxi-package.R
+│   ├── plot_bar.R
+│   ├── plot_box.R
+│   ├── plot_heap_map.R
+│   ├── plot_num_distribution.R
+│   ├── simulate_trips.R
+│   ├── step_join_geospatial_features.R
+│   └── utils.R
 ├── README.md
 ├── result -> /nix/store/63jxvg9zwnwab3jmv74pdsp6pmr2hbww-nix-shell
 ├── setup.sh
 └── tests
     ├── testthat
+    │   ├── fixtures
+    │   ├── test-add_take_current_trip.R
+    │   ├── test-calculate_costs.R
+    │   ├── test-plot_box.R
+    │   ├── test-simulate_trips.R
+    │   └── test-step_join_geospatial_features.R
     └── testthat.R
 
-14 directories, 63 files
+43 directories, 90 files
 ```
 
 ## Defining Development Environment
