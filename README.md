@@ -31,13 +31,31 @@ ones).
 
 ### 🤖 Modeling for Decision Support
 
-- **Calibration over Accuracy:** For a decision model, the probability
-  must be reliable. I focused on the **Brier Score** and **Calibration
-  Plots** to ensure that a 70% predicted probability of success truly
-  corresponds to a 70% real-world outcome.
-- **Robustness:** Evaluation on an **unseen testing set** confirmed that
-  the cost-benefit trade-off remains stable, with the model delivering a
-  **51.5% improvement** over the baseline in simulation-based estimates.
+To ensure the model supports real‑world driver decisions, we framed the
+problem as a **sequential decision task** rather than a pure prediction
+exercise. The goal is to maximize net hourly earnings, not just
+classification accuracy.
+
+- **From probabilistic predictions to profit‑driven thresholds:** We
+  selected the Brier score as the primary evaluation metric because it
+  measures both discrimination and calibration—essential when
+  probabilities inform acceptance decisions. To translate predicted
+  probabilities into actionable trip recommendations, we performed a
+  **threshold optimization** that accounts for asymmetric
+  misclassification costs: rejecting a lucrative trip (false negative)
+  is far costlier than accepting a mediocre one (false positive). By
+  simulating driver earnings across 5‑fold cross‑validation, we
+  identified an optimal decision threshold of **0.22—well below the
+  default 0.5**. This lower threshold reflects the fact that drivers
+  should be slightly more willing to accept trips, as the opportunity
+  cost of waiting for a “perfect” fare outweighs the risk of a low‑value
+  ride.
+- **Robustness and generalisation:** The final XGBoost model was
+  evaluated on a held‑out test set, achieving a **Brier score of 0.146
+  (matching cross‑validation)** and delivering a **net benefit of \$0.35
+  per trip** compared to a “take‑all” baseline. This represents a
+  **51.5% improvement in expected cost**, confirming that the
+  cost‑benefit trade‑off remains stable on unseen data.
 
 ![](figures/model_benefit_curve.png)
 
