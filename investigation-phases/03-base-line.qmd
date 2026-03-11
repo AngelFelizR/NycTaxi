@@ -197,6 +197,9 @@ options(datatable.print.nrows = 15, digits = 4)
 
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
 ```
 
 2.  Creating a connection with DuckDB.
@@ -425,7 +428,7 @@ DailyHourlyWage |>
   ggplot() +
   geom_histogram(aes(`Daily Hourly Wage`), bins = 10) +
   scale_x_continuous(breaks = breaks_width(10)) +
-  theme_light()
+  theme_light(base_family = Params$BaseFontFamily)
 ```
 
 ## Defining a Condifence Interval
@@ -472,7 +475,7 @@ visualize(BootstrapHourlyWage) +
     label = unlist(BootstrapInterval) |> comma(accuracy = 0.01)
   ) +
   labs(title = "Mean Hourly Wage Distribution", y = "Count") +
-  theme_light() +
+  theme_light(base_family = Params$BaseFontFamily) +
   theme(
     panel.grid.minor.y = element_blank(),
     panel.grid.major.y = element_blank(),

@@ -44,6 +44,9 @@ options(datatable.print.nrows = 15, digits = 4)
 
 # Defining the pin boards to use
 BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
 ```
 
 ## Sampling data to use
@@ -250,7 +253,7 @@ BenchmarkPlot <-
     y = "Duration (s)",
     x = "Chunk Size"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(legend.position = "top", plot.title = element_text(face = "bold"))
 
 girafe(ggobj = BenchmarkPlot)

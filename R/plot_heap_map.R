@@ -19,7 +19,8 @@ plot_heap_map <- function(
   cat_vars,
   color_high = "lightslateblue",
   color_low = "gray80",
-  sep = " | "
+  sep = " | ",
+  base_family = "DejaVu Sans"
 ) {
   stopifnot("cat_vars most be available in dt" = all(cat_vars %in% names(dt)))
   stopifnot("cat_vars must have 2 variables" = length(cat_vars) == 2L)
@@ -50,7 +51,7 @@ plot_heap_map <- function(
     ) +
     ggplot2::scale_x_discrete(position = "top") +
     ggplot2::labs(title = cat_vars[2L], x = "", y = "") +
-    ggplot2::theme_minimal() +
+    ggplot2::theme_minimal(base_family = base_family) +
     ggplot2::theme(
       panel.grid = ggplot2::element_blank(),
       plot.title = ggplot2::element_text(face = "bold", size = 15),

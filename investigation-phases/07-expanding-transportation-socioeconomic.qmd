@@ -317,7 +317,7 @@ ggplot(VariablesPerDataset) +
   expand_limits(x = 1e4) +
   labs(x = "Number of variables", fill = "Last update year") +
   facet_wrap(vars(survey), scale = "free") +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major.y = element_blank()
@@ -414,7 +414,7 @@ ggplot(ConceptsToExplore) +
     x = "Number of Characters",
     y = "Cumulative Proportion"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(panel.grid.minor = element_blank())
 ```
 
@@ -599,7 +599,7 @@ ConceptsToExploreByDistance[,
     x = "Jaccard Distance Threshold",
     y = "Value"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     panel.grid.minor = element_blank(),
     legend.position = "none",
@@ -1195,7 +1195,7 @@ ggplot(VariableTractsMeanDiff) +
   ) +
   scale_x_continuous(breaks = breaks_width(0.1)) +
   labs(y = "count on log10 scale") +
-  theme_minimal()
+  theme_minimal(base_family = Params$BaseFontFamily)
 ```
 
 

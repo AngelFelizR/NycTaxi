@@ -161,7 +161,7 @@ TrainingSample[, .N,
   scale_x_continuous(labels = comma_format()) +
   labs(title = "Only 24% of the trips need to be rejected",
        x = "") +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
@@ -186,7 +186,7 @@ TrainingSample[, .N,
   labs(title = "Most of the trips come from Uber",
        x = "",
        y = "Company Name") +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(panel.grid.major.y = element_blank(),
         plot.title = element_text(face = "bold", size = 15))
 ```
@@ -625,7 +625,7 @@ ggplot(TrainingSampleValidCat,
   coord_flip()+
   labs(y = "Prop of trips",
        fill = "take_current_trip") +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(legend.position = "top",
         panel.grid = element_blank())
 ```
@@ -695,7 +695,7 @@ TrainingSample[trip_time_min >= 2,
   geom_text(aes(label = percent(`Cramer.V`, accuracy = 1)),
             size = 2.5) + 
   labs(title = "Cramer's V correlation")+
-  theme_minimal()+
+  theme_minimal(base_family = Params$BaseFontFamily)+
   theme(legend.position = "none",
         panel.grid = element_blank(),
         axis.text.x = element_text(angle = 90),

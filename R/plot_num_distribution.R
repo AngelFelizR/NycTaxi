@@ -104,7 +104,8 @@ plot_num_distribution <- function(
   curve_important_points = NULL,
   curve_nudge_y = 0,
   curve_breaks_x = NULL,
-  curve_limits = NULL
+  curve_limits = NULL,
+  base_family = "DejaVu Sans"
 ) {
   # Lazy evaluation
   x = rlang::enquo(x)
@@ -136,7 +137,7 @@ plot_num_distribution <- function(
     ggplot2::scale_x_continuous(n.breaks = hist_n_break) +
     ggplot2::scale_y_continuous(labels = scales::comma_format()) +
     ggplot2::labs(x = "", y = "Count") +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal(base_family = base_family)
 
   if (!is.null(manual_fill_values) && fill_str != "NULL") {
     simple_hist =
@@ -171,7 +172,7 @@ plot_num_distribution <- function(
       labels = \(x) round(x, 2)
     ) +
     ggplot2::labs(x = "", y = "Count") +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal(base_family = base_family)
 
   if (!is.null(manual_fill_values) && fill_str != "NULL") {
     log_hist =
@@ -226,7 +227,7 @@ plot_num_distribution <- function(
       limits = curve_limits
     ) +
     ggplot2::labs(y = "Prop of trips", x = "") +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal(base_family = base_family)
 
   if (!is.null(manual_fill_values) && fill_str != "NULL") {
     ecdf_plot =

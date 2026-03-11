@@ -932,7 +932,7 @@ ggplot(TopOsmCorrelations) +
     labels = scales::label_percent(accuracy = 1)
   ) +
   labs(y = "", x = "Absolute Correlation", fill = "Positive Correlation") +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(legend.position = "top")
 ```
 
@@ -1000,7 +1000,7 @@ ggplot(OsmMedianDiff) +
     breaks = c(0, 10^(1:4))
   ) +
   labs(y = "count on log10 scale") +
-  theme_minimal()
+  theme_minimal(base_family = Params$BaseFontFamily)
 ```
 
 After selecting the to variables to explore, we just need to see
@@ -1083,7 +1083,7 @@ ggplot(TopOsmMedianDiff) +
     breaks = c(0, 10^seq(-1, 4, by = 0.25))
   ) +
   labs(x = "", y = "") +
-  theme_minimal()
+  theme_minimal(base_family = Params$BaseFontFamily)
 ```
 
 After confirming these promising results we can save the most import features for future use.

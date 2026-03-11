@@ -721,7 +721,7 @@ pin_read(
     y = "Brier Score",
     x = "Trained Models"
   ) +
-  theme_light() +
+  theme_light(base_family = Params$BaseFontFamily) +
   theme(
     plot.title = element_markdown(size = 14),
     plot.subtitle = element_markdown(size = 12),
@@ -841,7 +841,7 @@ PredictionsCostsSummary |>
     y = "Trained Models",
     x = "Average Cost Lost Due Wrong Selection"
   ) +
-  theme_light() +
+  theme_light(base_family = Params$BaseFontFamily) +
   theme(
     plot.title = element_markdown(size = 14),
     plot.subtitle = element_markdown(size = 12),
@@ -1248,7 +1248,7 @@ ggplot(
     y = "Proportion of Variables",
     fill = "The Importance is Positive"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     legend.position = "top",
     plot.title = element_text(face = "bold", size = 15),
@@ -1286,7 +1286,7 @@ bind_rows(
     x = "Brier Class Change",
     fill = "The Importance is Positive"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     legend.position = "top",
     panel.grid.major.y = element_blank(),
@@ -1326,7 +1326,7 @@ bind_rows(
     y = "Variables",
     x = "Gain Importance"
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     panel.grid.major.y = element_blank(),
     plot.title = element_text(face = "bold", size = 15),
@@ -1948,7 +1948,7 @@ ThresholdlExploration |>
   ) +
   scale_x_continuous(n.breaks = 12) +
   scale_y_continuous(n.breaks = 12) +
-  theme_minimal() +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     panel.grid.minor = element_blank(),
     plot.title = element_text(face = "bold", size = 15)

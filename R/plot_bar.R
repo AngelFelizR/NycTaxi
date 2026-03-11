@@ -26,7 +26,8 @@ plot_bar <- function(
   var_name,
   color_highlight = "lightslateblue",
   color_gray = "gray80",
-  n_top = 4L
+  n_top = 4L,
+  base_family = "DejaVu Sans"
 ) {
   dt_summary = dt[
     j = .(is_top = FALSE, n_trips = .N),
@@ -49,7 +50,7 @@ plot_bar <- function(
     ) +
     ggplot2::scale_x_continuous(labels = scales::comma_format()) +
     ggplot2::labs(y = "", x = "Number of Trips") +
-    ggplot2::theme_minimal() +
+    ggplot2::theme_minimal(base_family = base_family) +
     ggplot2::theme(
       legend.position = "none",
       panel.grid.major.y = ggplot2::element_blank(),
