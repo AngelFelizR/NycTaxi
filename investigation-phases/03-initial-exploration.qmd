@@ -13,15 +13,16 @@ knitr::opts_chunk$set(
 
 After completing the **business understanding** phase, we are ready to perform the **data understanding** phase by performing an EDA with the following steps:
 
-1.  Exploring the individual distribution of variables.
-2.  Exploring correlations between predictors and the target variable.
-3.  Exploring correlations between predictors.
+1.  Take a sample of 2023 and 2024 trips.
+2.  Exploring the individual distribution of variables in 2023.
+3.  Exploring correlations between predictors and the target variable in 2023.
+4.  Exploring correlations between predictors in 2023.
 
 This will help to:
 
 -   Ensure data quality.
 -   Identify key predictors.
--   Guide model choice and feature engineering.
+-   Guide model and policy creation.
 
 ## Setting up the environment
 
@@ -61,39 +62,91 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-### Importing training sample
-
-```{r}
-SampledData <-
-  pin_list(BoardLocal) |>
-  grep(pattern = "^OneMonthData", value = TRUE) |>
-  sort() |>
-  head(12L) |>
-  lapply(FUN = pin_read,
-         board = BoardLocal) |>
-  rbindlist()
-
-set.seed(2545)
-SampledDataSplit <- initial_split(SampledData)
-
-TrainingSample <- training(SampledDataSplit)
-```
-
 ### Importing geospatial information
 
 ```{r}
 ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")
 ```
 
+## Sampling data
+
+As most of the trips take place between **Manhattan**, **Brooklyn** and **Queens**, let's list all possible combinations of related locations to use it as filter later.
+
+```{r}
+#| label: selecting zones
+#| eval: false
+
+ZoneCodesFilter <- ZoneCodesRef[
+    c("Manhattan", "Brooklyn", "Queens"),
+    on = "Borough",
+    nomatch = NULL,
+    CJ(PULocationID = as.integer(LocationID),
+       DOLocationID = as.integer(LocationID))
+  ]
+
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+
+# Addig ZoneCodesFilters to db
+dbWriteTable(con, "ZoneCodesFilter", ZoneCodesFilter)
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+Selecting the 0.20% of the data, aiming for around 500K samples for training and testing the model and saving the data in a binary file.
+
+```{r}
+#| eval: false
+
+## Establishing a connection with the database
+con <- DBI::dbConnect(
+  duckdb::duckdb(),
+  dbdir = here("../NycTaxiBigFiles/my-db.duckdb")
+)
+
+## Defining query to sample
+ValidZoneSampleQuery <- glue::glue("
+SELECT t1.*
+FROM NycTrips t1
+INNER JOIN ZoneCodesFilter t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+USING SAMPLE 0.20% (system, 547548);
+")
+
+## Sampling data from db
+ValidZoneSample <- DBI::dbGetQuery(con, ValidZoneSampleQuery)
+
+## Closing the database connection
+DBI::dbDisconnect(con, shutdown = TRUE)
+
+## Saving results to disk
+pin_write(
+  BoardLocal,
+  ValidZoneSample, 
+  "ValidZoneSample",
+  type = "qs2"
+ )
+```
+
+### Importing the data to use
+
+Let's imagine we don't have 2024 data, to use it to evaluate how our predictions would perform after deployment.
+
+```{r}
+ValidZoneSample2023 <- pin_read(
+  BoardLocal,
+  "ValidZoneSample"
+)[year == 2023]
+```
+
+
 ### Adding features for exploration
 
 ```{r}
-TrainingSample[,`:=`(company = fcase(hvfhs_license_num == "HV0002", "Juno",
+ValidZoneSample2023[,`:=`(company = fcase(hvfhs_license_num == "HV0002", "Juno",
                                      hvfhs_license_num == "HV0003", "Uber",
                                      hvfhs_license_num == "HV0004", "Via",
                                      hvfhs_license_num == "HV0005", "Lyft"),
-                     
-                     take_current_trip = factor(fifelse(take_current_trip == 1, "Y", "N"), levels = c("Y", "N")),
                      
                      weekday = wday(request_datetime, label = TRUE, abbr = FALSE, week_start = 1),
                      month = month(request_datetime, label = TRUE, abbr = FALSE),
@@ -111,13 +164,13 @@ TrainingSample[,`:=`(company = fcase(hvfhs_license_num == "HV0002", "Juno",
 # If we check the taxi zone look up table, we can find the `Borough` and
 # `service_zone` of each table.
 
-TrainingSample[ZoneCodesRef,
+ValidZoneSample2023[ZoneCodesRef,
                on = c("PULocationID" = "LocationID"),
                `:=`(PULocationID = as.character(PULocationID),
                     PUBorough = Borough,
                     PUServiceZone = service_zone)]
 
-TrainingSample[ZoneCodesRef,
+ValidZoneSample2023[ZoneCodesRef,
                on = c("DOLocationID" = "LocationID"),
                `:=`(DOLocationID = as.character(DOLocationID),
                     DOBorough = Borough,
@@ -130,8 +183,6 @@ TrainingSample[ZoneCodesRef,
 
 ### Categorical variables
 
--   Based on `take_current_trip` only 24% of the trips need to be rejected.
-
 -   In `company`, Uber accounts for 72% of trips. In consequence, the results of this project will be **more related to Uber** than any other company.
 
 -   `dispatching_base_num`, `originating_base_num`, and `access_a_ride_flag` all seem to be highly correlated with the company and are **unlikely to be useful for prediction**.
@@ -142,38 +193,13 @@ TrainingSample[ZoneCodesRef,
 
 ::: panel-tabset
 
-#### Target
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
-TrainingSample[, .N,
-               by = "take_current_trip"
-][,`:=`(prop = N / sum(N),
-        take_current_trip = reorder(take_current_trip, N))] |>
-  ggplot(aes(N, take_current_trip)) +
-  geom_col(fill = Params$ColorGray,
-           color = "black",
-           width = 0.5) +
-  geom_text(aes(label = percent(prop, accuracy = 1)),
-            nudge_x = 10000) +
-  scale_x_continuous(labels = comma_format()) +
-  labs(title = "Only 24% of the trips need to be rejected",
-       x = "") +
-  theme_minimal(base_family = Params$BaseFontFamily) +
-  theme(panel.grid.major.y = element_blank(),
-        panel.grid.minor.x = element_blank(),
-        plot.title = element_text(face = "bold", size = 15))
-```
-
 #### Company
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TrainingSample[, .N,
+ValidZoneSample2023[, .N,
                by = "company"
 ][, prop := N / sum(N)] |>
   ggplot(aes(N, company)) +
@@ -198,20 +224,20 @@ TrainingSample[, .N,
 #| code-summary: "Show the code"
 
 Plot_dispatching_base_num <-
-  plot_heap_map(TrainingSample,
+  plot_heap_map(ValidZoneSample2023,
                 cat_vars = c("company", "dispatching_base_num"),
                 color_high = Params$ColorHighlight,
                 color_low = Params$ColorGray)
 
 
 Plot_originating_base_num <-
-  plot_heap_map(TrainingSample,
+  plot_heap_map(ValidZoneSample2023,
                 cat_vars = c("company", "originating_base_num"),
                 color_high = Params$ColorHighlight,
                 color_low = Params$ColorGray)
 
 Plot_access_a_ride_flag <-
-  plot_heap_map(TrainingSample,
+  plot_heap_map(ValidZoneSample2023,
                 cat_vars = c("company", "access_a_ride_flag"),
                 color_high = Params$ColorHighlight,
                 color_low = Params$ColorGray,
@@ -229,7 +255,7 @@ Plot_access_a_ride_flag
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_heap_map(TrainingSample,
+plot_heap_map(ValidZoneSample2023,
               cat_vars = c("shared_request_flag", "shared_match_flag"),
               color_high = Params$ColorHighlight,
               color_low = Params$ColorGray,
@@ -246,7 +272,7 @@ plot_heap_map(TrainingSample,
 #| code-summary: "Show the code"
 
 
-plot_heap_map(TrainingSample,
+plot_heap_map(ValidZoneSample2023,
               cat_vars = c("wav_request_flag", "wav_match_flag"),
               color_high = Params$ColorHighlight,
               color_low = Params$ColorGray,
@@ -261,7 +287,7 @@ plot_heap_map(TrainingSample,
 
 ### Datetime variables
 
-Based on the reports, we can confirm that we have a good number of example from each `month`, `weekday` and `hour`. The only exception is December from which only have `r TrainingSample["December", on = "month", nomatch = NULL, comma(.N)]` of the total sample of  `r TrainingSample[, comma(.N)]`.
+Based on the reports, we can confirm that we have a good number of example from each `month`, `weekday` and `hour`. The only exception is December from which only have `r ValidZoneSample2023["December", on = "month", nomatch = NULL, comma(.N)]` of the total sample of  `r ValidZoneSample2023[, comma(.N)]`.
 
 ::: panel-tabset
 #### Month
@@ -270,7 +296,7 @@ Based on the reports, we can confirm that we have a good number of example from 
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(TrainingSample,
+plot_bar(ValidZoneSample2023,
          "month",
          color_highlight = Params$ColorHighlight,
          color_gray = Params$ColorGray)
@@ -282,7 +308,7 @@ plot_bar(TrainingSample,
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(TrainingSample,
+plot_bar(ValidZoneSample2023,
          "weekday",
          color_highlight = Params$ColorHighlight,
          color_gray = Params$ColorGray,
@@ -295,7 +321,7 @@ plot_bar(TrainingSample,
 #| code-fold: true
 #| code-summary: "Show the code"
 
-plot_bar(TrainingSample,
+plot_bar(ValidZoneSample2023,
          "hour",
          color_highlight = Params$ColorHighlight,
          color_gray = Params$ColorGray)
@@ -321,13 +347,13 @@ Based on the next results, we can conclude that:
 #| code-summary: "Show the code"
 
 PlotPUBorough <-
-  plot_bar(TrainingSample,
+  plot_bar(ValidZoneSample2023,
            var_name = "PUBorough",
            n_top = 1L) +
   labs(title = "PUBorough")
 
 PlotDOBorough <-
-  plot_bar(TrainingSample,
+  plot_bar(ValidZoneSample2023,
            var_name = "DOBorough",
            n_top = 1L) +
   labs(title = "DOBorough")
@@ -342,13 +368,13 @@ PlotPUBorough / PlotDOBorough
 #| code-summary: "Show the code"
 
 PlotPUServiceZone <-
-  plot_heap_map(TrainingSample,
+  plot_heap_map(ValidZoneSample2023,
                 cat_vars = c("PUBorough", "PUServiceZone"),
                 sep = "\n") +
   labs(title = "PUBorough vs PUServiceZone")
 
 PlotDOServiceZone <-
-  plot_heap_map(TrainingSample,
+  plot_heap_map(ValidZoneSample2023,
                 cat_vars = c("DOBorough", "DOServiceZone"),
                 sep = "\n") +
   labs(title = "DOBorough vs DOServiceZone")
@@ -365,22 +391,22 @@ PlotPUServiceZone / PlotDOServiceZone
 
 LocationIdTextSize <- 7
 
-setkeyv(TrainingSample, "PUBorough")
+setkeyv(ValidZoneSample2023, "PUBorough")
 
 PlotPuLocations1 <-
-  plot_bar(TrainingSample["Manhattan"],
+  plot_bar(ValidZoneSample2023["Manhattan"],
            var_name = "PULocationID") +
   labs(subtitle = "Manhattan") +
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
 PlotPuLocations2 <-
-  plot_bar(TrainingSample["Brooklyn"],
+  plot_bar(ValidZoneSample2023["Brooklyn"],
            var_name = "PULocationID") +
   labs(subtitle = "Brooklyn")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
 PlotPuLocations3 <-
-  plot_bar(TrainingSample["Queens"],
+  plot_bar(ValidZoneSample2023["Queens"],
            var_name = "PULocationID") +
   labs(subtitle = "Queens")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
@@ -395,22 +421,22 @@ PlotPuLocations1 / PlotPuLocations2 / PlotPuLocations3
 #| code-summary: "Show the code"
 #| fig-height: 15
 
-setkeyv(TrainingSample, "DOBorough")
+setkeyv(ValidZoneSample2023, "DOBorough")
 
 PlotDoLocations1 <-
-  plot_bar(TrainingSample["Manhattan"],
+  plot_bar(ValidZoneSample2023["Manhattan"],
            var_name = "DOLocationID") +
   labs(subtitle = "Manhattan") +
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
 PlotDoLocations2 <-
-  plot_bar(TrainingSample["Brooklyn"],
+  plot_bar(ValidZoneSample2023["Brooklyn"],
            var_name = "DOLocationID") +
   labs(subtitle = "Brooklyn")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
 
 PlotDoLocations3 <-
-  plot_bar(TrainingSample["Queens"],
+  plot_bar(ValidZoneSample2023["Queens"],
            var_name = "DOLocationID") +
   labs(subtitle = "Queens")+
   theme(axis.text.y = element_text(size = LocationIdTextSize))
@@ -445,7 +471,7 @@ Based on the below graphs, we can say that:
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample,
+plot_num_distribution(ValidZoneSample2023,
                       trip_miles,
                       title = "trip_miles",
                       hist_binwidth = 5,
@@ -465,7 +491,7 @@ plot_num_distribution(TrainingSample,
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample,
+plot_num_distribution(ValidZoneSample2023,
                       trip_time_min,
                       title = "trip_time_min",
                       hist_binwidth = 5,
@@ -485,7 +511,7 @@ plot_num_distribution(TrainingSample,
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample,
+plot_num_distribution(ValidZoneSample2023,
                       tips,
                       title = "tips",
                       hist_n_break = 12,
@@ -504,7 +530,7 @@ plot_num_distribution(TrainingSample,
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample,
+plot_num_distribution(ValidZoneSample2023,
                       driver_pay,
                       title = "driver_pay",
                       hist_n_break = 12,
@@ -524,7 +550,7 @@ plot_num_distribution(TrainingSample,
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample,
+plot_num_distribution(ValidZoneSample2023,
                       performance_per_hour,
                       title = "performance_per_hour",
                       hist_n_break = 12,
@@ -544,7 +570,7 @@ plot_num_distribution(TrainingSample,
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 
-plot_num_distribution(TrainingSample[trip_time_min >= 2],
+plot_num_distribution(ValidZoneSample2023[trip_time_min >= 2],
                       performance_per_hour,
                       title = "performance_per_hour",
                       hist_n_break = 12,
@@ -560,121 +586,9 @@ plot_num_distribution(TrainingSample[trip_time_min >= 2],
 
 :::
 
-## Predictors vs `take_current_trip`
-
-After exploring the distribution of the individual variables we know that we are going to train our model based on trips with **more than 2 minutes of trip**, so we are going to **exclude those cases** for this analysis.
-
-For **categorical variables** we only need to focus on variables with *at least __2 levels__ that present more than __1% of the trips__*. 
-
-1. `dispatching_base_num`, `originating_base_num`, and `access_a_ride_flag` were not included as represent the same information that the `company`.
-2. `PULocationID` and `DOLocationID` present a **strong** variation.
-3. `wav_match_flag`present a **moderate** variation.
-4. `company` present a **moderate** variation.
-5. `weekday` present **low** variation.
-6. `month` present a **moderate** variation.
-7. `hour` present a **strong** variation.
-8. `PUBorough` present a **strong** variation.
-9. `PUServiceZone` present a **strong** variation.
-10. `DOBorough` present a **strong** variation.
-11. `DOServiceZone` present a **strong** variation.
-
-For **numerical variables**:
-
-1. `trip_miles` alone is not highly effective in predicting whether a trip will be taken as but classes present *overlapping distributions* and *similar cumulative distributions*, which make it a **low** predictor.
-
-2. `trip_time_min` alone is not highly effective in predicting whether a trip will be taken as both classes present *overlapping distributions* and *similar cumulative distributions*, which make it a **low** predictor.
-
-::: panel-tabset
-
-### Categorical
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-#| fig-width: 8
-
-TrainingSampleValidCat <-
-  TrainingSample[trip_time_min >= 2,
-                 c(.SD, list("trip_id" = trip_id)) |> lapply(as.character),
-                 .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)
-  ][, melt(.SD,
-           id.vars = c("trip_id", "take_current_trip")),
-    .SDcols = !c("hvfhs_license_num",
-                 "dispatching_base_num",
-                 "originating_base_num",
-                 "access_a_ride_flag")
-  ][, value_count := .N,
-    by = c("variable", "value")
-  ][, value_prop := value_count / .N,
-    by = "variable"
-  ][value_prop >= 0.01
-  ][, n_unique_values := uniqueN(value),
-    by = "variable"
-  ][n_unique_values > 1L] 
-
-ggplot(TrainingSampleValidCat,
-       aes(value, fill = factor(take_current_trip, levels = c("Y", "N")))) +
-  geom_bar(width = 0.7,
-           position = "fill") +
-  scale_fill_manual(values = c("N" = Params$ColorHighlight ,"Y" = Params$ColorGray))+
-  scale_y_continuous(labels = percent_format(accuracy = 1)) + 
-  facet_wrap(vars(variable),
-             scale = "free",
-             ncol = 3) +
-  coord_flip()+
-  labs(y = "Prop of trips",
-       fill = "take_current_trip") +
-  theme_minimal(base_family = Params$BaseFontFamily) +
-  theme(legend.position = "top",
-        panel.grid = element_blank())
-```
-
-### Trip miles
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-
-plot_num_distribution(TrainingSample[trip_time_min >= 2],
-                      trip_miles,
-                      title = "trip_miles",
-                      take_current_trip,
-                      manual_fill_values = c("N" = Params$ColorHighlight, "Y" = Params$ColorGray),
-                      hist_binwidth = 5,
-                      hist_n_break = 12,
-                      log_binwidth = 0.5,
-                      curve_limits = c(0, 25),
-                      curve_breaks_x = breaks_width(3))
-
-```
-
-### Trip time
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 7.5
-
-plot_num_distribution(TrainingSample[trip_time_min >= 2],
-                      trip_time_min,
-                      take_current_trip,
-                      manual_fill_values = c("N" = Params$ColorHighlight, "Y" = Params$ColorGray),
-                      title = "trip_time_min",
-                      hist_binwidth = 5,
-                      hist_n_break = 12,
-                      log_binwidth = 0.5,
-                      curve_breaks_x = scales::breaks_width(10),
-                      curve_limits = c(0, 90))
-
-```
-
-:::
-
 ## Exploring correlations between predictors
 
-There is not a surprise that `trip_time_min` and `trip_miles` present a __`r cor(TrainingSample$trip_miles, TrainingSample$trip_time_min) |> percent()`__ of correlation.
+There is not a surprise that `trip_time_min` and `trip_miles` present a __`r cor(ValidZoneSample2023$trip_miles, ValidZoneSample2023$trip_time_min) |> percent()`__ of correlation.
 
 But on the other hand, by checking the Cramer's V correlation between categorical predictors we can see that there is low correlation between predictors, with the exception of features linked to locations.
 
@@ -682,9 +596,9 @@ But on the other hand, by checking the Cramer's V correlation between categorica
 #| code-fold: true
 #| code-summary: "Show the code"
 
-TrainingSample[trip_time_min >= 2,
-               .SD,
-               .SDcols = levels(TrainingSampleValidCat$variable)] |>
+ValidZoneSample2023[trip_time_min >= 2,
+                    lapply(.SD, as.character),
+                    .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)] |>
   corrcat::cramerV_df(unique = FALSE)|>
   ggplot(aes(V1, V2, fill = `Cramer.V`))+
   geom_tile()+
@@ -697,9 +611,9 @@ TrainingSample[trip_time_min >= 2,
   labs(title = "Cramer's V correlation")+
   theme_minimal(base_family = Params$BaseFontFamily)+
   theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 15),
         panel.grid = element_blank(),
         axis.text.x = element_text(angle = 90),
         axis.title = element_blank())
 ```
-
 

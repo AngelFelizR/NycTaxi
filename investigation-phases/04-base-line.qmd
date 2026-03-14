@@ -1,0 +1,532 @@
+---
+title: "Simulation-Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers"
+params:
+  UpdateSimulation: FALSE
+editor_options: 
+  chunk_output_type: console
+---
+
+Defining the baseline from the available data is challenging because the data lack a **unique identifier** for direct estimation. However, we can **run a simulation** to estimate the baseline value together with a confidence interval.
+
+## Simulation Assumptions
+
+The simulation is built on the following **assumptions** regarding taxi drivers:
+
+1.  They can start working:
+    -   From any zone in Manhattan, Brooklyn, or Queens (the most active boroughs).
+    -   In any month, on any weekday, and at any hour.
+
+2.  The TLC license number (taxi company) must remain constant for all trips within a workday.
+
+3.  Only wheelchair‑accessible vehicles can accept trips that request a wheelchair‑accessible vehicle.
+
+4.  Because we cannot determine whether each zone has more active taxis than passengers, we assume that there are always more passengers than taxis. Consequently, each taxi driver **picks a random qualifying trip** from the candidates found within the current search radius and time window (respecting WAV compatibility, same taxi company, and the daily time limit).
+
+5.  Taxis search for trips based on waiting time and accept the first trip found within an expanding radius:
+    -   0–1 minute: search within a 1‑mile radius.
+    -   1–3 minutes: if no trip is found, expand search to a 3‑mile radius.
+    -   3–5 minutes: if still no trip, expand to a 5‑mile radius.
+    -   Continue adding 2 miles every two minutes until a trip is found.
+
+6.  Drivers take a 30‑minute break after 4 hours of work, but only after completing the current trip.
+
+7.  They will accept their last trip after working 8 hours (the 30‑minute break is not counted toward the 8 hours).
+
+## Formalizing the Simulation
+
+Based on the rules above, we define a **mathematical model** following the framework described by Warren B. Powell (2022) in *Sequential Decision Analytics and Modeling: Modeling with Python*.
+
+**Mathematical Model Definition**
+
+Based on the simulation assumptions (taxi drivers can start in any active borough/zone/month/weekday/hour, TLC license is fixed per workday, WAV rules apply, more passengers than taxis so the driver **picks a random qualifying trip** from the candidates that satisfy the radius/time/WAV/company/day-limit constraints, search radius expands with waiting time: 1 mile for 0–1 min, 3 miles for 1–3 min, 5 miles for 3–5 min, then +2 miles every two minutes, 30-minute break after exactly 4 hours of work but only after finishing the current trip, last trip accepted even if it finishes after the 8-hour limit), we formalize the problem using the sequential decision framework.
+
+1. **State variables $S_t^n$ for the $n$-th sample**  
+   - **Initial state variables $S_0^n$**  
+     *Variables that do not change during the simulation*  
+     - Taxi Company ($\text{Taxi\_Company}^n$): Taken from the `hvfhs_license_num` variable of the sampled first trip (ensures the same taxi company is used for the entire workday).  
+     - Limit To Take Trips ($\text{Limit\_To\_Take\_Trips}^n$): The date and time after which the driver cannot accept more trips. Obtained by adding 8 hours + 30 minutes to the `request_datetime` of the sampled trip.  
+     - Time To Take Break ($\text{Time\_To\_Take\_Break}^n$): The date and time when the driver will take the 30-minute break. Obtained by adding 4 hours to the `request_datetime` of the sampled trip.  
+     - Taxi is WAV ($\text{Taxi\_Is\_WAV}^n$): Indicates whether this taxi can accept wheelchair-accessible trips. Taken from the `wav_match_flag` variable of the sampled trip.  
+
+     *Variables that change once*  
+     - Taken Break ($\text{Taken\_Break}_0^n$): Starts as `FALSE` and changes to `TRUE` after the break is taken, ensuring only one break per workday.  
+
+     *Initial values of time-varying quantities*  
+     - Current Time ($\text{Current\_Time}_0^n$): The date and time when the initial trip ends. Computed as `request_datetime` + `trip_time` of the sampled first trip.  
+     - Current Position Zone ($\text{Current\_Zone}_0^n$): The zone where the taxi is located at the start of the simulation (after the first trip). Because the sampled trip is treated as the driver’s first trip, we use its `DOLocationID`.  
+     - Trip Time Limit ($\text{Trip\_Time\_Limit}_0^n$): The time until which the driver searches for a trip within 1 mile. Obtained as `Current\_Time}_0^n` + 1 minute.  
+     - Trip Distance Limit ($\text{Trip\_Dist\_Limit}_0^n$): The initial search radius of 1 mile.  
+
+  $$
+  S_0^n = 
+  \begin{pmatrix}
+  \left. 
+      \begin{array}{l} 
+      \text{Taxi\_Company}^n \\ 
+      \text{Taxi\_Is\_WAV}^n 
+      \end{array} 
+  \right\} \text{Vehicle Profile} \\
+  \left. 
+      \begin{array}{l} 
+      \text{Limit\_To\_Take\_Trips}^n \\ 
+      \text{Time\_To\_Take\_Break}^n 
+      \end{array} 
+  \right\} \text{Shift Constraints} \\
+  \left. 
+      \begin{array}{l} 
+      \text{Taken\_Break}_0^n \\ 
+      \text{Current\_Time}_0^n \\ 
+      \text{Current\_Zone}_0^n 
+      \end{array} 
+  \right\} \text{Initial Operational State} \\
+  \left. 
+      \begin{array}{l} 
+      \text{Trip\_Time\_Limit}_0^n \\ 
+      \text{Trip\_Dist\_Limit}_0^n 
+      \end{array} 
+  \right\} \text{Initial Search Policy}
+  \end{pmatrix}
+  $$
+
+   - **Dynamic state variables $S_t^n$**  
+     - Current Time ($\text{Current\_Time}_t^n$): The date and time when the driver is searching for a new trip.  
+     - Current Position Zone ($\text{Current\_Zone}_t^n$): The zone code where the driver is currently located.  
+     - Taken Break ($\text{Taken\_Break}_t^n$): `FALSE` until the break is taken, then `TRUE`.  
+     - Trip Time Limit ($\text{Trip\_Time\_Limit}_t^n$): The time until which the driver searches for a trip within the current distance limit. Updated by adding 1 or 2 minutes to $\text{Current\_Time}_t^n$ depending on previous search outcomes.  
+     - Trip Distance Limit ($\text{Trip\_Dist\_Limit}_t^n$): The radius (in miles) within which the driver searches for the next trip. Increases as $\text{Trip\_Time\_Limit}_t^n$ moves further from $\text{Current\_Time}_t^n$.
+
+  $$
+  S_t^n = 
+  \begin{pmatrix}
+  \left. 
+      \begin{array}{l} 
+      \text{Current\_Time}_t^n \\ 
+      \text{Current\_Zone}_t^n \\ 
+      \text{Taken\_Break}_t^n 
+      \end{array} 
+  \right\} \text{\small Operational Tracking} \\
+  \left. 
+      \begin{array}{l} 
+      \text{Trip\_Time\_Limit}_t^n \\ 
+      \text{Trip\_Dist\_Limit}_t^n 
+      \end{array} 
+  \right\} \text{\small Search Policy State}
+  \end{pmatrix}
+  $$
+
+2. **Decision variables $x_t$**  
+   The driver decides whether to accept a sampled trip based on current location and time. Hence $x_t$ is a **binary variable** defined by the policy:
+   $$
+   x_t = X^\pi(S_t^n \mid \theta)
+   $$
+
+   (where $\pi = (f, \theta)$ is the policy; for the baseline, the driver **picks a trip uniformly at random** from all qualifying trips that satisfy the radius/time/WAV/company/day-limit constraints).
+
+
+3. **Exogenous information $W_{t+1}^n$**  
+   After completing a trip, the following variables are observed from the data:  
+   - Trip End Time ($\text{Trip\_End\_Time}_{t+1}^n$): The date and time when the trip ends: `request_datetime` + `trip_time` of the accepted trip.  
+   - Trip End Zone ($\text{Trip\_End\_Zone}_{t+1}^n$): The zone where the trip ends, taken from the `DOLocationID` of the accepted trip.  
+   - Trip Earning ($\text{Trip\_Earning}_{t+1}^n$): The total earnings from the trip: `driver_pay` + `tips` of the accepted trip.
+
+   $$
+   W_{t+1}^n = \big( \text{Trip\_End\_Time}_{t+1}^n,\; \text{Trip\_End\_Zone}_{t+1}^n,\; \text{Trip\_Earning}_{t+1}^n \big)
+   $$
+
+4. **Transition function $S^M(S_t^n, x_t, W_{t+1}^n)$**  
+   After a trip is taken ($x_t = 1$), the state variables are updated as follows (if $x_t = 0$, the search limits are expanded according to the rules and the driver continues searching without changing position or taking a break):
+
+   $$
+   \text{Current\_Time}_{t+1}^n = \text{Trip\_End\_Time}_{t+1}^n
+   $$
+   $$
+   \text{Current\_Zone}_{t+1}^n = \text{Trip\_End\_Zone}_{t+1}^n
+   $$
+
+   If the trip just completed causes the break time to be exceeded and the break has not yet been taken:
+    $$
+    \begin{aligned}
+    &\textbf{if } \big( \text{Current\_Time}_{t+1}^n > \text{Time\_To\_Take\_Break}^n \text{ and } \neg \text{Taken\_Break}_t^n \big) \textbf{ then} \\
+    &\quad \text{Current\_Time}_{t+1}^n \leftarrow \text{Current\_Time}_{t+1}^n + 30 \text{ min} \\
+    &\quad \text{Taken\_Break}_{t+1}^n \leftarrow \text{TRUE} \\
+    &\textbf{else} \\
+    &\quad \text{Taken\_Break}_{t+1}^n \leftarrow \text{Taken\_Break}_t^n \\
+    &\textbf{end if}
+    \end{aligned}
+    $$
+
+   Reset the search window:
+   $$
+   \text{Trip\_Time\_Limit}_{t+1}^n = \text{Current\_Time}_{t+1}^n + 1\;\text{min}
+   $$
+   $$
+   \text{Trip\_Dist\_Limit}_{t+1}^n = 1\;\text{mile}
+   $$
+
+5. **Objective function**  
+   Because some taxi drivers might work slightly more than 8 hours (depending on how long the last trip takes), we define the **Daily Hourly Wage** as the single-period contribution function to be maximized:
+   $$
+   \max_{\pi = (f, \theta)} F^\pi(S_0^n) = \mathbb{E}\left\{ 
+   \frac{1}{
+   (\text{RequestTime}_T^n + \text{trip\_time}_T^n) - \text{RequestTime}_0^n
+   } 
+   \sum_{t=0}^{T^n} \big( \text{Trip\_Earning}_{t+1}^n \times X^\pi(S_t^n \mid \theta) \big) \;\big|\; S_0^n \right\}
+   $$
+
+### Uncertainty Model
+
+Uncertainty enters the model **both** through the initial state $S_0^n$ and through the exogenous information process $W_1^n, \dots, W_{T^n}^n$.
+
+Let $\mathcal{D}$ be the full historical dataset of trips (each trip identified by its unique index $i$).
+
+- **Through the initial state $S_0^n$**:  
+  Sample the starting trip index $I_0^n$ uniformly at random from all feasible starting trips in $\mathcal{D}$. All components of $S_0^n$ are computed directly from the attributes of trip $I_0^n$.
+
+- **Through the exogenous information process $W_{t+1}^n$**:  
+  Given the current state $S_t^n$, define the set of candidate trips that satisfy the simulation rules (time window, radius, WAV compatibility, same Taxi_Company, etc.):
+
+$$\begin{aligned}
+\mathcal{C}_t^n = \Big\{ i \in \mathcal{D} \mid \text{ } & \text{request\_datetime}_i \geq \text{Current\_Time}_t^n, \\
+& \text{request\_datetime}_i \leq \text{Trip\_Time\_Limit}_t^n, \\
+& \text{dist}(\text{PULocationID}_i, \text{Current\_Zone}_t^n) \leq \text{Trip\_Dist\_Limit}_t^n, \\
+& \text{req\_datetime}_i + \text{trip\_time}_i \leq \text{Limit\_To\_Take\_Trips}^n, \\
+& \text{and all other constraints hold} \Big\}
+\end{aligned}
+$$
+
+  - If $|\mathcal{C}_t^n| \geq 1$, select the trip index **purely randomly**:
+
+$$
+I_{t+1}^n \sim \text{Uniform}(\mathcal{C}_t^n)
+$$
+
+  - Then extract the exogenous information directly from the selected trip:
+  
+$$
+W_{t+1}^n = \Big( \text{request\_datetime}_{I_{t+1}^n} + \text{trip\_time}_{I_{t+1}^n}, \;\; \text{DOLocationID}_{I_{t+1}^n}, \;\; \text{driver\_pay}_{I_{t+1}^n} + \text{tips}_{I_{t+1}^n} \Big)
+$$
+
+  - If $\mathcal{C}_t^n = \emptyset$, expand the search limits (add 1–2 minutes and 2 miles) and repeat until a candidate appears — the waiting time remains purely data-driven.
+
+The full uncertainty is therefore captured by the sequence of randomly chosen trip indices $I_0^n, I_1^n, \dots, I_{T^n}^n$ drawn uniformly from the data-driven candidate sets. Every different realization produces a completely different trajectory (different ending locations, times, and earnings).
+
+### Evaluating policies
+
+We will use 5 seeds to get the average result of each $S_0^n$ in $N$. For each initial state sample $S_0^n$ ($n = 1, \dots, N$), the simulation is run 5 times with 5 different random seeds (different realizations of the index selections).
+
+The objective value for that $S_0^n$ is the average over the 5 seeds. The overall baseline estimate (with confidence interval) is then the average (and standard error) across all $N$ initial samples. This Monte-Carlo procedure with fixed seeds provides a reproducible estimate of the expectation in the objective function.
+
+```r
+sample.int(1e4, 5)
+#> [1] 8199   50 7450 1430 9370
+```
+
+## Running trips simulation
+
+1.  Loading the functions to use.
+
+```{r warning = FALSE, message = FALSE}
+#| label: env packages
+
+library(here)
+library(scales)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(infer)
+library(DBI)
+library(duckdb)
+library(glue)
+library(pins)
+library(qs2)
+
+## Custom functions
+devtools::load_all()
+
+## Defining the print params to use in the report
+options(datatable.print.nrows = 15, digits = 4)
+
+# Defining the pin boards to use
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+```
+
+5.  Selecting at random the first trip of each simulation. It's important to know that even after setting the seed 1144 **the sample is not reproducible**, so we need to save the on disk to keep using the same data. Stratified sampling
+
+```{r}
+#| eval: false
+
+# Other filters trip_time >= (60 * 2), trip_miles > 0, driver_pay > 0
+
+# Sampling 5,209 trips from db
+SimulationStartDayQuery <- "
+SELECT t1.*
+FROM NycTrips t1
+INNER JOIN ZoneCodesFilter t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+WHERE t1.year = 2023
+USING SAMPLE reservoir(5209 ROWS) REPEATABLE (1144);
+"
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+SimulationStartDay <- dbGetQuery(con, SimulationStartDayQuery)
+dbDisconnect(con, shutdown = TRUE)
+
+# Saving results
+setDT(SimulationStartDay)
+BoardLocal |> pin_write(SimulationStartDay, "SimulationStartDay", type = "qs2")
+
+pillar::glimpse(SimulationStartDay)
+```
+
+```{r echo=FALSE}
+#| label: Simulation start date
+
+if (!exists("SimulationStartDay")) {
+  SimulationStartDay <- BoardLocal |> pin_read("SimulationStartDay")
+
+  pillar::glimpse(SimulationStartDay)
+}
+```
+
+We can also confirm that the sample satisfy the initial restrictions:
+
+-   All trips are from 2023.
+
+```{r}
+#| label: Year distribution
+
+SimulationStartDay[, .N, year]
+```
+
+-   The trips begin on the expected boroughs.
+
+```{r}
+#| label: Start Zone distribution
+
+ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")
+ZoneCodesRef[, LocationID := as.double(LocationID)]
+
+ZoneCodesRef[
+  SimulationStartDay,
+  on = c("LocationID" = "PULocationID"),
+  .N,
+  by = "Borough"
+]
+```
+
+-   The trips end on the expected boroughs.
+
+```{r}
+#| label: End Zone distribution
+
+ZoneCodesRef[
+  SimulationStartDay,
+  on = c("LocationID" = "DOLocationID"),
+  .N,
+  by = "Borough"
+]
+```
+
+Now we can conclude that the initial data **satisfy the assumption 1**.
+
+6.  Calculating the mean distance present from one location to other if it has **fewer than 7 miles**.
+
+``` r
+MeanDistanceQuery <- "
+CREATE TABLE PointMeanDistance AS
+
+-- Selecting all avaiable from trips that don't start and end at same point
+WITH ListOfPoints AS (
+  SELECT 
+    t1.PULocationID,
+    t1.DOLocationID,
+    AVG(t1.trip_miles) AS trip_miles_mean
+  FROM 
+    NycTrips t1
+  INNER JOIN
+    ZoneCodesFilter t2
+    ON t1.PULocationID = t2.PULocationID AND
+       t1.DOLocationID = t2.DOLocationID
+  WHERE
+    t1.PULocationID <> t1.DOLocationID AND
+    t1.year = 2023
+  GROUP BY 
+    t1.PULocationID, 
+    t1.DOLocationID
+  HAVING 
+    AVG(t1.trip_miles) <= 7
+),
+
+-- Defining all available distances
+ListOfPointsComplete AS (
+  SELECT
+    PULocationID,
+    DOLocationID,
+    trip_miles_mean
+  FROM ListOfPoints
+  UNION ALL
+  SELECT
+    DOLocationID AS PULocationID,
+    PULocationID AS DOLocationID,
+    trip_miles_mean
+  FROM ListOfPoints
+),
+NumeredRows AS (
+  SELECT
+    PULocationID,
+    DOLocationID,
+    trip_miles_mean,
+    row_number() OVER (PARTITION BY PULocationID, DOLocationID) AS n_row
+  FROM ListOfPointsComplete
+)
+
+-- Selecting the first combination of distances
+SELECT 
+  PULocationID,
+  DOLocationID,
+  trip_miles_mean
+FROM NumeredRows
+WHERE n_row = 1
+ORDER BY PULocationID, trip_miles_mean;
+"
+
+# Saving table on DB for simulation
+dbExecute(con, MeanDistanceQuery)
+
+# Saving the table as a file
+PointMeanDistance <- 
+  dbGetQuery(con, "SELECT * FROM PointMeanDistance") |>
+  data.table::as.data.table()
+
+BoardLocal |> pin_write(PointMeanDistance, "PointMeanDistance", type = "qs2")
+```
+
+7.  Running the simulation.
+
+```{r}
+#| eval: false
+
+SimulationHourlyWage <- simulate_trips(
+  con,
+  SimulationStartDay,
+  seeds = c(8199, 50, 7450, 1430, 9370)
+)
+
+pin_write(
+  LocalBoard,
+  SimulationHourlyWage,
+  "SimulationHourlyWage",
+  type = "qs2"
+)
+```
+
+```{r echo=FALSE}
+#| label: Getting simulation results
+
+if (!exists("SimulationHourlyWage")) {
+  SimulationHourlyWage <- BoardLocal |> pin_read("SimulationHourlyWage")
+}
+```
+
+
+9.  Showing simulation results.
+
+```{r}
+#| label: Showing results
+
+DailyHourlyWage <-
+  SimulationHourlyWage[,
+    .(
+      `Daily Hourly Wage` = sum(sim_driver_pay + sim_tips) /
+        as.double(difftime(
+          max(sim_dropoff_datetime),
+          min(sim_request_datetime),
+          units = "hours"
+        ))
+    ),
+    by = "simulation_id"
+  ]
+
+
+DailyHourlyWage |>
+  ggplot() +
+  geom_histogram(aes(`Daily Hourly Wage`), bins = 10) +
+  scale_x_continuous(breaks = breaks_width(10)) +
+  theme_light(base_family = Params$BaseFontFamily)
+```
+
+## Defining a Confidence Interval (to update)
+
+After simulating 60 days, we can use **bootstrap** to infer the distribution of the mean **Daily Hourly Wage** for any day in the year by following the next steps.
+
+1.  Resample with replacement a new 60 days hourly wage 3,000 times and calculate the mean of each resample.
+
+```{r}
+#| label: BootstrapHourlyWage
+
+set.seed(1586)
+
+BootstrapHourlyWage <-
+  specify(DailyHourlyWage, `Daily Hourly Wage` ~ NULL) |>
+  generate(reps = 3000, type = "bootstrap") |>
+  calculate(stat = "mean")
+
+BootstrapHourlyWage
+```
+
+2.  Compute the 95% confident interval.
+
+```{r}
+#| label: Getting interval
+
+BootstrapInterval <-
+  get_ci(BootstrapHourlyWage, level = 0.95, type = "percentile")
+
+BootstrapInterval
+```
+
+3.  Visualize the estimated distribution.
+
+```{r}
+#| label: Plotting internval
+
+visualize(BootstrapHourlyWage) +
+  shade_ci(endpoints = BootstrapInterval, color = "#2c77BF", fill = "#2c77BF") +
+  annotate(
+    geom = "text",
+    y = 400,
+    x = c(BootstrapInterval[1L][[1L]] - 0.4, BootstrapInterval[2L][[1L]] + 0.4),
+    label = unlist(BootstrapInterval) |> comma(accuracy = 0.01)
+  ) +
+  labs(title = "Mean Hourly Wage Distribution", y = "Count") +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(face = "bold"),
+    axis.title.x = element_blank()
+  )
+```
+
+## Business Case
+
+Based on the simulation's results we can confirm that the average earnings for a taxi driver per hour goes between `r round(BootstrapInterval[1L][[1L]], 2)` and `r round(BootstrapInterval[2L][[1L]], 2)`, but that doesn't represent the highest values observed on the simulation.
+
+If we can check the simulation results we can confirm that a 25% of the simulated days presented earnings over the 60 dollars per hour.
+
+```{r}
+#| label: Goal Rate
+
+GoalRate <-
+  DailyHourlyWage$`Daily Hourly Wage` |>
+  quantile(probs = 0.75) |>
+  unname() |>
+  round(2)
+
+GoalRate
+```
+
+If we can apply a strategy that can move the `Daily Hourly Wage` to `r GoalRate` dollars per hour, assuming the the taxi driver works 5 days every week for 8 hours, that would mean a increase of **`r scales::dollar((GoalRate - BootstrapInterval[1L][[1L]]) * 8 * 5 * 4)` every month**.
