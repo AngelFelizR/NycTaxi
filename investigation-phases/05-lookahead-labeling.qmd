@@ -88,7 +88,7 @@ For a future trip to be considered a valid alternative it must satisfy **exactly
 1. Same taxi company (`hvfhs_license_num`).
 2. WAV compatibility (`wav_match_flag`).
 3. Request time window: 3 seconds (rejection delay) to 15 minutes after the original request.
-4. Distance from current zone follows the same radius-expansion policy: 
+4. Distance from current zone follows the same radius-expansion policy:
    - 0–1 min → 1 mile  
    - 1–3 min → 3 miles  
    - 3–5 min → 5 miles  

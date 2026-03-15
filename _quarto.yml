@@ -30,8 +30,8 @@ website:
             href: investigation-phases/06-expanding-geospatial-data.qmd
           - text: "07 - Exploring Transportation and Socioeconomic Patterns"
             href: investigation-phases/07-expanding-transportation-socioeconomic.qmd
-          - text: "08 - Training and Selecting Model To Implement"
-            href: investigation-phases/08-model-selection.qmd  
+          - text: "08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data"
+            href: investigation-phases/08-policy-function-approximation.qmd  
     right:
       - text: "About Angel Feliz"
         href: https://angelfeliz.com/
