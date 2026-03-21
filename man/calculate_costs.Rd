@@ -12,10 +12,9 @@ and cost-related variables (performance_per_hour, percentile_75_performance,
 take_current_trip, .pred_class)}
 }
 \value{
-A tibble with added cost columns: current_method_cost, cost_wrong_no,
-cost_wrong_yes, and cost_wrong_total
+A tibble with added cost columns
 }
 \description{
-Computes various cost metrics based on prediction accuracy, including
-current method cost and costs for different types of prediction errors.
+The "current method" is: ACCEPT ALL TRIPS (don't filter anything)
+The "model method" is: ACCEPT only trips predicted as "yes"
 }

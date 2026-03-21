@@ -21,7 +21,8 @@ plot_num_distribution(
   curve_important_points = NULL,
   curve_nudge_y = 0,
   curve_breaks_x = NULL,
-  curve_limits = NULL
+  curve_limits = NULL,
+  base_family = "DejaVu Sans"
 )
 }
 \arguments{

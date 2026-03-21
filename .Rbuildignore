@@ -36,3 +36,4 @@
 ^generate_env.R$
 ^params.yml$
 ^.envrc$
+^result$

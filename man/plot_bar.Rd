@@ -9,7 +9,8 @@ plot_bar(
   var_name,
   color_highlight = "lightslateblue",
   color_gray = "gray80",
-  n_top = 4L
+  n_top = 4L,
+  base_family = "DejaVu Sans"
 )
 }
 \arguments{

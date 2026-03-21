@@ -2,20 +2,141 @@
 % Please edit documentation in R/simulate_trips.R
 \name{simulate_trips}
 \alias{simulate_trips}
-\title{Simulate a date of work for a single taxi driver.}
+\title{Simulate full workdays for NYC taxi drivers (baseline or policy-driven)}
 \usage{
-simulate_trips(conn, start_points, model = NULL)
+simulate_trips(
+  conn,
+  start_points,
+  seeds = NULL,
+  fitted_wf = NULL,
+  threshold = NULL,
+  verbose = FALSE
+)
 }
 \arguments{
-\item{conn}{Duckdb connection to NycTrips and PointMeanDistance tables.}
+\item{conn}{A DBI connection to the DuckDB database that contains the
+\code{NycTrips} table (all trip records) and the \code{PointMeanDistance} table
+(pre-computed mean miles between every pair of zones).}
 
-\item{start_points}{A data.table with the initial trips of each simulation.}
+\item{start_points}{A \code{data.table} of reservoir-sampled starting trips
+(one row per replicate). Must contain at least the columns
+\code{trip_id}, \code{request_datetime}, \code{trip_time}, \code{DOLocationID},
+\code{hvfhs_license_num}, \code{wav_match_flag}, \code{driver_pay}, \code{tips}.
+The function validates column presence and data types.}
 
-\item{model}{A tidymodels workflow.}
+\item{seeds}{Optional integer vector of random seeds (one per replicate).
+If supplied, \code{set.seed()} is called before each uniform draw in baseline
+mode, guaranteeing reproducible trajectories. If \code{NULL} the simulation
+becomes deterministic (always selects the first candidate returned by the
+SQL query — \verb{ORDER BY request_datetime}).}
+
+\item{fitted_wf}{Optional fitted \code{tidymodels} \code{workflow} (XGBoost policy).
+When supplied the random-acceptance logic is replaced by a model-based
+decision.}
+
+\item{threshold}{Optional numeric scalar in \verb{[0,1]}. Only used when
+\code{fitted_wf} is not \code{NULL}.
+\itemize{
+\item If \code{NULL} the model’s default \code{type = "class"} prediction is used.
+\item If supplied the model returns probabilities (\code{type = "prob"}) and a trip
+is accepted when \code{.pred_yes > threshold}.
+}}
+
+\item{verbose}{Logical scalar (default \code{FALSE}).
+When \code{TRUE}, the function prints detailed per-iteration progress messages
+inside the main simulation loop:
+\itemize{
+\item current time / distance / time-window limits at the start of each search,
+\item break insertion,
+\item search expansion when no candidates are found,
+\item policy rejection (with the 3-second penalty),
+\item successful trip acceptance.
+}
+
+The top-level progress line
+(\verb{[timestamp] Simulation X/Y | ID: ... | Pending: ...}) is \strong{always} printed,
+regardless of this setting. Useful for debugging long runs or watching the
+search behaviour live.}
 }
 \value{
-A data.table.
+A \code{data.table} with \strong{one row per accepted trip} across all
+replicates. Columns (all prefixed with \code{sim_} except \code{simulation_id}):
+\itemize{
+\item \code{simulation_id} – identifier of the starting trip (links replicates)
+\item \code{sim_trip_id}, \code{sim_hvfhs_license_num}, \code{sim_wav_match_flag}
+\item \code{sim_PULocationID}, \code{sim_DOLocationID}
+\item \code{sim_request_datetime}, \code{sim_dropoff_datetime}
+\item \code{sim_trip_time}, \code{sim_driver_pay}, \code{sim_tips}
+}
+The table is ready for downstream hourly-wage calculations and bootstrap
+confidence intervals.
 }
 \description{
-Simulate a date of work for a single taxi driver.
+Runs the exact empirical Monte-Carlo simulation described in Warren B. Powell (2022)
+\emph{Sequential Decision Analytics and Modeling} and formalised in the ADP chapter of the
+project documentation. For each starting trip in \code{start_points} it simulates a
+complete 8-hour + 30-minute workday by repeatedly querying the database for
+candidate trips that satisfy the search-radius, time-window, company, WAV, and
+shift-limit constraints.
+}
+\details{
+Two operating modes are supported:
+\itemize{
+\item \strong{Baseline mode} (\code{fitted_wf = NULL}): the driver accepts a trip chosen
+uniformly at random from the qualifying candidates (reproducible via
+\code{seeds}). This is the myopic policy \eqn{X^\pi(S_t^n \mid \theta)} with
+uniform sampling over \eqn{\mathcal{C}_t^n}.
+\item \strong{Policy mode} (\code{fitted_wf} supplied): the fitted XGBoost workflow
+predicts acceptance probability; the trip is accepted only if the decision
+(class or probability > \code{threshold}) is positive. Rejected trips incur a
+3-second waiting penalty and the search continues (possibly expanding the
+radius).
+}
+
+All simulation assumptions from the baseline chapter are enforced:
+fixed taxi company, WAV compatibility, 4-hour break (taken only after
+completing a trip), acceptance of a final trip even if it overruns 8 hours,
+expanding search radius (1 → 3 → 5 miles, then +2 miles every 2 minutes),
+and the “more passengers than taxis” rule (random draw from candidates).
+
+The core loop implements the transition function and exogenous information
+process exactly as formalised in Powell’s mathematical model:
+\itemize{
+\item Candidate set \eqn{\mathcal{C}_t^n} is obtained via a fast SQL join
+on the pre-computed \code{PointMeanDistance} table.
+\item When a trip is rejected by the policy the clock advances by 3 seconds
+(simulated driver wait) and the search radius may expand.
+\item The 30-minute break is inserted only after a trip finishes and only
+once per day.
+\item The final trip is always accepted even if it finishes after the
+nominal 8-hour limit.
+}
+}
+\examples{
+  # ---------------------------------------------------------------
+  # Minimal deterministic baseline example
+  # ---------------------------------------------------------------
+
+  library(DBI)
+  library(data.table)
+
+  con <- dbConnect(
+    duckdb::duckdb(),
+    system.file("fixtures/minimal-deterministic-db.duckdb",
+                package = "NycTaxi")
+  )
+
+  start_points <- readRDS(
+    system.file("fixtures/SimulationStartTrips_minimal.rds",
+                package = "NycTaxi")
+  )
+
+  # Deterministic baseline (seeds = NULL, no model)
+  sim <- simulate_trips(con, start_points)
+
+  # Expected output (exactly the sequence of accepted trips)
+  print(sim[, .(simulation_id, sim_trip_id, sim_request_datetime)])
+
+  DBI::dbDisconnect(con, shutdown = TRUE)
+
 }

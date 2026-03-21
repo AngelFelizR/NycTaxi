@@ -35,7 +35,8 @@ Imports:
     tmap,
     tune,
     utils,
-    withr
+    withr,
+    workflows
 Suggests:
     future,
     knitr,

@@ -9,7 +9,8 @@ plot_heap_map(
   cat_vars,
   color_high = "lightslateblue",
   color_low = "gray80",
-  sep = " | "
+  sep = " | ",
+  base_family = "DejaVu Sans"
 )
 }
 \arguments{
