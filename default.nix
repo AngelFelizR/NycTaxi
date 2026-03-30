@@ -31,6 +31,7 @@ let
       infer
       klaR
       knitr
+      latex2exp
       leaflet
       lubridate
       maptiles

@@ -13,17 +13,7 @@ After extensive data exploration and feature engineering, we developed a classif
 
 The goal is to maximize driver earnings by helping them identify the most valuable trips while minimizing time spent on low-value assignments. This optimization problem directly impacts driver income and operational efficiency across the NYC taxi network.
 
-**Key Takeaways**
-- Logistic regression and random forest achieved the lowest Brier scores, but only XGBoost translated into meaningful cost savings when evaluated against a profit‑based metric.
-- Bayesian optimization reduced XGBoost’s Brier score by ~4% and improved consistency.
-- Location IDs (pickup/dropoff zones) show low individual importance, yet they collectively contribute crucial information through interactions with other features.
-- Dimensionality reduction via PLS did **not** improve performance, likely because it compressed the interaction signals that tree‑based models rely on.
-- **Threshold optimization is essential for economic benefit** – The optimal decision threshold of 0.22 (well below the default 0.5) reflects asymmetric misclassification costs and increases average per‑trip earnings by over 50% compared to accepting all trips.
-- **Final model generalizes with stable economic impact** – On the held‑out test set, the XGBoost model achieved a Brier score of 0.146 (matching cross‑validation) and delivered $0.35 net benefit per trip, confirming robustness and real‑world viability.
-- **Statistical accuracy alone is insufficient** – Models must be evaluated with business‑aligned metrics; the final XGBoost workflow successfully bridges predictive performance and operational profitability.
-
-**ADP Context**  
-This chapter implements the **Policy Function Approximation (PFA)** component of our Approximate Dynamic Programming framework: we train a classifier on the lookahead labels created in Chapter 5 to predict $\hat{p}_t = \Pr(\text{take\_current\_trip}=1 \mid S_t)$. The learned probabilities will later be turned into the decision rule $x_t = \mathbb{I}\{\hat{p}_t \ge \tau\}$ inside the full-day Monte-Carlo simulator.
+In this chapter we **train a classifier on the lookahead labels created in Chapter 5** to predict $\hat{p}_t = \Pr(\text{take\_current\_trip}=1 \mid S_t)$. The learned probabilities will later be turned into the decision rule $x_t = \mathbb{I}\{\hat{p}_t \ge \tau\}$ inside the full-day Monte-Carlo simulator.
 
 # Phase 1: Model Selection & Initial Training
 
@@ -35,11 +25,13 @@ To solve this binary classification problem (accept trip: yes/no), we evaluated 
 - **Non-linear, Moderate Complexity Models:** MARS (Multivariate Adaptive Regression Splines) via `earth`, Bagged Trees via `rpart`
 - **Advanced Ensemble Models:** Random Forests via `ranger`, Gradient Boosted Trees via `xgboost`
 
-This progression from simple to complex allows us to identify the optimal balance between model performance and computational requirements for production deployment.
+This progression from simple to complex allows us to identify the optimal balance between **model performance** and **computational requirements** for production deployment.
 
-**Training Strategy:** We employ 5-fold cross-validation with 5 random hyperparameter configurations per model to ensure robust performance estimates while managing computational costs.
+## 1.2 Training Strategy
 
-## 1.2 Environment Setup
+We employ 5-fold cross-validation with 5 random hyperparameter configurations per model to ensure robust performance estimates while managing computational costs.
+
+## 1.3 Environment Setup
 
 ```{r}
 ## To manage relative paths
@@ -49,6 +41,7 @@ library(here)
 library(lubridate)
 library(timeDate)
 library(ggtext)
+library(data.table)
 
 ## Tools for modeling
 library(tidymodels)
@@ -74,7 +67,7 @@ Params <- yaml::read_yaml(here("params.yml"))
 Params$BoroughColors <- unlist(Params$BoroughColors)
 ```
 
-## 1.3 Model Specification
+## 1.4 Model Specification
 
 ```{r}
 # Regularized logistic regression
@@ -115,7 +108,7 @@ XgboostSpec <-
   set_engine("xgboost")
 ```
 
-## 1.4 Data Loading & Preparation
+## 1.5 Data Loading & Preparation
 
 ```{r}
 AcsVariablesByZoneId <-
@@ -165,6 +158,8 @@ This comprehensive recipe transforms raw trip data into a rich feature set by in
 
 ```{r}
 #| eval: false
+#| code-fold: true
+#| code-summary: "Consolidation recipe (full feature engineering pipeline)"
 
 ConsolidationRecipe <-
   # Starting Recipe
@@ -445,7 +440,7 @@ pin_write(
 TrainingSampleJoined <- pin_read(BoardLocal, "TrainingSampleJoined")
 ```
 
-## 1.5 Feature Engineering Pipeline
+## 1.6 Feature Engineering Pipeline
 
 Because each model family has different assumptions, we created a common starting function that applies the same basic steps to any training data:
 
@@ -471,7 +466,7 @@ start_recipe <- function(df) {
 }
 ```
 
-### 1.5.1 Normalization & Dimensionality Reduction
+### 1.6.1 Normalization & Dimensionality Reduction
 
 For models sensitive to the scale and distribution of predictors (such as Logistic Regression, FDA, and MARS), we implement a "Basic Normalized" pipeline. This involves applying a Yeo‑Johnson transformation to handle non‑normality, creating dummy variables for categorical data, and filtering out near‑zero variance (NZV) predictors.
 
@@ -516,7 +511,7 @@ NormalizedUmapRecipe <-
   step_normalize(all_numeric_predictors())
 ```
 
-### 1.5.2 Sparsity Management
+### 1.6.2 Sparsity Management
 
 Tree‑based models like Random Forest and XGBoost are generally robust to monotonic transformations but can struggle with high‑cardinality categorical variables (e.g., the 263 NYC taxi zones). To address this, we define a "Reduced Levels" recipe that uses `step_other()` to collapse infrequent categories into an "other" bucket, followed by one‑hot encoding to allow the ensemble models to partition the data effectively.
 
@@ -529,7 +524,7 @@ ReducedLevelsRecipe <-
   step_nzv(all_predictors())
 ```
 
-## 1.6 Model Training Workflows
+## 1.7 Model Training Workflows
 
 With all recipes and model specifications defined, we now assemble them into unified training workflows using `workflow_set()`. Each workflow pairs a preprocessing recipe with one or more model specifications, allowing tidymodels to jointly tune and evaluate every recipe–model combination in a systematic way.
 
@@ -605,7 +600,7 @@ pin_write(
 )
 ```
 
-## 1.7 Tuning Workflows
+## 1.8 Tuning Workflows
 
 With the three workflow groups saved to disk, we now run hyperparameter tuning for each group in separate scripts. Running them separately **keeps memory usage manageable**, since some combinations — particularly those involving dimensionality reduction — are considerably more expensive to train than others.
 
@@ -620,16 +615,19 @@ Once tuning is complete, the results are saved back to the pin board so [section
 
 ```{r}
 #| eval: false
+#| code-fold: true
 #| file: ../multicore-scripts/03a-tuning-simple-models.R
 ```
 
 ```{r}
 #| eval: false
+#| code-fold: true
 #| file: ../multicore-scripts/03b-tuning-dimreduction-models.R
 ```
 
 ```{r}
 #| eval: false
+#| code-fold: true
 #| file: ../multicore-scripts/03c-tuning-tree-models.R
 ```
 
@@ -663,7 +661,7 @@ pin_write(
 )
 ```
 
-Now we can confirm that the best models were `Logistic Regression` and `Random Forest` based on the number of correct predictions. However, we also need to consider that the relative cost of taking or rejecting the wrong trip can change from trip to trip. It is crucial that the metric used to select the best model takes these economic implications into consideration.
+Although regularized logistic regression initially appeared strongest on both statistical and early cost metrics, XGBoost’s ensemble structure showed greater promise for **capturing the high-order pickup–dropoff interactions** that drive real profitability. We therefore moved to a deeper **Bayesian optimization of XGBoost**.
 
 ```{r}
 #| code-fold: true
@@ -724,6 +722,8 @@ pin_read(
 
 To estimate the cost, we select the best model of each type and calculate the difference between the `performance_per_hour` of each trip and the `performance_per_hour` of the 75th percentile, depending on whether the final prediction was correct or not.
 
+The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $3.8 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
+
 ```{r}
 collect_prediction_cost <- function(
   training_data,
@@ -760,15 +760,10 @@ pin_write(
 )
 ```
 
-The current method taxis use in the simulation is to accept all trips. We can calculate that, on average, this strategy resulted in a loss of around $3.8 per trip on the training data. We can now compare how that number would change if we used the best trained model for each model type.
-
-Several important observations emerge from this cost‑based evaluation:
-
-- **`normalized_reg_logistic`** achieved the lowest Brier score and the largest cost reduction — an ideal outcome.
-- **`reduced_levels_random_forest`** and **`reduced_levels_xgboost`** performed similarly to the logistic model in terms of Brier score, but their cost savings were substantially smaller. This highlights that a purely statistical metric can be misleading when the ultimate business goal is profit optimization.
-- **`pls_mars`** exhibited a relatively high Brier score yet delivered cost reductions comparable to the best logistic model, again underscoring the need to align evaluation metrics with the application’s economic objective.
-
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+
 PredictionsCosts <- pin_read(
   BoardLocal,
   name = "PredictionsCosts"
@@ -792,11 +787,6 @@ PredictionsCostsSummary <-
     model_name = reorder(model_name, total_benefit)
   ) |>
   arrange(desc(total_benefit))
-```
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
 
 PredictionsCostsSummary |>
   ggplot(aes(model_method_cost, model_name)) +
@@ -1095,6 +1085,8 @@ create_performance_gt(ModelComparison)
 
 ```
 
+**The refined XGBoost model reduced average cost per trip from $3.80 (accept-all baseline) to a substantially lower value on the training folds—a meaningful improvement that proved stable on the held-out test set.**
+
 ```{r}
 #| output: false
 #| echo: false
@@ -1252,7 +1244,7 @@ Looking at the top 20 and bottom 5 variables reveals:
 - `trip_time`, `driver_pay`, `trip_miles`, `cos_daily`, and `company` are the most important individual features.
 - All remaining variables have importance scores very close to zero, and many of them are related to the geographic location of pickups or dropoffs (e.g., `PU_...`, `DO_...`).
 
-This pattern suggests that **`PULocationID` and `DOLocationID` are collectively vital** for prediction, but studying the effect of any single location‑derived variable in isolation obscures their true contribution. The model likely captures complex interactions between pickup and dropoff zones — for example, the combination of a specific pickup zone and a specific dropoff zone may be highly informative, even though each zone alone appears unimportant. This phenomenon is common in tree‑based models, which can exploit high‑order interactions.
+Although individual location-derived variables show near-zero dropout loss, their *collective interactions* are captured by the tree splits—precisely why dimensionality reduction (Phase 4) harmed performance.
 
 ```{r}
 #| code-fold: true
@@ -1482,6 +1474,9 @@ Key additions at the end of the recipe:
 These steps are now part of a single, self‑contained recipe that can be applied to any new trip data without external dependencies.
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Final production-ready recipe"
+
 BestXgboostConfig <- pin_read(
   BoardLocal,
   name = "BestXgboostConfig"
@@ -1769,12 +1764,12 @@ XgboostFinalWorkflow
 
 # Phase 6: Threshold Optimization for Model Validation (Not Yet the Final ADP Policy)
 
-Statistical accuracy (Brier score) guided model selection, but the ultimate goal is maximizing driver earnings. This requires choosing a decision threshold $\tau$ that turns the probability $\hat{p}_t$ into the binary action $x_t$.
+Based on the current configuration of the selected model now we wonder what is the threshold that would maximize the profits based on **cross-validation folds** to later confirm with the on the held-out test set, just to validate if the model provide consistent results.
 
-::: {.callout-tip}
-## Important clarification
+::: {.callout-warning}
 
-The threshold optimized in this chapter (approximately 0.22) is **for validation only**. It was tuned on cross-validation folds and confirmed on the held-out test set to ensure the model generalizes. Because the true economic performance of any policy must be measured under the same uncertainty model used for the baseline (Chapter 4), the **operational threshold $\tau^*$** for the ADP policy $\pi^\tau$ will be found in the next chapter by re-running the full-day empirical Monte-Carlo simulation. There we will test many candidate thresholds inside the exact same simulator that produced the $42.17 baseline hourly wage.
+The threshold defining by this process won't be used as the final policy as the **true economic performance** of any policy must be measured under the same uncertainty model used for the baseline (Chapter 4), the **operational threshold $\tau^*$** for the ADP policy $\pi^\tau$ will be found in the next chapter by re-running the full-day empirical Monte-Carlo simulation.
+
 :::
 
 ## 6.1 Asymmetric Costs and the Need for Threshold Tuning
@@ -1832,6 +1827,8 @@ collect_metrics(XgboostFinalWorkflowEvaluted)
 
 ## 6.3 Benefit Calculation Across Thresholds
 
+To the define the best thresholds we evaluate opportunity cost related of taking bad decisions in relation on acepting or rejecting trips we used a grid starting in 0 that would be taking all trips until 0.9 that would be practically only taking the trips that are over average of each zone.
+
 ```{r}
 #| eval: false
 
@@ -1882,6 +1879,7 @@ pin_write(
 
 ## 6.4 Identifying the Optimal Threshold
 
+Now we have an estimation of expected benefit of using the mode with each thresholds we can fit a polinomial model of 4 degree and find the mathematical best value.
 
 ```{r}
 ThresholdlExploration <- pin_read(BoardLocal, "ThresholdlExploration")
@@ -1898,17 +1896,11 @@ predict_fun <- function(x) {
 
 BestThresholdValue <- optimize(\(x) -predict_fun(x), c(0, 0.9))$minimum
 BestBenefitValue <- predict_fun(BestThresholdValue)
+
+pin_write(BoardLocal, BestThresholdValue, "BestThresholdValue", type = "qs2")
 ```
 
-**Result:** The optimal **validation** threshold is **`r round(BestThresholdValue, 3L)`**, yielding an average benefit of **$`r round(BestBenefitValue, 3L)` per trip** compared to accepting all trips.
-
-## 6.5 Interpreting the Low Threshold
-
-A threshold of `{r} round(BestThresholdValue, 3L)` is substantially below 0.5, indicating that drivers should be relatively aggressive in accepting trips. This arises because:
-
-- The cost of missing a high‑value trip (opportunity cost) outweighs the cost of taking a low‑value trip.
-- XGBoost produces well‑calibrated probabilities even at low ranges, so false positives remain manageable.
-- The base rate of profitable trips is sufficiently high in the training data, making a more liberal acceptance strategy beneficial.
+A threshold of `{r} round(BestThresholdValue, 3L)` is substantially below 0.5, confirming that **drivers should be relatively aggressive in accepting trips**. The optimal threshold of `{r} round(BestThresholdValue, 2L)` lies well below 0.5, confirming that a profit-driven policy should be *aggressive* in acceptance—exactly the behavior we expect when false negatives (missing a good trip) are more expensive than false positives. We will see later if this strategy will remain after evaluating the threshold under the full simulation.
 
 
 ```{r}
@@ -1946,7 +1938,7 @@ ThresholdlExploration |>
 
 ## 6.6 Integrating the Threshold into the Workflow
 
-For the purpose of model validation we attach the validation threshold using a `tailor` step. This workflow is used **only** in the test-set evaluation below. The final production workflow for the Monte-Carlo simulator (next chapter) will keep $\tau$ as a tunable parameter (no fixed tailor).
+For **model validation we attach the validation threshold** using a `tailor` step. This workflow is used **only** in the test-set evaluation below. The final production workflow for the Monte-Carlo simulator (next chapter) will keep $\tau$ as a tunable parameter (no fixed tailor).
 
 ```{r}
 #| eval: false
@@ -1969,7 +1961,7 @@ pin_write(
 
 # Phase 7: Evaluating the Final Model on Testing Data
 
-The held‑out testing dataset provides an unbiased estimate of real‑world performance. We evaluate both statistical accuracy and economic impact.
+Now is time the confirm unseen data whether the stadistic performance and benefit estimation keeps constant.
 
 ## 7.1 Generating Predictions on the Testing Set
 
@@ -2034,15 +2026,11 @@ FinalBrierTest <-
   brier_class(truth = take_current_trip, .pred_yes)
 ```
 
-**Result:** Brier Score = **`{r} round(FinalBrierTest$.estimate, 4L)`**. This nearly matches the cross‑validated training score (`{r} round(NewPerformance$mean, 4L)`), confirming excellent generalization and no overfitting.
+**Result:** Brier Score = **`r round(FinalBrierTest$.estimate, 4L)`**. This nearly matches the cross‑validated training score (`r round(NewPerformance$mean, 4L)`), confirming excellent generalization and no overfitting.
 
 ## 7.3 Economic Impact: Benefit per Trip
 
-
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-
 TestingCostSummary <-
   pin_read(BoardLocal, "TestingSamplePredictions") |>
   NycTaxi::calculate_costs() |>
@@ -2053,109 +2041,20 @@ TestingCostSummary <-
     percent_improvement = (net_benefit / baseline_cost) * 100
   )
 
-TestingCostSummary |>
-  pivot_longer(
-    cols = everything(),
-    names_to = "Metric",
-    values_to = "Value"
-  ) |>
-  mutate(
-    Metric = case_when(
-      Metric == "baseline_cost" ~ "Baseline Cost (Accept All)",
-      Metric == "model_cost" ~ "Model Cost (Optimized)",
-      Metric == "net_benefit" ~ "Net Benefit",
-      Metric == "percent_improvement" ~ "Percent Improvement"
-    )
-  ) |>
-
-  gt() |>
-
-  # Header with dark background and white bold text
-  tab_header(
-    title = "Cost-Benefit Analysis: Model vs. Baseline",
-    subtitle = "Comparing expected costs per trip"
-  ) |>
-  tab_style(
-    style = list(
-      cell_text(color = "white", weight = "bold"),
-      cell_fill(color = "#2c3e50")
-    ),
-    locations = cells_title()
-  ) |>
-
-  # Format currency for the three cost rows
-  fmt_currency(
-    columns = Value,
-    rows = Metric %in%
-      c("Baseline Cost (Accept All)", "Model Cost (Optimized)", "Net Benefit"),
-    currency = "USD",
-    decimals = 2
-  ) |>
-
-  # Format percentage
-  fmt_percent(
-    columns = Value,
-    rows = Metric == "Percent Improvement",
-    decimals = 1,
-    scale_values = FALSE
-  ) |>
-
-  # Append "per trip" to the cost rows
-  text_transform(
-    locations = cells_body(
-      columns = Value,
-      rows = Metric %in%
-        c("Baseline Cost (Accept All)", "Model Cost (Optimized)", "Net Benefit")
-    ),
-    fn = function(x) paste(x, "per trip")
-  ) |>
-
-  # Emphasise the "Net Benefit" metric with bold text and a light fill
-  tab_style(
-    style = cell_text(weight = "bold"),
-    locations = cells_body(
-      columns = Metric,
-      rows = Metric == "Net Benefit"
-    )
-  ) |>
-
-  # Optional: also bold the value of the Net Benefit (uncomment if desired)
-  tab_style(
-    style = list(
-      cell_text(weight = "bold"),
-      cell_fill(color = Params$ColorHighlightLow)
-    ),
-    locations = cells_body(
-      columns = Value,
-      rows = Metric == "Net Benefit"
-    )
-  ) |>
-
-  # Column labels (they already appear as "Metric" and "Value", but we can be explicit)
-  cols_label(
-    Metric = "Metric",
-    Value = "Value"
-  ) |>
-
-  # General table appearance (matching your reference function)
-  tab_options(
-    table.font.names = "Arial",
-    table.background.color = "white",
-    column_labels.font.weight = "bold",
-    column_labels.background.color = "#f8f9fa",
-    table.width = pct(100),
-    quarto.disable_processing = TRUE
-  )
+TestingCostSummary
 ```
 
-## 7.4 Key Insights from Final Evaluation
+**Result:** Expected cost of using the model **`r round(TestingCostSummary$model_cost, 4L)`** also nearly matches the cross‑validated cost (`r round(BestBenefitValue, 4L)`).
 
-- **Statistical and economic alignment** – The model that performed best in cross‑validation (XGBoost) also delivered the highest economic benefit.
+
+# Key Takeaways
+
+- While logistic regression and random forest achieved the lowest Brier scores, **only the final XGBoost policy translated statistical accuracy into meaningful profit**—a reminder that in ADP the ultimate metric is the *value function*, not a generic loss.
+- Bayesian optimization improved the Brier score by ~4 % while simultaneously increasing robustness (lower standard error), demonstrating that **careful hyperparameter search pays dividends** when the downstream simulator will evaluate the policy under full stochastic dynamics.
+- The final model’s reliance on pickup/dropoff interactions, despite low individual variable importance, underscores that tree‑based models thrive on high‑order interactions—a signal that would be **lost under aggressive dimensionality reduction**.
+- **Final model generalizes with stable economic impact** – On the held‑out test set, the XGBoost model achieved a Brier score of `r round(FinalBrierTest$.estimate, 4L)` (matching cross-validation) and delivered `r round(TestingCostSummary$model_cost, 4L)` net benefit per trip, confirming robustness and real‑world viability.
 - **No degradation on unseen data** – Near‑identical training and testing scores confirm robustness and rule out overfitting.
-- **Threshold robustness** – The `{r} round(BestThresholdValue, 3L)` threshold optimized on cross‑validation remains optimal on the testing set, demonstrating that the cost‑benefit trade‑off is stable.
-- **Substantial real‑world value** – Even a modest per‑trip improvement (≈$`{r} round(TestingCostSummary$net_benefit, 2L)`) compounds into significant earnings increases over thousands of trips, validating the data‑driven decision support approach.
-- **Collective importance of location features** – The final model’s reliance on pickup/dropoff interactions, despite low individual variable importance, underscores that tree‑based models thrive on high‑order interactions—a signal that would be lost under aggressive dimensionality reduction.
-
+- **Threshold robustness** – The `r round(BestThresholdValue, 3L)` threshold optimized on cross‑validation remains optimal on the testing set, demonstrating that the cost‑benefit trade‑off is stable.
 
 ### Forward to ADP Policy Evaluation (Next Chapter)
 
@@ -2166,9 +2065,36 @@ In the next chapter we will:
 1. Load the final XGBoost workflow (without a fixed tailor step).
 2. Re-run the **exact same full-day empirical Monte-Carlo simulation** from Chapter 4 (reservoir-sampled starting trips + uniform draws from the data-driven candidate sets $\mathcal{C}_t^n$).
 3. For each candidate threshold $\tau$, replace the myopic random decision with $x_t = \mathbb{I}\{\hat{p}_t \ge \tau\}$.
-4. Compute the new hourly wage distribution and 95% confidence interval.
+4. Compute the new hourly wage mean and 95% confidence interval.
 5. Identify the optimal operational $\tau^*$ that maximizes the simulated hourly wage.
 
-This final Monte-Carlo evaluation will give us the true lift over the myopic baseline and close the ADP loop: baseline → labeled data → trained PFA → simulation-optimized policy → quantified improvement.
+This final Monte-Carlo evaluation will give us the **true lift** over the myopic baseline and close the ADP loop:
+
+```{r}
+#| echo: false
+#| fig.width: 9
+#| fig.height: 1
+#| out.width: "100%"
+
+DiagrammeR::grViz(
+  "
+digraph ADP_Pipeline {
+  graph [layout = dot, rankdir = LR, fontsize = 12]
+  node [shape = box, style = filled, fontname = Arial]
+
+  Baseline [label = 'Baseline', fillcolor = '#D3CDF7']
+  Labeled [label = 'Labeled Data', fillcolor = '#D3CDF7']
+  TrainedModel [label = 'Trained PFA', fillcolor = '#D3CDF7']
+  SimPolicy [label = 'Simulation-Optimized Policy', fillcolor = '#E6F3FF']
+  Quantified [label = 'Quantified Improvement', fillcolor = '#E6F3FF']
+
+  Baseline -> Labeled
+  Labeled -> TrainedModel
+  TrainedModel -> SimPolicy
+  SimPolicy -> Quantified
+}
+"
+)
+```
 
 This completes the critical Policy Function Approximation stage of the ADP pipeline.

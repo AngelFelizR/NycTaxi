@@ -1,0 +1,276 @@
+---
+title: "From Predictions to Policies: Integrating ML into Stochastic Optimization"
+subtitle: "Evaluating the ADP Policy in Full-Day Monte-Carlo Simulation"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This chapter closes the Approximate Dynamic Programming (ADP) loop. We convert the probabilistic XGBoost classifier into a **tunable threshold policy** $\pi^\tau$ and re-evaluate it inside the *exact same* full-day empirical Monte-Carlo simulator used for the baseline in Chapter 4. The result is a directly comparable hourly-wage lift under the identical data-driven uncertainty model $\mathcal{C}_t^n$.
+
+## Updated Mathematical Model
+
+The state, exogenous information, and transition functions remain identical to Chapter 4. Only the **decision rule** changes.
+
+**Decision variable**  
+$$
+x_t = \mathbb{I} \{ \hat{p}_t(S_t) \ge \tau \}
+$$
+
+where $\hat{p}_t(S_t)$ is the XGBoost probability that the *current offered trip* (sampled from $\mathcal{C}_t^n$) belongs to the high-value class, and $\tau \in [0,1]$ is the tunable policy parameter.
+
+
+**Policy definition**  
+$$
+\pi^\tau(S_t) = 
+\begin{cases}
+1 & \text{if } \hat{p}_t(S_t) \ge \tau \quad (\text{accept current trip}) \\
+0 & \text{otherwise} \quad (\text{reject and expand search limits})
+\end{cases}
+$$
+
+**Objective function (to be maximized)**  
+
+We seek to **maximize** the expected hourly wage under the data-driven uncertainty $\mathcal{C}_t^n$:
+
+$$
+F^{\pi^\tau}(S_0^n) = \mathbb{E}\left[ 
+\frac{\sum_{t=1}^{T^n} (\text{Trip\_Earning}_{t+1}^n \cdot x_t)}
+{(\text{RequestTime}_{T^n}^n + \text{trip\_time}_{T^n}^n) - \text{EndTime}_{I_0^n}} 
+\;\middle|\; S_0^n \right]
+$$
+
+The expectation is estimated via Monte-Carlo simulation using **five independent random seeds** for each of the 1,061 starting states $S_0^n$. This provides both a reproducible point estimate and a confidence interval that is directly comparable to the baseline.
+
+**Important operational detail** 
+
+When $x_t = 0$ the driver does **not** advance in position or time; the search limits expand exactly as in the baseline rejection case (`Trip_Time_Limit += 1 or 2 min`, `Trip_Dist_Limit += 2 mi`). This faithfully reproduces the 15-minute lookahead horizon that generated the training labels and keeps the simulation apples-to-apples with Chapter 4.
+
+## Loading the Production XGBoost Workflow
+
+We load the final fitted workflow saved in Chapter 8 together with the same 1,061 reservoir-sampled starting trips used for the baseline.
+
+```{r}
+## To manage relative paths
+library(here)
+library(pins)
+library(qs2)
+
+## Manipulate data
+library(data.table)
+library(DBI)
+library(duckdb)
+library(lubridate)
+library(timeDate)
+library(latex2exp)
+
+## To run predictions
+library(tidymodels)
+
+## Custom functions & board
+devtools::load_all()
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+
+# Loading params
+Params <- yaml::read_yaml(here("params.yml"))
+
+# Sampled data (Chapter 4)
+SimulationStartDay <- pin_read(
+  BoardLocal,
+  name = "SimulationStartDay"
+)
+
+BaseLineHourlyWage <- pin_read(BoardLocal, "BaseLineHourlyWage")
+
+# Production workflow (Chapter 8)
+XgboostFinalWorkflowTailorFitted <- pin_read(
+  BoardLocal,
+  name = "XgboostFinalWorkflowTailorFitted"
+)
+
+InitalBestThresholdValue <- pin_read(BoardLocal, "BestThresholdValue")
+```
+
+## Threshold Optimization under Stochastic Uncertainty
+
+### Why simulation-based tuning is essential
+
+The validation threshold ($\approx `r round(InitalBestThresholdValue, 2)`$) was optimal on held-out *historical* trips under a static cost matrix. The true economic optimum must be found under the *dynamic* uncertainty $\mathcal{C}_t^n$ of the full-day simulator. We therefore perform a grid search *inside* the Monte-Carlo engine itself.
+
+
+### Seeds strategy (reproducibility + fairness)
+
+- **Tuning phase**: Five new seeds (`new_seeds`) to avoid overfitting to the exact randomness of the baseline.  
+- **Final evaluation**: The best $\tau^*$ is re-run with the original baseline seeds `c(8199, 50, 7450, 1430, 9370)` so the confidence interval is directly comparable to Chapter 4.
+
+```{r}
+original_seeds <- c(8199, 50, 7450, 1430, 9370) # exactly as Chapter 4
+
+set.seed(987654) # new seed for tuning reproducibility
+(new_seeds <- sample.int(1e6, 5)) # 5 new seeds for grid search
+```
+
+### Grid-search code
+
+The simulator is called with `fitted_wf = XgboostFinalWorkflowTailorFitted` and `threshold = \tau`. The process took approximately **five days** on the available hardware.
+
+```{r}
+#| eval: false
+#| label: tau-grid-search
+
+TauGrid <- seq(0.05, 0.60, by = 0.05)
+
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+
+for (i in seq_along(TauGrid)) {
+  # Runing simulation
+  SimResults <- simulate_trips(
+    con,
+    SimulationStartDay, # same 1,061 starting trips as baseline
+    seeds = new_seeds, # NEW seeds for tuning
+    fitted_wf = XgboostFinalWorkflowTailorFitted,
+    threshold = TauGrid[i]
+  )
+
+  # Adding initial_day_time
+  SimResults[
+    SimulationStartDay,
+    on = c("simulation_id" = "trip_id"),
+    initial_day_time := request_datetime + lubridate::seconds(trip_time)
+  ]
+
+  SimResultsSummary <- SimResults[,
+    .(
+      n_trips = .N,
+      total_hours_worked = difftime(
+        max(sim_dropoff_datetime),
+        min(initial_day_time),
+        unit = "hours"
+      ) |>
+        as.double(),
+      total_earnings = sum(sim_driver_pay, na.rm = TRUE) +
+        sum(sim_tips, na.rm = TRUE)
+    ),
+    by = c("simulation_id", "simulation_seed")
+  ][, daily_hourly_wage := total_earnings / total_hours_worked][,
+    j = c(
+      setNames(lapply(.SD, mean), paste0(names(.SD), "_mean")),
+      setNames(lapply(.SD, sd), paste0(names(.SD), "_sd"))
+    ),
+    .SDcols = !c("simulation_seed"),
+    by = "simulation_id"
+  ]
+
+  setcolorder(
+    SimResultsSummary,
+    c(
+      "simulation_id",
+      paste0("n_trips", c("_mean", "_sd")),
+      paste0("total_hours_worked", c("_mean", "_sd")),
+      paste0("total_earnings", c("_mean", "_sd")),
+      paste0("daily_hourly_wage", c("_mean", "_sd"))
+    )
+  )
+
+  pin_write(
+    BoardLocal,
+    SimResultsSummary,
+    paste0("SimResultsSummary_", TauGrid[i]),
+    type = "qs2"
+  )
+}
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+```bash
+ls -lhad ../NycTaxiPins/Board/SimResultsSummary_0.*
+
+drwxr-xr-x 3 root root 4.0K Mar 22 11:05 ../NycTaxiPins/Board/SimResultsSummary_0.05
+drwxr-xr-x 3 root root 4.0K Mar 22 19:06 ../NycTaxiPins/Board/SimResultsSummary_0.1
+drwxr-xr-x 3 root root 4.0K Mar 23 04:04 ../NycTaxiPins/Board/SimResultsSummary_0.15
+drwxr-xr-x 3 root root 4.0K Mar 23 12:22 ../NycTaxiPins/Board/SimResultsSummary_0.2
+drwxr-xr-x 3 root root 4.0K Mar 23 21:20 ../NycTaxiPins/Board/SimResultsSummary_0.25
+drwxr-xr-x 3 root root 4.0K Mar 24 06:31 ../NycTaxiPins/Board/SimResultsSummary_0.3
+drwxr-xr-x 3 root root 4.0K Mar 24 16:15 ../NycTaxiPins/Board/SimResultsSummary_0.35
+drwxr-xr-x 3 root root 4.0K Mar 25 02:39 ../NycTaxiPins/Board/SimResultsSummary_0.4
+drwxr-xr-x 3 root root 4.0K Mar 25 13:46 ../NycTaxiPins/Board/SimResultsSummary_0.45
+drwxr-xr-x 3 root root 4.0K Mar 26 01:28 ../NycTaxiPins/Board/SimResultsSummary_0.5
+drwxr-xr-x 3 root root 4.0K Mar 26 14:03 ../NycTaxiPins/Board/SimResultsSummary_0.55
+drwxr-xr-x 3 root root 4.0K Mar 27 03:36 ../NycTaxiPins/Board/SimResultsSummary_0.6
+```
+
+### Exploring the Results
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
+SimResultsSummary <-
+  pin_list(BoardLocal) |>
+  grep(pattern = "SimResultsSummary_", value = TRUE) |>
+  lapply(
+    FUN = \(x) {
+      pin_read(BoardLocal, x)[,
+        tau_used := sub("SimResultsSummary_", "", x) |> as.double()
+      ]
+    }
+  ) |>
+  rbindlist(use.names = TRUE)
+
+HourlyWageByTau <-
+  SimResultsSummary[,
+    .(
+      mean_wage = mean(daily_hourly_wage_mean),
+      se_wage = sd(daily_hourly_wage_mean) / sqrt(.N)
+    ),
+    by = "tau_used"
+  ]
+
+BestResult <- HourlyWageByTau[which.max(mean_wage), ]
+
+ggplot(HourlyWageByTau, aes(tau_used, mean_wage)) +
+  geom_line(color = Params$ColorHighlight, linewidth = 1) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(ymin = mean_wage - 1.96 * se_wage, ymax = mean_wage + 1.96 * se_wage),
+    width = 0.005,
+    alpha = 0.6
+  ) +
+  labs(
+    title = TeX(r'(Simulated Hourly Wage vs. Threshold $\tau$)'),
+    subtitle = "Peak at optimal operational threshold",
+    x = TeX(r'(Threshold $\tau$)'),
+    y = "Mean Hourly Wage ($)"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily, base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 16)
+  )
+
+```
+
+The results are striking. We expected the winning strategy to be “accept most trips and reject only the worst ones.” Instead, the more selective the policy (higher $\tau$), the higher the driver’s hourly wage. Mean hourly wage rises monotonically from \$`r round(HourlyWageByTau[1L, mean_wage], 2)`$ at $\tau = 0.05$ to $`r round(BestResult$mean_wage, 2)` at $\tau$ = `r round(BestResult$tau_used, 2)` — a **`r round((BestResult$mean_wage - BaseLineHourlyWage) / BaseLineHourlyWage * 100, 2)`% lift over the baseline** of $`r round(BaseLineHourlyWage, 2)`.
+
+This is a powerful validation of the ADP loop: the XGBoost model has learned subtle, high-value trip characteristics that the baseline random-acceptance policy misses. By rejecting low-probability trips, the driver trades modest waiting time (already captured in the expanding-search logic and data-driven offers) for substantially higher earnings per hour worked.
+
+::: {.callout-warning}
+The simulation assumes an abundant supply of trips ("more passengers than taxis"). In reality, widespread selectivity could increase waiting times city-wide. Collecting data on driver availability and realized waiting times would allow a more realistic supply-side extension.
+:::
+
+### Next Steps
+
+The plan to complete the grid $[0.65, 1.0]$ with only three seeds (given the already-low standard deviation) is sound and efficient. Once those additional simulations are finalized, we will confirm whether $\tau^* = 0.60$ remains the global optimum or whether further selectivity yields even higher returns. All final results will be presented with confidence intervals derived from the original baseline seeds, ensuring full comparability across chapters.
+
+This chapter demonstrates how a well-calibrated probabilistic classifier can be transformed into a **high-performance operational policy**.

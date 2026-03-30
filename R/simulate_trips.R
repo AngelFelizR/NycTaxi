@@ -158,15 +158,17 @@ simulate_trips = function(
       # Calculate proportion of cases pending
       pending_prop = round((total_cases - (simulation_i - 1)) / total_cases, 4)
 
-      cat(sprintf(
-        "[%s] Simulation %d/%d | ID: %s | Pending: %.2f%% | Start Time: %s\n",
-        Sys.time(),
-        simulation_i,
-        total_cases,
-        initial_conditions$trip_id,
-        pending_prop * 100,
-        initial_conditions$request_datetime
-      ))
+      if (verbose) {
+        cat(sprintf(
+          "[%s] Simulation %d/%d | ID: %s | Pending: %.2f%% | Start Time: %s\n",
+          Sys.time(),
+          simulation_i,
+          total_cases,
+          initial_conditions$trip_id,
+          pending_prop * 100,
+          initial_conditions$request_datetime
+        ))
+      }
 
       # DEFINING Vehicle Profile
 
@@ -318,11 +320,19 @@ simulate_trips = function(
           }
 
           if (!is.null(fitted_wf)) {
+            # Tranforming data tipe for modeling
+            model_sampled_trip = data.table::copy(sampled_trip)
+            model_sampled_trip[, `:=`(
+              PULocationID = as.character(PULocationID),
+              DOLocationID = as.character(DOLocationID),
+              performance_per_hour = NA_real_,
+              percentile_75_performance = NA_real_
+            )]
             # TRIP FOUND & POLICY
             # Getting model prediction
-            decision_dt = workflows::predict.workflow(
+            decision_dt = predict(
               fitted_wf,
-              new_data = sampled_trip,
+              new_data = model_sampled_trip,
               type = if (is.null(threshold)) "class" else "prob"
             )
 
@@ -402,10 +412,12 @@ simulate_trips = function(
         }
       }
 
-      cat(sprintf(
-        "\n[Simulation %d] Reached time limit. Shift Ended.\n",
-        simulation_i
-      ))
+      if (verbose) {
+        cat(sprintf(
+          "\n[Simulation %d] Reached time limit. Shift Ended.\n",
+          simulation_i
+        ))
+      }
 
       data.table::setDT(simulated_trips)
 

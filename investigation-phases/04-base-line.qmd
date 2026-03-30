@@ -176,11 +176,10 @@ The reservoir-sampled trip $I_0^n$ is used **only to seed** the simulation. It i
 The daily hourly wage is computed for the **full workday** starting from the moment the driver is free after the seeding trip (even though the seeding trip itself contributes neither earnings nor hours to the sum):
 
 $$
-F^\pi(S_0^n) = \mathbb{E}\left\{ 
-\frac{1}{
-(\text{RequestTime}_{T^n}^n + \text{trip\_time}_{T^n}^n) - \text{EndTime}_{I_0^n}
-} 
-\sum_{t=1}^{T^n} \big( \text{Trip\_Earning}_{t+1}^n \times X^\pi(S_t^n \mid \theta) \big) \;\big|\; S_0^n \right\}
+F^{\pi^\tau}(S_0^n) = \mathbb{E}\left[ 
+\frac{\sum_{t=1}^{T^n} (\text{Trip\_Earning}_{t+1}^n \cdot x_t)}
+{(\text{RequestTime}_{T^n}^n + \text{trip\_time}_{T^n}^n) - \text{EndTime}_{I_0^n}} 
+\;\middle|\; S_0^n \right]
 $$
 
 Where $\text{EndTime}_{I_0^n}$ is the drop-off time of the reservoir-sampled seeding trip $I_0^n$, $T^n$ is the number of policy-accepted trips, and earnings are summed **only** over the policy-driven trips (seeding trip excluded).
@@ -577,6 +576,8 @@ visualize(SimulationVisData) +
 
 CurrentRate <- mean(SimulationHourlyWageSummary$daily_hourly_wage_mean)
 GoalRate <- CurrentRate * 1.2
+
+pin_write(BoardLocal, CurrentRate, "BaseLineHourlyWage", type = "qs2")
 ```
 
 Based on the simulation's results we can confirm that the average earnings for a taxi driver per hour goes between `r scales::dollar(SimulationInterval$lower_ci)` and `r scales::dollar(SimulationInterval$upper_ci)` with 95% confidence with a mean of **`r scales::dollar(CurrentRate)` dollars per hour**.
