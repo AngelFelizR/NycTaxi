@@ -165,11 +165,11 @@ created in this portfolio website:
 |:---|:---|:---|
 | **Core Elements of the Problem** | **Business Understanding** | [1. Business Understanding Overview](https://angelfelizr.github.io/NycTaxi/investigation-phases/01-business-understanding.html) |
 |  | **Data Understanding** | [2. Data Collection Process](https://angelfelizr.github.io/NycTaxi/investigation-phases/02-data-collection-process.html) |
-| **From Defining Mathematical Model to Evaluating Policy** | **Business Understanding** | [3. Initial Exploration](https://angelfelizr.github.io/NycTaxi/investigation-phases/03-initial-exploration.html) |
-|  | **Data Understanding** | [4. Simulation‑Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers](https://angelfelizr.github.io/NycTaxi/investigation-phases/04-base-line.html) <br> [5. Lookahead‑Based Labeling for Learning an Improved ADP Policy](https://angelfelizr.github.io/NycTaxi/investigation-phases/05-lookahead-labeling.html) |
+|  | **Business Understanding** | [3. Initial Exploration](https://angelfelizr.github.io/NycTaxi/investigation-phases/03-initial-exploration.html) |
+| **From Defining Mathematical Model to Evaluating Baseline Policy** | **Data Understanding** | [4. Simulation‑Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers](https://angelfelizr.github.io/NycTaxi/investigation-phases/04-base-line.html) <br> [5. Lookahead‑Based Labeling for Learning an Improved ADP Policy](https://angelfelizr.github.io/NycTaxi/investigation-phases/05-lookahead-labeling.html) |
 |  | **Data Preparation** | [6. Expanding Geospatial Information](https://angelfelizr.github.io/NycTaxi/investigation-phases/06-expanding-geospatial-data.html) <br> [7. Expanding Transportation and Socioeconomic Patterns](https://angelfelizr.github.io/NycTaxi/investigation-phases/07-expanding-transportation-socioeconomic.html) |
 |  | **Modeling and Evaluation** | [8. Policy Function Approximation: Training the Classifier and Validating Threshold on Held‑Out Data](https://angelfelizr.github.io/NycTaxi/investigation-phases/08-policy-function-approximation.html) |
-| **Closing the ADP Loop** | **Modeling and Evaluation** | [9. From Predictions to Policies: Integrating ML into Stochastic Optimization](https://angelfelizr.github.io/NycTaxi/investigation-phases/09-from-predictions-to-policies.html) <br> 10. Strategic $S_0$: Designing a Policy Function Approximation for Optimal Starting States *(Planned)* |
+| **Defining and Evaluating New Policies** | **Modeling and Evaluation** | [9. From Predictions to Policies: Integrating ML into Stochastic Optimization](https://angelfelizr.github.io/NycTaxi/investigation-phases/09-from-predictions-to-policies.html) <br> 10. Strategic $S_0$: Designing a Policy Function Approximation for Optimal Starting States *(Planned)* |
 |  | **Deployment** | 11\. Wrap Decision Model into REST API *(Planned)* <br> 12. Serving Model by a Shiny Web App *(Planned)* |
 
 ## Data to Use
