@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.34">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Lookahead-Based Labeling for Learning an Improved ADP Policy – NycTaxi</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-863ccfda15a7b71c4d3affcbbc984f33.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<link href="../site_libs/htmltools-fill-0.5.8.1/fill.css" rel="stylesheet">
+<script src="../site_libs/htmlwidgets-1.6.4/htmlwidgets.js"></script>
+<link href="../site_libs/ggiraphjs-0.9.2/girafe.css" rel="stylesheet">
+<script src="../site_libs/ggiraphjs-0.9.2/girafe.js"></script>
+<script src="../site_libs/girafe-binding-0.9.2/girafe.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
+    <img src="../figures/nyc-taxi-navbar-logo.png" alt="Project logo." class="navbar-logo">
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-project-phases" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Project Phases</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-project-phases">    
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/01-business-understanding.html">
+ <span class="dropdown-text">01 - Business Understanding Overview</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/02-data-collection-process.html">
+ <span class="dropdown-text">02 - Data Collection Process</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/03-initial-exploration.html">
+ <span class="dropdown-text">03 - Initial Exploration</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/04-base-line.html">
+ <span class="dropdown-text">04 - Simulation-Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/05-lookahead-labeling.html">
+ <span class="dropdown-text">05 - Lookahead-Based Labeling for Learning an Improved ADP Policy</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/06-expanding-geospatial-data.html">
+ <span class="dropdown-text">06 - Expanding Geospatial Information</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/07-expanding-transportation-socioeconomic.html">
+ <span class="dropdown-text">07 - Exploring Transportation and Socioeconomic Patterns</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/08-policy-function-approximation.html">
+ <span class="dropdown-text">08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/09-from-predictions-to-policies.html">
+ <span class="dropdown-text">09 - From Predictions to Policies: Integrating ML into Stochastic Optimization</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="https://angelfeliz.com/"> 
+<span class="menu-text">About Angel Feliz</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/AngelFelizR/NycTaxi"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://do.linkedin.com/in/angel-esteban-feliz-ferreras"> <i class="bi bi-linkedin" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#loading-packages-and-boards" id="toc-loading-packages-and-boards" class="nav-link active" data-scroll-target="#loading-packages-and-boards">Loading packages and boards</a></li>
+  <li><a href="#adding-take_current_trip-to-the-sample" id="toc-adding-take_current_trip-to-the-sample" class="nav-link" data-scroll-target="#adding-take_current_trip-to-the-sample">Adding <code>take_current_trip</code> to the sample</a>
+  <ul class="collapse">
+  <li><a href="#purpose-and-adp-link" id="toc-purpose-and-adp-link" class="nav-link" data-scroll-target="#purpose-and-adp-link">Purpose and ADP link</a></li>
+  <li><a href="#assumptions-identical-to-baseline" id="toc-assumptions-identical-to-baseline" class="nav-link" data-scroll-target="#assumptions-identical-to-baseline">Assumptions (identical to baseline)</a></li>
+  <li><a href="#implementation" id="toc-implementation" class="nav-link" data-scroll-target="#implementation">Implementation</a></li>
+  <li><a href="#tuning-the-parallel-configuration" id="toc-tuning-the-parallel-configuration" class="nav-link" data-scroll-target="#tuning-the-parallel-configuration">Tuning the parallel configuration</a></li>
+  <li><a href="#running-the-process-month-by-month" id="toc-running-the-process-month-by-month" class="nav-link" data-scroll-target="#running-the-process-month-by-month">Running the process month-by-month</a></li>
+  </ul></li>
+  <li><a href="#exploting-created-variable" id="toc-exploting-created-variable" class="nav-link" data-scroll-target="#exploting-created-variable">Exploting created variable</a>
+  <ul class="collapse">
+  <li><a href="#importing-2023-data" id="toc-importing-2023-data" class="nav-link" data-scroll-target="#importing-2023-data">Importing 2023 data</a></li>
+  <li><a href="#adding-geospatial-and-derived-features" id="toc-adding-geospatial-and-derived-features" class="nav-link" data-scroll-target="#adding-geospatial-and-derived-features">Adding geospatial and derived features</a></li>
+  <li><a href="#distribution-of-the-target" id="toc-distribution-of-the-target" class="nav-link" data-scroll-target="#distribution-of-the-target">Distribution of the target</a></li>
+  </ul></li>
+  <li><a href="#predictors-vs-take_current_trip" id="toc-predictors-vs-take_current_trip" class="nav-link" data-scroll-target="#predictors-vs-take_current_trip">Predictors vs <code>take_current_trip</code></a>
+  <ul class="collapse">
+  <li><a href="#categorical-variables" id="toc-categorical-variables" class="nav-link" data-scroll-target="#categorical-variables">Categorical variables</a></li>
+  <li><a href="#numerical-variables" id="toc-numerical-variables" class="nav-link" data-scroll-target="#numerical-variables">Numerical variables</a></li>
+  </ul></li>
+  <li><a href="#forward-link-to-the-next-chapter" id="toc-forward-link-to-the-next-chapter" class="nav-link" data-scroll-target="#forward-link-to-the-next-chapter">Forward link to the next chapter</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Lookahead-Based Labeling for Learning an Improved ADP Policy</h1>
+<p class="subtitle lead">Generating the Supervised Target Variable <code>take_current_trip</code> from Historical Data</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>In the baseline simulation (Chapter 4) we used a <strong>myopic random policy</strong> that always accepts the first qualifying trip drawn from the candidate set <span class="math inline">\(\mathcal{C}_t^n\)</span>. That policy gave us the reference hourly wage of approximately $42.17 (95% CI from bootstrap).</p>
+<p>To improve the policy we need a data-driven <strong>Policy Function Approximation (PFA)</strong>. The first indispensable step is to create a high-quality supervised training set that approximates the <strong>optimal short-horizon decision</strong> <span class="math inline">\(x_t^*\)</span>.</p>
+<p>For every historical trip <span class="math inline">\(i\)</span> (treated as the current decision epoch) we:</p>
+<ol type="1">
+<li>Reconstruct the exact state <span class="math inline">\(S_t\)</span> used in the baseline.</li>
+<li>Build the identical candidate set <span class="math inline">\(\mathcal{C}_t\)</span> that the driver would see in the next 15 minutes (same company, WAV rules, radius expansion: 1 mi → 3 mi → 5 mi → +2 mi every 2 min).</li>
+<li>Compare the benefit (<code>driver_pay + tips</code>) of trip <span class="math inline">\(i\)</span> against every reachable alternative <span class="math inline">\(j \in \mathcal{C}_t\)</span>.</li>
+<li>Label the binary target</li>
+</ol>
+<p><span class="math display">\[
+\text{take\_current\_trip}_i =
+\begin{cases}
+  1 \text{ ("Y")} &amp; \text{if trip } i \text{ is at least as good as any alternative} \\
+  0 \text{ ("N")} &amp; \text{if there exists at least one strictly better trip}
+\end{cases}
+\]</span></p>
+<p>This process is <strong>lookahead-based labeling via historical simulation</strong>. It is the standard offline technique in Approximate Dynamic Programming when perfect future information is unavailable. The resulting 24 % “reject” rate is exactly what we expect under a 15-minute horizon. These labels will later be used to train any classifier <span class="math inline">\(\hat{p}_t = \Pr(\text{take\_current\_trip}=1 \mid S_t)\)</span>, turning the policy into a tunable threshold rule <span class="math inline">\(\tau\)</span>.</p>
+<p>This guarantees that the labels are faithful to the same mathematical model we used for the baseline, so that any performance lift we later measure is real and comparable.</p>
+<section id="loading-packages-and-boards" class="level2">
+<h2 class="anchored" data-anchor-id="loading-packages-and-boards">Loading packages and boards</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="do">## To manage relative paths</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(here)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="do">## Publish data sets, models, and other R objects</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(pins)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(qs2)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="do">## To transform data that fits in RAM</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(data.table)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="do">## To create plots</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggiraph)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(scales)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="do">## Custom functions</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">load_all</span>()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="do">## Defining the print params to use in the report</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">datatable.print.nrows =</span> <span class="dv">15</span>, <span class="at">digits =</span> <span class="dv">4</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Defining the pin boards to use</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>BoardLocal <span class="ot">&lt;-</span> <span class="fu">board_folder</span>(<span class="fu">here</span>(<span class="st">"../NycTaxiPins/Board"</span>))</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading params</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>Params <span class="ot">&lt;-</span> yaml<span class="sc">::</span><span class="fu">read_yaml</span>(<span class="fu">here</span>(<span class="st">"params.yml"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Why this step is important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>We load exactly the same board and custom functions used in the baseline simulation, guaranteeing reproducibility and identical data structures (zones, distances, WAV flags, etc.).</p>
+</div>
+</div>
+</section>
+<section id="adding-take_current_trip-to-the-sample" class="level2">
+<h2 class="anchored" data-anchor-id="adding-take_current_trip-to-the-sample">Adding <code>take_current_trip</code> to the sample</h2>
+<section id="purpose-and-adp-link" class="level3">
+<h3 class="anchored" data-anchor-id="purpose-and-adp-link">Purpose and ADP link</h3>
+<p>The new variable <code>take_current_trip</code> is the <strong>supervised label</strong> that approximates the optimal decision <span class="math inline">\(x_t^*\)</span> under the same sequential-decision framework defined in Chapter 4. It tells the future PFA model: “Given the current state, should the driver accept this trip or keep searching?”</p>
+</section>
+<section id="assumptions-identical-to-baseline" class="level3">
+<h3 class="anchored" data-anchor-id="assumptions-identical-to-baseline">Assumptions (identical to baseline)</h3>
+<p>For a future trip to be considered a valid alternative it must satisfy <strong>exactly</strong> the constraints used in the baseline simulation:</p>
+<ol type="1">
+<li>Same taxi company (<code>hvfhs_license_num</code>).</li>
+<li>WAV compatibility (<code>wav_match_flag</code>).</li>
+<li>Request time window: 3 seconds (rejection delay) to 15 minutes after the original request.</li>
+<li>Distance from current zone follows the same radius-expansion policy:
+<ul>
+<li>0–1 min → 1 mile<br>
+</li>
+<li>1–3 min → 3 miles<br>
+</li>
+<li>3–5 min → 5 miles<br>
+</li>
+<li>+2 miles every additional 2 minutes.</li>
+</ul></li>
+</ol>
+<p>This ensure the training labels are generated under the identical uncertainty model <span class="math inline">\(\mathcal{C}_t^n\)</span> and transition function <span class="math inline">\(S^M(\cdot)\)</span>. Any deviation would make the later PFA incomparable to the baseline.</p>
+</section>
+<section id="implementation" class="level3">
+<h3 class="anchored" data-anchor-id="implementation">Implementation</h3>
+<p>Because the process is embarrassingly parallel and memory-intensive, we use <code>future</code> multicore processing. The core function <code>add_take_current_trip()</code> has been unit-tested (see GitHub test file) and implements the exact candidate-set logic from the baseline.</p>
+<p><strong>Why parallel processing matters</strong>: Running 500 k+ independent 15-minute simulations sequentially would take days. With 4 future cores + 8 data.table threads we complete the full 2023 dataset in a few hours without hitting swap memory.</p>
+</section>
+<section id="tuning-the-parallel-configuration" class="level3">
+<h3 class="anchored" data-anchor-id="tuning-the-parallel-configuration">Tuning the parallel configuration</h3>
+<p>Before scaling to the full year we benchmarked every combination of cores, chunk size, and scheduling. The optimal settings (data.table: 8 cores, future: 4 cores, chunk.size = 200, scheduling = 0.6) were selected because they minimized wall-clock time while staying inside the 17 GB RAM limit.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Why tuning is essential
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A suboptimal configuration would either waste CPU cycles or crash the process. The chosen parameters give reproducible, efficient labeling at production scale.</p>
+</div>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> ~/NycTaxi/multicore-scripts/01-fine-tune-future-process.R</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The below plot summaries the obtained results.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div class="girafe html-widget html-fill-item" id="htmlwidget-1f54cd4dbbb959c2b9db" style="width:100%;height:464px;"></div>
+<script type="application/json" data-for="htmlwidget-1f54cd4dbbb959c2b9db">{"x":{"html":"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='ggiraph-svg' role='graphics-document' id='svg_4cd968bb14175032' viewBox='0 0 504 360'>\n <defs id='svg_4cd968bb14175032_defs'>\n  <clipPath id='svg_4cd968bb14175032_c1'>\n   <rect x='0' y='0' width='504' height='360'/>\n  <\/clipPath>\n  <clipPath id='svg_4cd968bb14175032_c2'>\n   <rect x='40.24' y='79.53' width='226.4' height='248.76'/>\n  <\/clipPath>\n  <clipPath id='svg_4cd968bb14175032_c3'>\n   <rect x='272.12' y='79.53' width='226.4' height='248.76'/>\n  <\/clipPath>\n  <clipPath id='svg_4cd968bb14175032_c4'>\n   <rect x='40.24' y='62.52' width='226.4' height='17.01'/>\n  <\/clipPath>\n  <clipPath id='svg_4cd968bb14175032_c5'>\n   <rect x='272.12' y='62.52' width='226.4' height='17.01'/>\n  <\/clipPath>\n <\/defs>\n <g id='svg_4cd968bb14175032_rootg' class='ggiraph-svg-rootg'>\n  <g clip-path='url(#svg_4cd968bb14175032_c1)'>\n   <rect x='0' y='0' width='504' height='360' fill='#FFFFFF' fill-opacity='1' stroke='#FFFFFF' stroke-opacity='1' stroke-width='0.75' stroke-linejoin='round' stroke-linecap='round' class='ggiraph-svg-bg'/>\n   <rect x='0' y='0' width='504' height='360' fill='#FFFFFF' fill-opacity='1' stroke='none'/>\n  <\/g>\n  <g clip-path='url(#svg_4cd968bb14175032_c2)'>\n   <polyline points='40.24,277.51 266.64,277.51' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,213.10 266.64,213.10' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,155.90 266.64,155.90' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,104.46 266.64,104.46' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='71.64,328.29 71.64,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='124.42,328.29 124.42,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='177.19,328.29 177.19,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='229.97,328.29 229.97,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,311.74 266.64,311.74' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,243.28 266.64,243.28' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,182.91 266.64,182.91' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,128.89 266.64,128.89' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='40.24,80.03 266.64,80.03' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='45.26,328.29 45.26,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='98.03,328.29 98.03,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='150.80,328.29 150.80,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='203.58,328.29 203.58,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='256.35,328.29 256.35,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='50.54,90.84 98.03,212.67 150.80,311.12 256.35,309.23' fill='none' stroke='#F8766D' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='71.64,191.64 98.03,288.66 150.80,315.07 256.35,313.70' fill='none' stroke='#00BA38' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='71.64,172.79 98.03,294.82 150.80,316.99 256.35,299.90' fill='none' stroke='#619CFF' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <circle id='svg_4cd968bb14175032_e1' cx='50.54' cy='90.84' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='538.53'/>\n   <circle id='svg_4cd968bb14175032_e2' cx='71.64' cy='191.64' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='442.4'/>\n   <circle id='svg_4cd968bb14175032_e3' cx='71.64' cy='172.79' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='458.97'/>\n   <circle id='svg_4cd968bb14175032_e4' cx='98.03' cy='212.67' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='424.62'/>\n   <circle id='svg_4cd968bb14175032_e5' cx='98.03' cy='288.66' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='366.12'/>\n   <circle id='svg_4cd968bb14175032_e6' cx='98.03' cy='294.82' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='361.74'/>\n   <circle id='svg_4cd968bb14175032_e7' cx='150.8' cy='311.12' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='350.42'/>\n   <circle id='svg_4cd968bb14175032_e8' cx='150.8' cy='315.07' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='347.73'/>\n   <circle id='svg_4cd968bb14175032_e9' cx='150.8' cy='316.99' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='346.43'/>\n   <circle id='svg_4cd968bb14175032_e10' cx='256.35' cy='309.23' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='351.72'/>\n   <circle id='svg_4cd968bb14175032_e11' cx='256.35' cy='313.7' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='348.66'/>\n   <circle id='svg_4cd968bb14175032_e12' cx='256.35' cy='299.9' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='358.18'/>\n  <\/g>\n  <g clip-path='url(#svg_4cd968bb14175032_c3)'>\n   <polyline points='272.12,277.51 498.52,277.51' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,213.10 498.52,213.10' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,155.90 498.52,155.90' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,104.46 498.52,104.46' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='303.52,328.29 303.52,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='356.30,328.29 356.30,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='409.07,328.29 409.07,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='461.84,328.29 461.84,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='0.53' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,311.74 498.52,311.74' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,243.28 498.52,243.28' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,182.91 498.52,182.91' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,128.89 498.52,128.89' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='272.12,80.03 498.52,80.03' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='277.14,328.29 277.14,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='329.91,328.29 329.91,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='382.68,328.29 382.68,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='435.46,328.29 435.46,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='488.23,328.29 488.23,79.53' fill='none' stroke='#EBEBEB' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='303.52,100.02 329.91,266.00 382.68,270.91 488.23,278.54' fill='none' stroke='#F8766D' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='303.52,208.22 329.91,263.22 382.68,270.93 488.23,270.30' fill='none' stroke='#00BA38' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <polyline points='303.52,233.69 329.91,269.34 382.68,272.84' fill='none' stroke='#619CFF' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <circle id='svg_4cd968bb14175032_e13' cx='303.52' cy='100.02' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='528.97'/>\n   <circle id='svg_4cd968bb14175032_e14' cx='303.52' cy='208.22' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='428.32'/>\n   <circle id='svg_4cd968bb14175032_e15' cx='303.52' cy='233.69' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='407.56'/>\n   <circle id='svg_4cd968bb14175032_e16' cx='329.91' cy='266' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='382.66'/>\n   <circle id='svg_4cd968bb14175032_e17' cx='329.91' cy='263.22' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='384.74'/>\n   <circle id='svg_4cd968bb14175032_e18' cx='329.91' cy='269.34' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='380.18'/>\n   <circle id='svg_4cd968bb14175032_e19' cx='382.68' cy='270.91' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='379.02'/>\n   <circle id='svg_4cd968bb14175032_e20' cx='382.68' cy='270.93' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='379'/>\n   <circle id='svg_4cd968bb14175032_e21' cx='382.68' cy='272.84' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='377.59'/>\n   <circle id='svg_4cd968bb14175032_e22' cx='488.23' cy='278.54' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='373.42'/>\n   <circle id='svg_4cd968bb14175032_e23' cx='488.23' cy='270.3' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round' title='379.46'/>\n  <\/g>\n  <g clip-path='url(#svg_4cd968bb14175032_c4)'>\n   <text x='97.55' y='74.23' font-size='6.6pt' font-family='DejaVu Sans' fill='#1A1A1A' fill-opacity='1'>Future: 4 and DT: 8 Cores<\/text>\n  <\/g>\n  <g clip-path='url(#svg_4cd968bb14175032_c5)'>\n   <text x='329.43' y='74.23' font-size='6.6pt' font-family='DejaVu Sans' fill='#1A1A1A' fill-opacity='1'>Future: 7 and DT: 1 Cores<\/text>\n  <\/g>\n  <g clip-path='url(#svg_4cd968bb14175032_c1)'>\n   <text x='42.46' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>0<\/text>\n   <text x='92.44' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>50<\/text>\n   <text x='142.41' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>100<\/text>\n   <text x='195.19' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>150<\/text>\n   <text x='247.96' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>200<\/text>\n   <text x='274.34' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>0<\/text>\n   <text x='324.31' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>50<\/text>\n   <text x='374.29' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>100<\/text>\n   <text x='427.06' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>150<\/text>\n   <text x='479.84' y='339.64' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>200<\/text>\n   <text x='18.53' y='314.95' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>350<\/text>\n   <text x='18.53' y='246.49' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>400<\/text>\n   <text x='18.53' y='186.11' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>450<\/text>\n   <text x='18.53' y='132.1' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>500<\/text>\n   <text x='18.53' y='83.24' font-size='6.6pt' font-family='DejaVu Sans' fill='#4D4D4D' fill-opacity='1'>550<\/text>\n   <text x='238.86' y='352.23' font-size='8.25pt' font-family='DejaVu Sans'>Chunk Size<\/text>\n   <text transform='translate(13.50,236.71) rotate(-90.00)' font-size='8.25pt' font-family='DejaVu Sans'>Duration (s)<\/text>\n   <text x='175.65' y='41.45' font-size='8.25pt' font-family='DejaVu Sans'>Scheduling<\/text>\n   <line x1='243.66' y1='37.44' x2='257.48' y2='37.44' stroke='#F8766D' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <circle cx='250.57' cy='37.44' r='1.47pt' fill='#F8766D' fill-opacity='1' stroke='#F8766D' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round'/>\n   <line x1='285.88' y1='37.44' x2='299.7' y2='37.44' stroke='#00BA38' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <circle cx='292.79' cy='37.44' r='1.47pt' fill='#00BA38' fill-opacity='1' stroke='#00BA38' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round'/>\n   <line x1='328.1' y1='37.44' x2='341.92' y2='37.44' stroke='#619CFF' stroke-opacity='1' stroke-width='1.07' stroke-linejoin='round' stroke-linecap='butt'/>\n   <circle cx='335.01' cy='37.44' r='1.47pt' fill='#619CFF' fill-opacity='1' stroke='#619CFF' stroke-opacity='1' stroke-width='0.71' stroke-linejoin='round' stroke-linecap='round'/>\n   <text x='264.69' y='40.65' font-size='6.6pt' font-family='DejaVu Sans'>0.4<\/text>\n   <text x='306.91' y='40.65' font-size='6.6pt' font-family='DejaVu Sans'>0.5<\/text>\n   <text x='349.13' y='40.65' font-size='6.6pt' font-family='DejaVu Sans'>0.6<\/text>\n   <text x='40.24' y='15.1' font-size='9.9pt' font-weight='bold' font-family='DejaVu Sans'>Future Performance<\/text>\n  <\/g>\n <\/g>\n<\/svg>","js":null,"uid":"svg_4cd968bb14175032","ratio":1.4,"settings":{"tooltip":{"css":".tooltip_SVGID_ { padding:5px;background:black;color:white;border-radius:2px;text-align:left; ; position:absolute;pointer-events:none;z-index:999;}","placement":"doc","opacity":0.9,"offx":10,"offy":10,"use_cursor_pos":true,"use_fill":false,"use_stroke":false,"delay_over":200,"delay_out":500},"hover":{"css":".hover_data_SVGID_ { fill:orange;stroke:black;cursor:pointer; }\ntext.hover_data_SVGID_ { stroke:none;fill:orange; }\ncircle.hover_data_SVGID_ { fill:orange;stroke:black; }\nline.hover_data_SVGID_, polyline.hover_data_SVGID_ { fill:none;stroke:orange; }\nrect.hover_data_SVGID_, polygon.hover_data_SVGID_, path.hover_data_SVGID_ { fill:orange;stroke:none; }\nimage.hover_data_SVGID_ { stroke:orange; }","reactive":true,"nearest_distance":null},"hover_inv":{"css":""},"hover_key":{"css":".hover_key_SVGID_ { fill:orange;stroke:black;cursor:pointer; }\ntext.hover_key_SVGID_ { stroke:none;fill:orange; }\ncircle.hover_key_SVGID_ { fill:orange;stroke:black; }\nline.hover_key_SVGID_, polyline.hover_key_SVGID_ { fill:none;stroke:orange; }\nrect.hover_key_SVGID_, polygon.hover_key_SVGID_, path.hover_key_SVGID_ { fill:orange;stroke:none; }\nimage.hover_key_SVGID_ { stroke:orange; }","reactive":true},"hover_theme":{"css":".hover_theme_SVGID_ { fill:orange;stroke:black;cursor:pointer; }\ntext.hover_theme_SVGID_ { stroke:none;fill:orange; }\ncircle.hover_theme_SVGID_ { fill:orange;stroke:black; }\nline.hover_theme_SVGID_, polyline.hover_theme_SVGID_ { fill:none;stroke:orange; }\nrect.hover_theme_SVGID_, polygon.hover_theme_SVGID_, path.hover_theme_SVGID_ { fill:orange;stroke:none; }\nimage.hover_theme_SVGID_ { stroke:orange; }","reactive":true},"select":{"css":".select_data_SVGID_ { fill:red;stroke:black;cursor:pointer; }\ntext.select_data_SVGID_ { stroke:none;fill:red; }\ncircle.select_data_SVGID_ { fill:red;stroke:black; }\nline.select_data_SVGID_, polyline.select_data_SVGID_ { fill:none;stroke:red; }\nrect.select_data_SVGID_, polygon.select_data_SVGID_, path.select_data_SVGID_ { fill:red;stroke:none; }\nimage.select_data_SVGID_ { stroke:red; }","type":"multiple","only_shiny":true,"selected":[]},"select_inv":{"css":""},"select_key":{"css":".select_key_SVGID_ { fill:red;stroke:black;cursor:pointer; }\ntext.select_key_SVGID_ { stroke:none;fill:red; }\ncircle.select_key_SVGID_ { fill:red;stroke:black; }\nline.select_key_SVGID_, polyline.select_key_SVGID_ { fill:none;stroke:red; }\nrect.select_key_SVGID_, polygon.select_key_SVGID_, path.select_key_SVGID_ { fill:red;stroke:none; }\nimage.select_key_SVGID_ { stroke:red; }","type":"single","only_shiny":true,"selected":[]},"select_theme":{"css":".select_theme_SVGID_ { fill:red;stroke:black;cursor:pointer; }\ntext.select_theme_SVGID_ { stroke:none;fill:red; }\ncircle.select_theme_SVGID_ { fill:red;stroke:black; }\nline.select_theme_SVGID_, polyline.select_theme_SVGID_ { fill:none;stroke:red; }\nrect.select_theme_SVGID_, polygon.select_theme_SVGID_, path.select_theme_SVGID_ { fill:red;stroke:none; }\nimage.select_theme_SVGID_ { stroke:red; }","type":"single","only_shiny":true,"selected":[]},"zoom":{"min":1,"max":1,"duration":300,"default_on":false},"toolbar":{"position":"topright","pngname":"diagram","tooltips":null,"fixed":false,"hidden":[],"delay_over":200,"delay_out":500},"sizing":{"rescale":true,"width":1}}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<p>And as we can see the got better performance by using fewer cores for future, due the RAM capacity limit, when using only 4 cores and increasing the number of task per core we can see the time needed to complete the 2k samples it’s reduced as it didn’t use the SWAP memory while running the process, as we can see in the next screenshot.</p>
+<p><img src="../figures/htop_parallel_process.png" class="img-fluid"></p>
+<p>And after checking this results we ended with the next configuration:</p>
+<ul>
+<li>Number of cores used by <code>data.table</code>: 8</li>
+<li>Number of cores used by <code>future</code>: 4</li>
+<li>Chunk.size used by <code>future</code>: 200</li>
+<li>Scheduling used by <code>future</code>: 0.6</li>
+</ul>
+</section>
+<section id="running-the-process-month-by-month" class="level3">
+<h3 class="anchored" data-anchor-id="running-the-process-month-by-month">Running the process month-by-month</h3>
+<p>We execute one month at a time via the bash script <code>02-run_add_target.sh</code> to protect against interruptions and memory overflow.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Why month-by-month execution matters
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>It turns a high-risk, all-or-nothing job into a fault-tolerant pipeline. We can resume from any month without reprocessing prior data.</p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Check if the correct number of arguments is provided</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="st">"</span><span class="va">$#</span><span class="st">"</span> <span class="ot">-ne</span> 3 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="bu">echo</span> <span class="st">"Usage: </span><span class="va">$0</span><span class="st"> &lt;script_path&gt; &lt;start_number&gt; &lt;end_number&gt;"</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="bu">exit</span> 1</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Assign arguments to variables</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="va">SCRIPT_PATH</span><span class="op">=</span><span class="va">$1</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="va">START_NUM</span><span class="op">=</span><span class="va">$2</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="va">END_NUM</span><span class="op">=</span><span class="va">$3</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Loop through the given range and run the R script</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="va">$(</span><span class="fu">seq</span> <span class="va">$START_NUM</span> <span class="va">$END_NUM)</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="cf">do</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  <span class="ex">Rscript</span> <span class="va">$SCRIPT_PATH</span> <span class="va">$i</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Once defined the bash script we can use it by running the next command in the terminal.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> multicore-scripts/02-run_add_target.sh multicore-scripts/02-add-target.R  1 24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Here we can see that the 24 files have been saved as fst binnary files.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>BoardLocal <span class="sc">|&gt;</span> <span class="fu">pin_list</span>() <span class="sc">|&gt;</span> <span class="fu">grep</span>(<span class="at">pattern =</span> <span class="st">"OneMonth"</span>, <span class="at">value =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span> <span class="fu">sort</span>()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] "OneMonthData01" "OneMonthData02" "OneMonthData03" "OneMonthData04"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [5] "OneMonthData05" "OneMonthData06" "OneMonthData07" "OneMonthData08"</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [9] "OneMonthData09" "OneMonthData10" "OneMonthData11" "OneMonthData12"</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [13] "OneMonthData13" "OneMonthData14" "OneMonthData15" "OneMonthData16"</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [17] "OneMonthData17" "OneMonthData18" "OneMonthData19" "OneMonthData20"</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [21] "OneMonthData21" "OneMonthData22" "OneMonthData23" "OneMonthData24"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="exploting-created-variable" class="level2">
+<h2 class="anchored" data-anchor-id="exploting-created-variable">Exploting created variable</h2>
+<section id="importing-2023-data" class="level3">
+<h3 class="anchored" data-anchor-id="importing-2023-data">Importing 2023 data</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>ValidZoneSample2023 <span class="ot">&lt;-</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pin_list</span>(BoardLocal) <span class="sc">|&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span>(<span class="at">pattern =</span> <span class="st">"^OneMonthData"</span>, <span class="at">value =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sort</span>() <span class="sc">|&gt;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(<span class="dv">12</span>L) <span class="sc">|&gt;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(<span class="at">FUN =</span> pin_read, <span class="at">board =</span> BoardLocal) <span class="sc">|&gt;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rbindlist</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="adding-geospatial-and-derived-features" class="level3">
+<h3 class="anchored" data-anchor-id="adding-geospatial-and-derived-features">Adding geospatial and derived features</h3>
+<p>The PFA model will be trained on the same state variables that appear in <span class="math inline">\(S_t^n\)</span> (company, WAV, zone, time-of-day, borough, service zone). Enriching now guarantees that every predictor used later is already aligned with the baseline state definition.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>ZoneCodesRef <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(BoardLocal, <span class="st">"ZoneCodesRef"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ValidZoneSample2023[, <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">company =</span> <span class="fu">fcase</span>(</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    hvfhs_license_num <span class="sc">==</span> <span class="st">"HV0002"</span> , <span class="st">"Juno"</span> ,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    hvfhs_license_num <span class="sc">==</span> <span class="st">"HV0003"</span> , <span class="st">"Uber"</span> ,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    hvfhs_license_num <span class="sc">==</span> <span class="st">"HV0004"</span> , <span class="st">"Via"</span>  ,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    hvfhs_license_num <span class="sc">==</span> <span class="st">"HV0005"</span> , <span class="st">"Lyft"</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">take_current_trip =</span> <span class="fu">factor</span>(</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">fifelse</span>(take_current_trip <span class="sc">==</span> <span class="dv">1</span>, <span class="st">"Y"</span>, <span class="st">"N"</span>),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"Y"</span>, <span class="st">"N"</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">weekday =</span> <span class="fu">wday</span>(request_datetime, <span class="at">label =</span> <span class="cn">TRUE</span>, <span class="at">abbr =</span> <span class="cn">FALSE</span>, <span class="at">week_start =</span> <span class="dv">1</span>),</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">month =</span> <span class="fu">month</span>(request_datetime, <span class="at">label =</span> <span class="cn">TRUE</span>, <span class="at">abbr =</span> <span class="cn">FALSE</span>),</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">hour =</span> <span class="fu">hour</span>(request_datetime),</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">trip_time_min =</span> trip_time <span class="sc">/</span> <span class="dv">60</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">trip_value =</span> tips <span class="sc">+</span> driver_pay,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">PULocationID =</span> <span class="fu">as.character</span>(PULocationID),</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">DOLocationID =</span> <span class="fu">as.character</span>(DOLocationID)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>)]</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="co"># To explore the distribution provided by the `PULocationID` (Pick Up Zone ID)</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="co"># and `DOLocationID` (Drop Off Zone ID), we need to add extra information.</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co"># If we check the taxi zone look up table, we can find the `Borough` and</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="co"># `service_zone` of each table.</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>ValidZoneSample2023[</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>  ZoneCodesRef,</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>  on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"PULocationID"</span> <span class="ot">=</span> <span class="st">"LocationID"</span>),</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">PULocationID =</span> <span class="fu">as.character</span>(PULocationID),</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">PUBorough =</span> Borough,</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">PUServiceZone =</span> service_zone</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>ValidZoneSample2023[</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>  ZoneCodesRef,</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>  on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"DOLocationID"</span> <span class="ot">=</span> <span class="st">"LocationID"</span>),</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>    <span class="at">DOLocationID =</span> <span class="fu">as.character</span>(DOLocationID),</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>    <span class="at">DOBorough =</span> Borough,</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>    <span class="at">DOServiceZone =</span> service_zone</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="distribution-of-the-target" class="level3">
+<h3 class="anchored" data-anchor-id="distribution-of-the-target">Distribution of the target</h3>
+<p>It shows that only 24 % of trips should be rejected under a 15-minute lookahead. This gives us an immediate sanity check that the labeling process matches the economics we observed in the baseline simulation.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>ValidZoneSample2023[, .N, by <span class="ot">=</span> <span class="st">"take_current_trip"</span>][, <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">prop =</span> N <span class="sc">/</span> <span class="fu">sum</span>(N),</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">take_current_trip =</span> <span class="fu">reorder</span>(take_current_trip, N)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>)] <span class="sc">|&gt;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(N, take_current_trip)) <span class="sc">+</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>(<span class="at">fill =</span> Params<span class="sc">$</span>ColorGray, <span class="at">color =</span> <span class="st">"black"</span>, <span class="at">width =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> <span class="fu">percent</span>(prop, <span class="at">accuracy =</span> <span class="dv">1</span>)), <span class="at">nudge_x =</span> <span class="dv">10000</span>) <span class="sc">+</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">labels =</span> <span class="fu">comma_format</span>()) <span class="sc">+</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Only 24% of the trips need to be rejected"</span>, <span class="at">x =</span> <span class="st">""</span>) <span class="sc">+</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.y =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">size =</span> <span class="dv">15</span>)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="05-lookahead-labeling_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="predictors-vs-take_current_trip" class="level2">
+<h2 class="anchored" data-anchor-id="predictors-vs-take_current_trip">Predictors vs <code>take_current_trip</code></h2>
+<p>We restrict analysis to trips ≥ 2 minutes (as decided in the baseline) and explore only variables with ≥ 2 levels and ≥ 1 % representation.</p>
+<section id="categorical-variables" class="level3">
+<h3 class="anchored" data-anchor-id="categorical-variables">Categorical variables</h3>
+<ol type="1">
+<li><code>dispatching_base_num</code>, <code>originating_base_num</code>, and <code>access_a_ride_flag</code> were not included as represent the same information that the <code>company</code>.</li>
+<li><code>PULocationID</code> and <code>DOLocationID</code> present a <strong>strong</strong> variation.</li>
+<li><code>wav_match_flag</code>present a <strong>moderate</strong> variation.</li>
+<li><code>company</code> present a <strong>moderate</strong> variation.</li>
+<li><code>weekday</code> present <strong>low</strong> variation.</li>
+<li><code>month</code> present a <strong>moderate</strong> variation.</li>
+<li><code>hour</code> present a <strong>strong</strong> variation.</li>
+<li><code>PUBorough</code> present a <strong>strong</strong> variation.</li>
+<li><code>PUServiceZone</code> present a <strong>strong</strong> variation.</li>
+<li><code>DOBorough</code> present a <strong>strong</strong> variation.</li>
+<li><code>DOServiceZone</code> present a <strong>strong</strong> variation.</li>
+</ol>
+</section>
+<section id="numerical-variables" class="level3">
+<h3 class="anchored" data-anchor-id="numerical-variables">Numerical variables</h3>
+<ol type="1">
+<li><code>trip_miles</code> alone is not highly effective in predicting whether a trip will be taken as but classes present <em>overlapping distributions</em> and <em>similar cumulative distributions</em>, which make it a <strong>low</strong> predictor.</li>
+<li><code>trip_time_min</code> alone is not highly effective in predicting whether a trip will be taken as both classes present <em>overlapping distributions</em> and <em>similar cumulative distributions</em>, which make it a <strong>low</strong> predictor.</li>
+</ol>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">Categorical</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">Trip miles</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false">Trip time</a></li></ul>
+<div class="tab-content">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>TrainingSampleValidCat <span class="ot">&lt;-</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  ValidZoneSample2023[</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    trip_time_min <span class="sc">&gt;=</span> <span class="dv">2</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">c</span>(.SD, <span class="fu">list</span>(<span class="st">"trip_id"</span> <span class="ot">=</span> trip_id)) <span class="sc">|&gt;</span> <span class="fu">lapply</span>(as.character),</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    .SDcols <span class="ot">=</span> \(x) <span class="fu">is.character</span>(x) <span class="sc">|</span> <span class="fu">is.factor</span>(x) <span class="sc">|</span> <span class="fu">is.integer</span>(x)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  ][,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">melt</span>(.SD, <span class="at">id.vars =</span> <span class="fu">c</span>(<span class="st">"trip_id"</span>, <span class="st">"take_current_trip"</span>)),</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    .SDcols <span class="ot">=</span> <span class="sc">!</span><span class="fu">c</span>(</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>      <span class="st">"hvfhs_license_num"</span>,</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      <span class="st">"dispatching_base_num"</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>      <span class="st">"originating_base_num"</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>      <span class="st">"access_a_ride_flag"</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  ][, value_count <span class="sc">:</span><span class="er">=</span> .N, by <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"variable"</span>, <span class="st">"value"</span>)][,</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    value_prop <span class="sc">:</span><span class="er">=</span> value_count <span class="sc">/</span> .N,</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> <span class="st">"variable"</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  ][value_prop <span class="sc">&gt;=</span> <span class="fl">0.01</span>][, n_unique_values <span class="sc">:</span><span class="er">=</span> <span class="fu">uniqueN</span>(value), by <span class="ot">=</span> <span class="st">"variable"</span>][</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    n_unique_values <span class="sc">&gt;</span> <span class="dv">1</span>L</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>  TrainingSampleValidCat,</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(value, <span class="at">fill =</span> <span class="fu">factor</span>(take_current_trip, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"Y"</span>, <span class="st">"N"</span>)))</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_bar</span>(<span class="at">width =</span> <span class="fl">0.7</span>, <span class="at">position =</span> <span class="st">"fill"</span>) <span class="sc">+</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"N"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorHighlight, <span class="st">"Y"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorGray)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> <span class="fu">percent_format</span>(<span class="at">accuracy =</span> <span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="fu">vars</span>(variable), <span class="at">scale =</span> <span class="st">"free"</span>, <span class="at">ncol =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_flip</span>() <span class="sc">+</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">"Prop of trips"</span>, <span class="at">fill =</span> <span class="st">"take_current_trip"</span>) <span class="sc">+</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"top"</span>, <span class="at">panel.grid =</span> <span class="fu">element_blank</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="05-lookahead-labeling_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_num_distribution</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  ValidZoneSample2023[trip_time_min <span class="sc">&gt;=</span> <span class="dv">2</span>],</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  trip_miles,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"trip_miles"</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  take_current_trip,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">manual_fill_values =</span> <span class="fu">c</span>(<span class="st">"N"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorHighlight, <span class="st">"Y"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorGray),</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">hist_binwidth =</span> <span class="dv">5</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">hist_n_break =</span> <span class="dv">12</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">log_binwidth =</span> <span class="fl">0.5</span>,</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">curve_limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">25</span>),</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">curve_breaks_x =</span> <span class="fu">breaks_width</span>(<span class="dv">3</span>)</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Warning: Removed 489 rows containing non-finite outside the scale range</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (`stat_ecdf()`).</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="05-lookahead-labeling_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_num_distribution</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  ValidZoneSample2023[trip_time_min <span class="sc">&gt;=</span> <span class="dv">2</span>],</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  trip_time_min,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  take_current_trip,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">manual_fill_values =</span> <span class="fu">c</span>(<span class="st">"N"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorHighlight, <span class="st">"Y"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorGray),</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"trip_time_min"</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">hist_binwidth =</span> <span class="dv">5</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">hist_n_break =</span> <span class="dv">12</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">log_binwidth =</span> <span class="fl">0.5</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">curve_breaks_x =</span> scales<span class="sc">::</span><span class="fu">breaks_width</span>(<span class="dv">10</span>),</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">curve_limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Warning: Removed 460 rows containing non-finite outside the scale range</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (`stat_ecdf()`).</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="05-lookahead-labeling_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Why the predictor analysis matters
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>It tells us which features carry signal for the PFA classifier. Strong variation in hour, borough, service zone, and location IDs confirms that the state variables we used in the baseline simulation are indeed predictive of the optimal decision. Weak predictors (trip_miles and trip_time alone) will be combined with others in the full model.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="forward-link-to-the-next-chapter" class="level2">
+<h2 class="anchored" data-anchor-id="forward-link-to-the-next-chapter">Forward link to the next chapter</h2>
+<p>We now possess a clean, large-scale, labeled dataset whose labels were generated under the <strong>exact same mathematical model</strong> used for the baseline hourly wage. In the next chapter we will train a classifier on these labels, convert its probability output into a tunable threshold policy <span class="math inline">\(\pi^\tau\)</span>, and re-run the same <strong>full-day empirical simulation</strong> (Monte-Carlo averaging over many trajectories sampled directly from the historical data) from Chapter 4. The resulting hourly wage (and its confidence interval) will be directly comparable to the myopic baseline, giving us a quantifiable improvement from the Policy Function Approximation.</p>
+<p>This completes the critical data-preparation stage of the ADP pipeline.</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

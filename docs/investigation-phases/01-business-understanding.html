@@ -140,16 +140,16 @@ window.Quarto = {
  <span class="dropdown-text">02 - Data Collection Process</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../investigation-phases/03-base-line.html">
- <span class="dropdown-text">03 - Defining Base Line</span></a>
+    <a class="dropdown-item" href="../investigation-phases/03-initial-exploration.html">
+ <span class="dropdown-text">03 - Initial Exploration</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../investigation-phases/04-data-sampling.html">
- <span class="dropdown-text">04 - Data Sampling</span></a>
+    <a class="dropdown-item" href="../investigation-phases/04-base-line.html">
+ <span class="dropdown-text">04 - Simulation-Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../investigation-phases/05-initial-exploration.html">
- <span class="dropdown-text">05 - Initial Exploration</span></a>
+    <a class="dropdown-item" href="../investigation-phases/05-lookahead-labeling.html">
+ <span class="dropdown-text">05 - Lookahead-Based Labeling for Learning an Improved ADP Policy</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/06-expanding-geospatial-data.html">
@@ -160,8 +160,12 @@ window.Quarto = {
  <span class="dropdown-text">07 - Exploring Transportation and Socioeconomic Patterns</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="../investigation-phases/08-model-selection.html">
- <span class="dropdown-text">08 - Training and Selecting Model To Implement</span></a>
+    <a class="dropdown-item" href="../investigation-phases/08-policy-function-approximation.html">
+ <span class="dropdown-text">08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/09-from-predictions-to-policies.html">
+ <span class="dropdown-text">09 - From Predictions to Policies: Integrating ML into Stochastic Optimization</span></a>
   </li>  
     </ul>
   </li>
@@ -231,8 +235,8 @@ window.Quarto = {
 <p>The elements of the process are defined using a <strong>SIPOC</strong> diagram.</p>
 <div class="cell">
 <div class="cell-output-display">
-<div class="grViz html-widget html-fill-item" id="htmlwidget-1b60aacf92008e01934c" style="width:100%;height:464px;"></div>
-<script type="application/json" data-for="htmlwidget-1b60aacf92008e01934c">{"x":{"diagram":"\ndigraph SIPOC {\n    rankdir=LR;\n    node [shape=box];\n    subgraph cluster_S {\n        label=\"Suppliers\";\n        S1 [label=\"Gas Station\"];\n        S2 [label=\"Car Manufacturer\"];\n        S3 [label=\"Taxi Application\"];\n        S4 [label=\"Telecommunication\nCompany\"];\n        S5 [label=\"Smartphone Supplier\"];\n        S6 [label=\"Maintenance\nService Providers\"];\n    }\n    subgraph cluster_I {\n        label=\"Inputs\";\n        I1 [label=\"Gas\"];\n        I2 [label=\"Car\"];\n        I3 [label=\"Start\nLocation\"];\n        I4 [label=\"End\nLocation\"];\n        I5 [label=\"Internet\"];\n        I6 [label=\"Smartphone\"];\n        I7 [label=\"Customer\nRequests\"];\n    }\n    subgraph cluster_P {\n        label=\"Process\";\n        P1 [label=\"The customer requests a taxi\"];\n        P2 [label=\"the driver arrives at\nthe pick-up location\"];\n        P3 [label=\"The driver picks the customer up\"];\n        P4 [label=\"The driver drives to destination\"];\n        P5 [label=\"The driver leaves the customer\nat the end point\"];\n    }\n    subgraph cluster_O {\n        label=\"Outputs\";\n        O2 [label=\"Customer travel experience\"];\n        O3 [label=\"Customer transfer\"];\n        O4 [label=\"Payment\"]\n    }\n    subgraph cluster_C {\n        label=\"Customers\";\n        C1 [label=\"Taxi User\"];\n    }\n    S1 -> I1 [style=invis];\n    I1 -> P1 [style=invis];\n    P1 -> O2 [style=invis];\n    O2 -> C1 [style=invis];\n    P1 -> P2 [constraint=false];\n    P2 -> P3 [constraint=false];\n    P3 -> P4 [constraint=false];\n    P4 -> P5 [constraint=false];\n}\n\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<div class="grViz html-widget html-fill-item" id="htmlwidget-e3a55f67fca9cec5bdb9" style="width:100%;height:464px;"></div>
+<script type="application/json" data-for="htmlwidget-e3a55f67fca9cec5bdb9">{"x":{"diagram":"\ndigraph SIPOC {\n    rankdir=LR;\n    node [shape=box];\n    subgraph cluster_S {\n        label=\"Suppliers\";\n        S1 [label=\"Gas Station\"];\n        S2 [label=\"Car Manufacturer\"];\n        S3 [label=\"Taxi Application\"];\n        S4 [label=\"Telecommunication\nCompany\"];\n        S5 [label=\"Smartphone Supplier\"];\n        S6 [label=\"Maintenance\nService Providers\"];\n    }\n    subgraph cluster_I {\n        label=\"Inputs\";\n        I1 [label=\"Gas\"];\n        I2 [label=\"Car\"];\n        I3 [label=\"Start\nLocation\"];\n        I4 [label=\"End\nLocation\"];\n        I5 [label=\"Internet\"];\n        I6 [label=\"Smartphone\"];\n        I7 [label=\"Customer\nRequests\"];\n    }\n    subgraph cluster_P {\n        label=\"Process\";\n        P1 [label=\"The customer requests a taxi\"];\n        P2 [label=\"the driver arrives at\nthe pick-up location\"];\n        P3 [label=\"The driver picks the customer up\"];\n        P4 [label=\"The driver drives to destination\"];\n        P5 [label=\"The driver leaves the customer\nat the end point\"];\n    }\n    subgraph cluster_O {\n        label=\"Outputs\";\n        O2 [label=\"Customer travel experience\"];\n        O3 [label=\"Customer transfer\"];\n        O4 [label=\"Payment\"]\n    }\n    subgraph cluster_C {\n        label=\"Customers\";\n        C1 [label=\"Taxi User\"];\n    }\n    S1 -> I1 [style=invis];\n    I1 -> P1 [style=invis];\n    P1 -> O2 [style=invis];\n    O2 -> C1 [style=invis];\n    P1 -> P2 [constraint=false];\n    P2 -> P3 [constraint=false];\n    P3 -> P4 [constraint=false];\n    P4 -> P5 [constraint=false];\n}\n\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
 </div>
 </div>
 </section>
