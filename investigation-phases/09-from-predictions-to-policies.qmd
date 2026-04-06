@@ -57,8 +57,6 @@ When $x_t = 0$ the driver does **not** advance in position or time; the search l
 
 ## Loading the Production XGBoost Workflow
 
-We load the final fitted workflow saved in Chapter 8 together with the same 1,061 reservoir-sampled starting trips used for the baseline.
-
 ```{r}
 ## To manage relative paths
 library(here)
@@ -71,10 +69,13 @@ library(DBI)
 library(duckdb)
 library(lubridate)
 library(timeDate)
-library(latex2exp)
 
 ## To run predictions
 library(tidymodels)
+
+## To show results
+library(ggtext)
+library(scales)
 
 ## Custom functions & board
 devtools::load_all()
@@ -87,6 +88,10 @@ Params <- yaml::read_yaml(here("params.yml"))
 SimulationStartDay <- pin_read(
   BoardLocal,
   name = "SimulationStartDay"
+)
+SimulationHourlyWage <- pin_read(
+  BoardLocal,
+  name = "SimulationHourlyWage"
 )
 
 BaseLineHourlyWage <- pin_read(BoardLocal, "BaseLineHourlyWage")
@@ -119,20 +124,33 @@ set.seed(987654) # new seed for tuning reproducibility
 (new_seeds <- sample.int(1e6, 5)) # 5 new seeds for grid search
 ```
 
+
+### Computational cost and adaptive sampling strategy
+
+The grid search across the threshold space $\tau \in [0.05, 0.95]$ required approximately **10 days** of continuous execution. To balance rigor with practicality we used all five seeds for $\tau < 0.65$ and the first three seeds for $\tau \ge 0.65$ once convergence patterns became stable.
+
+To balance statistical rigor with practical time constraints, an adaptive sampling strategy was employed to optimize the simulation throughput:
+
+* **For $\tau < 0.65$:** All **5 seeds** were utilized to ensure maximum precision in the region where the policy's performance was most dynamic.
+* **For $\tau \ge 0.65$:** After observing stable convergence patterns and a clear performance trend, the execution was streamlined to use only the **first three seeds**. 
+
+This pragmatic adjustment allowed the sweep to reach the upper bound of $0.95$ without compromising the identification of the global optimum, ensuring that the most "expensive" compute time was focused where the variance mattered most.
+
+
 ### Grid-search code
 
-The simulator is called with `fitted_wf = XgboostFinalWorkflowTailorFitted` and `threshold = \tau`. The process took approximately **five days** on the available hardware.
+The simulator is called with `fitted_wf = XgboostFinalWorkflowTailorFitted` and `threshold = \tau`. The process took approximately **10 days** on the available hardware.
 
 ```{r}
 #| eval: false
 #| label: tau-grid-search
 
-TauGrid <- seq(0.05, 0.60, by = 0.05)
+TauGrid <- seq(0.05, 0.95, by = 0.05)
 
 con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 
 for (i in seq_along(TauGrid)) {
-  # Runing simulation
+  # Running simulation
   SimResults <- simulate_trips(
     con,
     SimulationStartDay, # same 1,061 starting trips as baseline
@@ -192,9 +210,14 @@ for (i in seq_along(TauGrid)) {
 dbDisconnect(con, shutdown = TRUE)
 ```
 
+::: {.callout-note}
+The bash output below validates the execution timeline, showing the multi-day progression from the first logs on March 22nd to the final thresholds on April 3rd.
+:::
+
 ```bash
 ls -lhad ../NycTaxiPins/Board/SimResultsSummary_0.*
 
+angelfeliz@debian:~/r-projects/NycTaxi$ ls -lhad ../NycTaxiPins/Board/SimResultsSummary_0.*
 drwxr-xr-x 3 root root 4.0K Mar 22 11:05 ../NycTaxiPins/Board/SimResultsSummary_0.05
 drwxr-xr-x 3 root root 4.0K Mar 22 19:06 ../NycTaxiPins/Board/SimResultsSummary_0.1
 drwxr-xr-x 3 root root 4.0K Mar 23 04:04 ../NycTaxiPins/Board/SimResultsSummary_0.15
@@ -207,15 +230,18 @@ drwxr-xr-x 3 root root 4.0K Mar 25 13:46 ../NycTaxiPins/Board/SimResultsSummary_
 drwxr-xr-x 3 root root 4.0K Mar 26 01:28 ../NycTaxiPins/Board/SimResultsSummary_0.5
 drwxr-xr-x 3 root root 4.0K Mar 26 14:03 ../NycTaxiPins/Board/SimResultsSummary_0.55
 drwxr-xr-x 3 root root 4.0K Mar 27 03:36 ../NycTaxiPins/Board/SimResultsSummary_0.6
+drwxr-xr-x 3 root root 4.0K Mar 30 12:11 ../NycTaxiPins/Board/SimResultsSummary_0.65
+drwxr-xr-x 3 root root 4.0K Mar 30 21:51 ../NycTaxiPins/Board/SimResultsSummary_0.7
+drwxr-xr-x 3 root root 4.0K Mar 31 08:51 ../NycTaxiPins/Board/SimResultsSummary_0.75
+drwxr-xr-x 3 root root 4.0K Mar 31 21:35 ../NycTaxiPins/Board/SimResultsSummary_0.8
+drwxr-xr-x 3 root root 4.0K Apr  1 12:06 ../NycTaxiPins/Board/SimResultsSummary_0.85
+drwxr-xr-x 3 root root 4.0K Apr  2 07:15 ../NycTaxiPins/Board/SimResultsSummary_0.9
+drwxr-xr-x 3 root root 4.0K Apr  3 12:21 ../NycTaxiPins/Board/SimResultsSummary_0.95
 ```
 
 ### Exploring the Results
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 5
-
 SimResultsSummary <-
   pin_list(BoardLocal) |>
   grep(pattern = "SimResultsSummary_", value = TRUE) |>
@@ -231,6 +257,8 @@ SimResultsSummary <-
 HourlyWageByTau <-
   SimResultsSummary[,
     .(
+      mean_n_trips = mean(n_trips_mean),
+      se_n_trips = sd(n_trips_mean) / sqrt(.N),
       mean_wage = mean(daily_hourly_wage_mean),
       se_wage = sd(daily_hourly_wage_mean) / sqrt(.N)
     ),
@@ -238,39 +266,274 @@ HourlyWageByTau <-
   ]
 
 BestResult <- HourlyWageByTau[which.max(mean_wage), ]
+```
+
+The results are striking. Contrary to the common intuition that drivers should “accept most trips and reject only the worst,” hourly wage **increases monotonically** with the threshold $\tau$. It rises from \$`r round(HourlyWageByTau[1L, mean_wage], 2)` at $\tau=0.05$ to \$`r round(BestResult$mean_wage, 2)` at $\tau= 0.9$ — a **`r round((BestResult$mean_wage - BaseLineHourlyWage) / BaseLineHourlyWage * 100, 2)`% lift** over the baseline of \$`r round(BaseLineHourlyWage, 2)`.
+
+This counter-intuitive outcome is a powerful validation of the entire ADP pipeline. The lookahead-based labeling process (Chapter 5) created high-quality supervised targets that approximate the optimal short-horizon decision $x_t^*$. The resulting PFA has learned subtle, high-value trip characteristics that the myopic baseline misses. By becoming more selective, the driver trades a modest increase in waiting time—already captured by the expanding-search logic—for substantially higher earnings per hour worked.
+
+```{r}
+#| label: Simulated Hourly Wage vs. Threshold
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
 
 ggplot(HourlyWageByTau, aes(tau_used, mean_wage)) +
-  geom_line(color = Params$ColorHighlight, linewidth = 1) +
+  geom_vline(xintercept = BestResult$tau_used, linetype = 2) +
+  geom_line(
+    color = Params$ColorHighlight,
+    linewidth = 1
+  ) +
   geom_point(size = 2) +
   geom_errorbar(
     aes(ymin = mean_wage - 1.96 * se_wage, ymax = mean_wage + 1.96 * se_wage),
-    width = 0.005,
+    width = 0.015,
     alpha = 0.6
   ) +
+  scale_x_continuous(breaks = breaks_width(0.1)) +
+  scale_y_continuous(breaks = breaks_width(1), label = dollar_format(1)) +
   labs(
-    title = TeX(r'(Simulated Hourly Wage vs. Threshold $\tau$)'),
+    title = "Simulated Hourly Wage vs. Threshold",
     subtitle = "Peak at optimal operational threshold",
-    x = TeX(r'(Threshold $\tau$)'),
-    y = "Mean Hourly Wage ($)"
+    x = "Threshold",
+    y = "Mean Hourly Wage"
   ) +
-  theme_minimal(base_family = Params$BaseFontFamily, base_size = 14) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
     legend.position = "none",
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
   )
 
 ```
 
-The results are striking. We expected the winning strategy to be “accept most trips and reject only the worst ones.” Instead, the more selective the policy (higher $\tau$), the higher the driver’s hourly wage. Mean hourly wage rises monotonically from \$`r round(HourlyWageByTau[1L, mean_wage], 2)`$ at $\tau = 0.05$ to $`r round(BestResult$mean_wage, 2)` at $\tau$ = `r round(BestResult$tau_used, 2)` — a **`r round((BestResult$mean_wage - BaseLineHourlyWage) / BaseLineHourlyWage * 100, 2)`% lift over the baseline** of $`r round(BaseLineHourlyWage, 2)`.
+By exploring the average number of trips taken we see that, starting at $\tau=0.7$, the number of trips *increases*. This indicates that the policy is successfully avoiding long, low-value trips, thereby freeing time for more short, high-value trips within the same working hours.
 
-This is a powerful validation of the ADP loop: the XGBoost model has learned subtle, high-value trip characteristics that the baseline random-acceptance policy misses. By rejecting low-probability trips, the driver trades modest waiting time (already captured in the expanding-search logic and data-driven offers) for substantially higher earnings per hour worked.
+```{r}
+#| label: Simulated Number of Trips vs. Threshold
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
+ggplot(HourlyWageByTau, aes(tau_used, mean_n_trips)) +
+  geom_vline(xintercept = BestResult$tau_used, linetype = 2) +
+  geom_line(color = Params$ColorHighlight, linewidth = 1) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(
+      ymin = mean_n_trips - 1.96 * se_n_trips,
+      ymax = mean_n_trips + 1.96 * se_n_trips
+    ),
+    width = 0.015,
+    alpha = 0.6
+  ) +
+  scale_x_continuous(breaks = breaks_width(0.1)) +
+  scale_y_continuous(breaks = breaks_width(0.5), label = dollar_format(1)) +
+  labs(
+    title = "Simulated Number of Trips vs. Threshold",
+    subtitle = "Finding short trips is critical to increase earnings",
+    x = "Threshold",
+    y = "Mean Hourly Wage"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+```
 
 ::: {.callout-warning}
-The simulation assumes an abundant supply of trips ("more passengers than taxis"). In reality, widespread selectivity could increase waiting times city-wide. Collecting data on driver availability and realized waiting times would allow a more realistic supply-side extension.
+The simulation assumes abundant trip supply (“more passengers than taxis”). In reality, widespread selectivity could increase city-wide waiting times. Modeling supply-side dynamics remains an important direction for future work.
 :::
 
-### Next Steps
 
-The plan to complete the grid $[0.65, 1.0]$ with only three seeds (given the already-low standard deviation) is sound and efficient. Once those additional simulations are finalized, we will confirm whether $\tau^* = 0.60$ remains the global optimum or whether further selectivity yields even higher returns. All final results will be presented with confidence intervals derived from the original baseline seeds, ensuring full comparability across chapters.
+## Final Policy Evaluation
 
-This chapter demonstrates how a well-calibrated probabilistic classifier can be transformed into a **high-performance operational policy**.
+We now re-run the simulator **only** at the optimal $\tau^*$ using the **exact same seeds** as the baseline.
+
+```{r}
+#| eval: false
+
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+
+FinalPfaResults <- simulate_trips(
+  con,
+  SimulationStartDay,
+  seeds = original_seeds,
+  fitted_wf = XgboostFinalWorkflowTailorFitted,
+  threshold = BestResult$tau_used
+)
+
+dbDisconnect(con, shutdown = TRUE)
+
+pin_write(BoardLocal, FinalPfaResults, "FinalPfaResults", type = "qs2")
+```
+
+::: {.callout-note}
+This final run took approximately **2 days** on the available hardware.
+:::
+
+### Computing the new hourly wage & CI
+
+An important aspect visible in the new policy is its larger interquartile range. We expect this variability will be reduced once we add a strategic policy that selects the best starting zone and hour. We also anticipate that the second policy will help us reach the full **20 % lift** targeted by the project.
+
+The boxplot below confirms that the new mean hourly wage remained stable around the value obtained during grid search, demonstrating that the policy is robust and ready for production.
+
+```{r}
+FinalPfaResults <- pin_read(BoardLocal, "FinalPfaResults")
+
+PolicyLevels <- c("Accept All Trips", "Accept Based On Policy")
+
+FinalPfaResultsSummary <- rbind(
+  sim_start_trip_summary(SimulationHourlyWage, SimulationStartDay)[,
+    strategy := PolicyLevels[1L]
+  ],
+  sim_start_trip_summary(FinalPfaResults, SimulationStartDay)[,
+    strategy := PolicyLevels[2L]
+  ],
+  fill = FALSE
+)
+
+FinalPfaResultsSummary[, strategy := factor(strategy, PolicyLevels)]
+```
+
+```{r}
+#| label: Mean Hourly Wage after policy
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
+PolicyLevelsFillColors <- c(Params$ColorGray, Params$ColorHighlight)
+setattr(PolicyLevelsFillColors, "names", PolicyLevels)
+
+FinalPfaMeans <-
+  FinalPfaResultsSummary[,
+    .(daily_hourly_wage_mean = mean(daily_hourly_wage_mean)),
+    keyby = "strategy"
+  ][, setattr(daily_hourly_wage_mean, "names", as.character(strategy))]
+
+ggplot(FinalPfaResultsSummary, aes(strategy, daily_hourly_wage_mean)) +
+  geom_boxplot(aes(fill = strategy), width = 0.5) +
+  geom_hline(yintercept = FinalPfaMeans[2L], linetype = 2) +
+  scale_fill_manual(
+    values = PolicyLevelsFillColors
+  ) +
+  scale_y_continuous(breaks = breaks_width(5), label = dollar_format(1)) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**",
+      PolicyLevels[2L],
+      "**</span> ",
+      "**is the best policy**"
+    ),
+    subtitle = paste0(
+      "The new mean kept around **",
+      dollar(BestResult$mean_wage, accuracy = 1),
+      "** confirming stable results"
+    ),
+    x = "Strategy Implemented",
+    y = "Mean Hourly Wage"
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none"
+  )
+```
+
+When we examine the improvement on a per-simulation-day basis, the gains are remarkably consistent: most simulated days earn **at least $2 extra per hour**, and the distribution of improvements is approximately normal.
+
+```{r}
+MeanPolicyDifference <- FinalPfaResultsSummary[,
+  .(
+    mean_difference = fifelse(
+      strategy == PolicyLevels[1L],
+      -daily_hourly_wage_mean,
+      daily_hourly_wage_mean
+    ) |>
+      sum()
+  ),
+  by = "simulation_id"
+]
+
+shapiro.test(MeanPolicyDifference$mean_difference)
+```
+
+```{r}
+#| label: Prop of improved simulation days
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
+InterceptToValidate <- 2
+PropSimoOverIntercept <- MeanPolicyDifference[, mean(
+  mean_difference >= InterceptToValidate
+)]
+
+ggplot(MeanPolicyDifference) +
+  geom_histogram(aes(mean_difference), bins = 35) +
+  geom_vline(xintercept = InterceptToValidate, linetype = 2) +
+  scale_x_continuous(n.breaks = 10, label = dollar_format(1)) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**",
+      percent(PropSimoOverIntercept, accuracy = 1),
+      "**</span> ",
+      "**of simulated days are earning at least 2 dollars extra**"
+    ),
+    x = "Mean Hourly Wage Increase"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(face = "bold", size = 14),
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold")
+  )
+```
+
+
+# Key Takeaways
+
+This chapter completes the ADP loop for the trip-acceptance policy. The combination of lookahead labeling, a well-calibrated PFA, and simulation-based threshold optimization has produced a practically usable, profit-driven decision rule that demonstrably outperforms the myopic baseline under the same uncertainty model.
+
+```{r}
+#| echo: false
+#| fig.width: 9
+#| fig.height: 1
+#| out.width: "100%"
+
+DiagrammeR::grViz(
+  "
+digraph ADP_Pipeline {
+  graph [layout = dot, rankdir = LR, fontsize = 12]
+  node [shape = box, style = filled, fontname = Arial]
+
+  Baseline [label = 'Baseline', fillcolor = '#D3CDF7']
+  Labeled [label = 'Labeled Data', fillcolor = '#D3CDF7']
+  TrainedModel [label = 'Trained PFA', fillcolor = '#D3CDF7']
+  SimPolicy [label = 'Simulation-Optimized Policy', fillcolor = '#D3CDF7']
+  Quantified [label = 'Quantified Improvement', fillcolor = '#D3CDF7']
+
+  Baseline -> Labeled
+  Labeled -> TrainedModel
+  TrainedModel -> SimPolicy
+  SimPolicy -> Quantified
+}
+"
+)
+```
+
+
+

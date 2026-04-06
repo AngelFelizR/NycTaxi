@@ -453,46 +453,8 @@ Now we just need to take the mean and standard desviation of each trip see the r
 ```{r}
 #| label: Completing Monte Carlo Sim
 
-SimulationHourlyWage[
-  SimulationStartDay,
-  on = c("simulation_id" = "trip_id"),
-  initial_day_time := request_datetime + lubridate::seconds(trip_time)
-]
-
 SimulationHourlyWageSummary <-
-  SimulationHourlyWage[,
-    .(
-      n_trips = .N,
-      total_hours_worked = difftime(
-        max(sim_dropoff_datetime),
-        min(initial_day_time),
-        unit = "hours"
-      ) |>
-        as.double(),
-      total_earnings = sum(sim_driver_pay, na.rm = TRUE) +
-        sum(sim_tips, na.rm = TRUE)
-    ),
-    by = c("simulation_id", "simulation_seed")
-  ][, daily_hourly_wage := total_earnings / total_hours_worked][,
-    j = c(
-      setNames(lapply(.SD, mean), paste0(names(.SD), "_mean")),
-      setNames(lapply(.SD, sd), paste0(names(.SD), "_sd"))
-    ),
-    .SDcols = !c("simulation_seed"),
-    by = "simulation_id"
-  ]
-
-
-setcolorder(
-  SimulationHourlyWageSummary,
-  c(
-    "simulation_id",
-    paste0("n_trips", c("_mean", "_sd")),
-    paste0("total_hours_worked", c("_mean", "_sd")),
-    paste0("total_earnings", c("_mean", "_sd")),
-    paste0("daily_hourly_wage", c("_mean", "_sd"))
-  )
-)
+  sim_start_trip_summary(SimulationHourlyWage, SimulationStartDay)
 
 head(SimulationHourlyWageSummary)
 ```
