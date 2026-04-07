@@ -329,12 +329,12 @@ ggplot(HourlyWageByTau, aes(tau_used, mean_n_trips)) +
     alpha = 0.6
   ) +
   scale_x_continuous(breaks = breaks_width(0.1)) +
-  scale_y_continuous(breaks = breaks_width(0.5), label = dollar_format(1)) +
+  scale_y_continuous(breaks = breaks_width(0.5)) +
   labs(
     title = "Simulated Number of Trips vs. Threshold",
     subtitle = "Finding short trips is critical to increase earnings",
     x = "Threshold",
-    y = "Mean Hourly Wage"
+    y = "Mean Number of Trips"
   ) +
   theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
@@ -504,7 +504,31 @@ ggplot(MeanPolicyDifference) +
 ```
 
 
-# Key Takeaways
+### Updating the probability threshold for production
+
+Now that the simulation has identified the **optimal operational threshold** ($\tau^* = `r round(BestResult$tau_used, 2)`$), we can embed it directly into the final fitted workflow. This creates a production-ready model object that applies the exact decision rule we validated in the full-day Monte-Carlo simulator.
+
+```{r}
+#| label: Adding threshold to model
+#| eval: false
+
+AcceptRejectPolicyFitted <-
+  XgboostFinalWorkflowTailorFitted |>
+  remove_tailor() |>
+  add_tailor(tailor::adjust_probability_threshold(
+    tailor::tailor(),
+    BestResult$tau_used
+  ))
+
+pin_write(
+  BoardLocal,
+  AcceptRejectPolicyFitted,
+  "AcceptRejectPolicyFitted",
+  type = "qs2"
+)
+```
+
+## Key Takeaways
 
 This chapter completes the ADP loop for the trip-acceptance policy. The combination of lookahead labeling, a well-calibrated PFA, and simulation-based threshold optimization has produced a practically usable, profit-driven decision rule that demonstrably outperforms the myopic baseline under the same uncertainty model.
 
