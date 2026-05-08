@@ -701,48 +701,10 @@ $ performance_per_hour &lt;dbl&gt; 57.95, 68.57, 48.89, 64.43, 49.03, 64.27, 45.
 <h3 class="anchored" data-anchor-id="confirming-simulation-results">Confirming simulation results</h3>
 <p>Now we just need to take the mean and standard desviation of each trip see the results of the simulation for each initial condition.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>SimulationHourlyWage[</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  SimulationStartDay,</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"simulation_id"</span> <span class="ot">=</span> <span class="st">"trip_id"</span>),</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  initial_day_time <span class="sc">:</span><span class="er">=</span> request_datetime <span class="sc">+</span> lubridate<span class="sc">::</span><span class="fu">seconds</span>(trip_time)</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>SimulationHourlyWageSummary <span class="ot">&lt;-</span></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  SimulationHourlyWage[,</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    .(</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>      <span class="at">n_trips =</span> .N,</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>      <span class="at">total_hours_worked =</span> <span class="fu">difftime</span>(</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        <span class="fu">max</span>(sim_dropoff_datetime),</span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        <span class="fu">min</span>(initial_day_time),</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>        <span class="at">unit =</span> <span class="st">"hours"</span></span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">|&gt;</span></span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        <span class="fu">as.double</span>(),</span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>      <span class="at">total_earnings =</span> <span class="fu">sum</span>(sim_driver_pay, <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        <span class="fu">sum</span>(sim_tips, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"simulation_id"</span>, <span class="st">"simulation_seed"</span>)</span>
-<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>  ][, daily_hourly_wage <span class="sc">:</span><span class="er">=</span> total_earnings <span class="sc">/</span> total_hours_worked][,</span>
-<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    j <span class="ot">=</span> <span class="fu">c</span>(</span>
-<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>      <span class="fu">setNames</span>(<span class="fu">lapply</span>(.SD, mean), <span class="fu">paste0</span>(<span class="fu">names</span>(.SD), <span class="st">"_mean"</span>)),</span>
-<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>      <span class="fu">setNames</span>(<span class="fu">lapply</span>(.SD, sd), <span class="fu">paste0</span>(<span class="fu">names</span>(.SD), <span class="st">"_sd"</span>))</span>
-<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    .SDcols <span class="ot">=</span> <span class="sc">!</span><span class="fu">c</span>(<span class="st">"simulation_seed"</span>),</span>
-<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    by <span class="ot">=</span> <span class="st">"simulation_id"</span></span>
-<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>  ]</span>
-<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a><span class="fu">setcolorder</span>(</span>
-<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>  SimulationHourlyWageSummary,</span>
-<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(</span>
-<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"simulation_id"</span>,</span>
-<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"n_trips"</span>, <span class="fu">c</span>(<span class="st">"_mean"</span>, <span class="st">"_sd"</span>)),</span>
-<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"total_hours_worked"</span>, <span class="fu">c</span>(<span class="st">"_mean"</span>, <span class="st">"_sd"</span>)),</span>
-<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"total_earnings"</span>, <span class="fu">c</span>(<span class="st">"_mean"</span>, <span class="st">"_sd"</span>)),</span>
-<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"daily_hourly_wage"</span>, <span class="fu">c</span>(<span class="st">"_mean"</span>, <span class="st">"_sd"</span>))</span>
-<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(SimulationHourlyWageSummary)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>SimulationHourlyWageSummary <span class="ot">&lt;-</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sim_start_trip_summary</span>(SimulationHourlyWage, SimulationStartDay)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(SimulationHourlyWageSummary)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>   simulation_id n_trips_mean n_trips_sd total_hours_worked_mean
            &lt;num&gt;        &lt;num&gt;      &lt;num&gt;                   &lt;num&gt;
@@ -854,8 +816,8 @@ $ performance_per_hour &lt;dbl&gt; 57.95, 68.57, 48.89, 64.43, 49.03, 64.27, 45.
 <h2 class="anchored" data-anchor-id="business-case">Business Case</h2>
 <div class="cell">
 <div class="cell-output cell-output-stderr">
-<pre><code>! The hash of pin "BaseLineHourlyWage" has not changed.
-• Your pin will not be stored.</code></pre>
+<pre><code>Replacing version '20260504T234738Z-21143' with '20260508T140443Z-b8c58'
+Writing to pin 'BaseLineHourlyWage'</code></pre>
 </div>
 </div>
 <p>Based on the simulation’s results we can confirm that the average earnings for a taxi driver per hour goes between $54.82 and $55.37 with 95% confidence with a mean of <strong>$55.09 dollars per hour</strong>.</p>
