@@ -254,7 +254,6 @@ For every initial state $S_0^n$ (one per reservoir-sampled trip):
 
 ```{r warning = FALSE, message = FALSE}
 #| label: env packages
-
 library(here)
 library(scales)
 library(ggplot2)
@@ -286,7 +285,6 @@ Params <- yaml::read_yaml(here("params.yml"))
 
 ```{r}
 #| label: Import Zone Shapes
-
 ZonesShapes <-
   pin_read(BoardLocal, "ZonesShapes") |>
   subset(borough %in% names(Params$BoroughColors))
@@ -297,7 +295,6 @@ ZonesShapes <-
 ```{r}
 #| label: Calculate Dist
 #| eval: false
-
 ZoneDistMatrix <-
   st_centroid(ZonesShapes) |>
   st_distance() |>
@@ -330,7 +327,6 @@ pin_write(BoardLocal, PointMeanDistance, "PointMeanDistance", type = "qs2")
 ```{r}
 #| label: Save Dist in DB
 #| eval: false
-
 con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 dbWriteTable(con, "PointMeanDistance", PointMeanDistance, overwrite = TRUE)
 dbDisconnect(con, shutdown = TRUE)
@@ -341,7 +337,6 @@ dbDisconnect(con, shutdown = TRUE)
 ```{r}
 #| label: Sampling data
 #| eval: false
-
 # Sampling 1,061 trips from db
 SimulationStartDayQuery <- "
 SELECT t1.*
@@ -369,7 +364,6 @@ pillar::glimpse(SimulationStartDay)
 ```{r}
 #| label: Importing sampled data
 #| echo: false
-
 if (!exists("SimulationStartDay")) {
   SimulationStartDay <- BoardLocal |> pin_read("SimulationStartDay")
 
@@ -383,7 +377,6 @@ We can also confirm that the sample satisfy the initial restrictions:
 
 ```{r}
 #| label: Year distribution
-
 SimulationStartDay[, .N, year]
 ```
 
@@ -391,7 +384,6 @@ SimulationStartDay[, .N, year]
 
 ```{r}
 #| label: Start Zone distribution
-
 setDT(ZonesShapes)
 
 merge(
@@ -410,7 +402,6 @@ merge(
   by = "Borough",
   all = TRUE
 )
-
 ```
 
 6.  Running the simulation.
@@ -418,7 +409,6 @@ merge(
 ```{r}
 #| label: Running Simulation
 #| eval: false
-
 con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 
 SimulationHourlyWage <- simulate_trips(
@@ -440,7 +430,6 @@ pin_write(
 ```{r}
 #| label: Getting simulation results
 #| echo: false
-
 if (!exists("SimulationHourlyWage")) {
   SimulationHourlyWage <- BoardLocal |> pin_read("SimulationHourlyWage")
 }
@@ -452,7 +441,6 @@ Now we just need to take the mean and standard desviation of each trip see the r
 
 ```{r}
 #| label: Completing Monte Carlo Sim
-
 SimulationHourlyWageSummary <-
   sim_start_trip_summary(SimulationHourlyWage, SimulationStartDay)
 
@@ -466,7 +454,6 @@ Here we can confirm that was the simulations ended after 8.5 hours.
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5.5
-
 ggplot(SimulationHourlyWageSummary) +
   geom_histogram(aes(total_hours_worked_mean), bins = 30) +
   scale_x_continuous(n.breaks = 10) +
@@ -484,7 +471,6 @@ After simulating 1,061 **independent** starting conditions (each averaged over 5
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5.5
-
 overall_mean <- mean(SimulationHourlyWageSummary$daily_hourly_wage_mean)
 se_mean <- sd(SimulationHourlyWageSummary$daily_hourly_wage_mean) /
   sqrt(nrow(SimulationHourlyWageSummary))
@@ -535,10 +521,14 @@ visualize(SimulationVisData) +
 ```{r}
 #| label: Defining Goal
 #| echo: false
-
 CurrentRate <- mean(SimulationHourlyWageSummary$daily_hourly_wage_mean)
 GoalRate <- CurrentRate * 1.2
+```
 
+```{r}
+#| label: Defining Goal
+#| echo: false
+#| eval: false
 pin_write(BoardLocal, CurrentRate, "BaseLineHourlyWage", type = "qs2")
 ```
 

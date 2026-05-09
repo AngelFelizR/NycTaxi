@@ -12,28 +12,26 @@ knitr::opts_chunk$set(
 )
 ```
 
-In the baseline simulation (Chapter 4) we used a **myopic random policy** that always accepts the first qualifying trip drawn from the candidate set $\mathcal{C}_t^n$. That policy gave us the reference hourly wage of approximately $42.17 (95% CI from bootstrap).
+In the baseline simulation (Chapter 4) we used a **myopic random policy** that always accepts the first qualifying trip drawn from the candidate set $\mathcal{C}_t^n$. That policy gave us the reference hourly wage of approximately `r here::here("../NycTaxiPins/Board") |> pins::board_folder() |> pins::pin_read( "BaseLineHourlyWage") |> scales::dollar()`.
 
 To improve the policy we need a data-driven **Policy Function Approximation (PFA)**. The first indispensable step is to create a high-quality supervised training set that approximates the **optimal short-horizon decision** $x_t^*$.
 
 For every historical trip $i$ (treated as the current decision epoch) we:
 
 1. Reconstruct the exact state $S_t$ used in the baseline.
-2. Build the identical candidate set $\mathcal{C}_t$ that the driver would see in the next 15 minutes (same company, WAV rules, radius expansion: 1 mi → 3 mi → 5 mi → +2 mi every 2 min).
-3. Compare the benefit (`driver_pay + tips`) of trip $i$ against every reachable alternative $j \in \mathcal{C}_t$.
-4. Label the binary target  
+2. Build the identical candidate set $\mathcal{C}_t$ that the driver would see in the next 15 minutes (same license, WAV rules, and discrete radius expansion).
+3. Calculate the performance metric ($\text{perf}$) for the current trip and all reachable alternatives $j \in \mathcal{C}_t$. To ensure a fair comparison, the performance of future alternatives is penalized by the **waiting time** ($\text{waiting\_secs}$) between the decision epoch and the future request time.
+4. Label the binary target using an **ambitious driver heuristic**. The current trip is accepted only if its performance exceeds the **75th percentile** of all identified future alternatives:
 
 $$
 \text{take\_current\_trip}_i = 
 \begin{cases} 
-  1 \text{ ("Y")} & \text{if trip } i \text{ is at least as good as any alternative} \\ 
-  0 \text{ ("N")} & \text{if there exists at least one strictly better trip} 
+  1 \text{ ("Y")} & \text{if } \text{perf}_i > Q_{0.75}(\{\text{perf}_j \mid j \in \mathcal{C}_t\}) \\ 
+  0 \text{ ("N")} & \text{if } \text{perf}_i \le Q_{0.75}(\{\text{perf}_j \mid j \in \mathcal{C}_t\}) 
 \end{cases}
 $$
 
-This process is **lookahead-based labeling via historical simulation**. It is the standard offline technique in Approximate Dynamic Programming when perfect future information is unavailable. The resulting 24 % “reject” rate is exactly what we expect under a 15-minute horizon. These labels will later be used to train any classifier $\hat{p}_t = \Pr(\text{take\_current\_trip}=1 \mid S_t)$, turning the policy into a tunable threshold rule $\tau$.
-
-This guarantees that the labels are faithful to the same mathematical model we used for the baseline, so that any performance lift we later measure is real and comparable.
+This process is **lookahead-based labeling via historical simulation**. It is the standard offline technique in Approximate Dynamic Programming when perfect future information is unavailable. These labels will later be used to train a classifier $\hat{p}_t = \Pr(\text{take\_current\_trip}=1 \mid S_t)$, turning the policy into a tunable threshold rule $\tau$.
 
 ## Loading packages and boards
 
@@ -79,30 +77,37 @@ We load exactly the same board and custom functions used in the baseline simulat
 
 ### Purpose and ADP link
 
-The new variable `take_current_trip` is the **supervised label** that approximates the optimal decision $x_t^*$ under the same sequential-decision framework defined in Chapter 4. It tells the future PFA model: “Given the current state, should the driver accept this trip or keep searching?”
+The new variable `take_current_trip` is the **supervised label** that approximates the optimal decision $x_t^*$. It simulates an ambitious driver who keeps searching unless the current offer is significantly better than the top-tier local alternatives.
 
 ### Assumptions (identical to baseline)
 
-For a future trip to be considered a valid alternative it must satisfy **exactly** the constraints used in the baseline simulation:
+For a future trip to be considered a valid alternative it must satisfy **exactly** the constraints used in the baseline:
 
-1. Same taxi company (`hvfhs_license_num`).
-2. WAV compatibility (`wav_match_flag`).
-3. Request time window: 3 seconds (rejection delay) to 15 minutes after the original request.
-4. Distance from current zone follows the same radius-expansion policy:
-   - 0–1 min → 1 mile  
-   - 1–3 min → 3 miles  
-   - 3–5 min → 5 miles  
-   - +2 miles every additional 2 minutes.
+1. **Same taxi company**: Matching `hvfhs_license_num`.
+2. **WAV compatibility**: A driver currently in a Wheelchair Accessible Vehicle (`wav_match_flag == "Y"`) is assumed to be WAV-capable and can see all future trips. Standard drivers can only see `wav_request_flag == "N"`.
+3. **Time window**: Request time must be between 3 seconds (rejection delay) and 15 minutes after the original request.
+4. **Performance Calculation**: Performance is calculated as:
 
-This ensure the training labels are generated under the identical uncertainty model $\mathcal{C}_t^n$ and transition function $S^M(\cdot)$. Any deviation would make the later PFA incomparable to the baseline.
+$$
+\frac{\text{driver\_pay} + \text{tips}}{(\text{trip\_time} + \text{waiting\_secs}) / 3600}
+$$
+
+
+This ensures future trips are penalized by the opportunity cost of idling.
+
+5. **Radius expansion**: Distance from the current zone follows a discrete step-function:
+* 1 mile (at 1 min)
+* 3 miles (at 3 min)
+* 5 miles (at 5 min)
+* ...up to 15 miles (at 15 min).
 
 ### Implementation
 
-Because the process is embarrassingly parallel and memory-intensive, we use `future` multicore processing. The core function `add_take_current_trip()` has been unit-tested (see GitHub test file) and implements the exact candidate-set logic from the baseline.
-
-**Why parallel processing matters**: Running 500 k+ independent 15-minute simulations sequentially would take days. With 4 future cores + 8 data.table threads we complete the full 2023 dataset in a few hours without hitting swap memory.
+Because the process is embarrassingly parallel and memory-intensive, we use `future` **multicore processing**. The core function `add_take_current_trip()` implements the 75th percentile logic and has been unit-tested to ensure the training labels are faithful to the baseline uncertainty model.
 
 ### Tuning the parallel configuration
+
+**Why parallel processing matters**: Running 500 k+ independent 15-minute simulations sequentially would take days. With 4 future cores + 8 data.table threads we complete the full 2023 dataset in a few hours without hitting swap memory.
 
 Before scaling to the full year we benchmarked every combination of cores, chunk size, and scheduling. The optimal settings (data.table: 8 cores, future: 4 cores, chunk.size = 200, scheduling = 0.6) were selected because they minimized wall-clock time while staying inside the 17 GB RAM limit.
 
@@ -117,6 +122,7 @@ A suboptimal configuration would either waste CPU cycles or crash the process. T
 ``` bash
 Rscript ~/NycTaxi/multicore-scripts/01-fine-tune-future-process.R
 ```
+
 
 The below plot summaries the obtained results.
 
@@ -246,6 +252,7 @@ And after checking this results we ended with the next configuration:
 
 We execute one month at a time via the bash script `02-run_add_target.sh` to protect against interruptions and memory overflow.
 
+
 ::: {.callout-note}
 
 #### Why month-by-month execution matters
@@ -266,6 +273,11 @@ Once defined the bash script we can use it by running the next command in the te
 bash multicore-scripts/02-run_add_target.sh multicore-scripts/02-add-target.R  1 24
 ```
 
+```{r}
+#| eval: false
+#| file: ../multicore-scripts/02-add-target.R
+```
+
 Here we can see that the 24 files have been saved as fst binnary files.
 
 ```{r}
@@ -273,11 +285,17 @@ BoardLocal |> pin_list() |> grep(pattern = "OneMonth", value = TRUE) |> sort()
 ```
 
 
-## Exploting created variable
+## Predictor Analysis
 
-### Importing 2023 data
+### Distribution of the target
+
+The analysis shows that approximately 24% of trips are rejected under the **75th percentile lookahead rule**. This indicates that in nearly a quarter of cases, the current trip's performance—even when accounting for its immediate availability—is inferior to the high-performance "ambitious" threshold of potential future alternatives.
+
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+# Importing data
 ValidZoneSample2023 <-
   pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
@@ -285,14 +303,7 @@ ValidZoneSample2023 <-
   head(12L) |>
   lapply(FUN = pin_read, board = BoardLocal) |>
   rbindlist()
-```
 
-
-### Adding geospatial and derived features
-
-The PFA model will be trained on the same state variables that appear in $S_t^n$ (company, WAV, zone, time-of-day, borough, service zone). Enriching now guarantees that every predictor used later is already aligned with the baseline state definition.
-
-```{r}
 ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")
 
 ValidZoneSample2023[, `:=`(
@@ -344,17 +355,6 @@ ValidZoneSample2023[
     DOServiceZone = service_zone
   )
 ]
-```
-
-
-### Distribution of the target
-
-It shows that only 24 % of trips should be rejected under a 15-minute lookahead. This gives us an immediate sanity check that the labeling process matches the economics we observed in the baseline simulation.
-
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
 
 ValidZoneSample2023[, .N, by = "take_current_trip"][, `:=`(
   prop = N / sum(N),
@@ -405,7 +405,6 @@ We restrict analysis to trips ≥ 2 minutes (as decided in the baseline) and exp
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 #| fig-width: 8
-
 TrainingSampleValidCat <-
   ValidZoneSample2023[
     trip_time_min >= 2,
@@ -448,7 +447,6 @@ ggplot(
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 7.5
-
 plot_num_distribution(
   ValidZoneSample2023[trip_time_min >= 2],
   trip_miles,
@@ -461,7 +459,6 @@ plot_num_distribution(
   curve_limits = c(0, 25),
   curve_breaks_x = breaks_width(3)
 )
-
 ```
 
 ### Trip time
@@ -470,7 +467,6 @@ plot_num_distribution(
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 7.5
-
 plot_num_distribution(
   ValidZoneSample2023[trip_time_min >= 2],
   trip_time_min,
@@ -483,7 +479,6 @@ plot_num_distribution(
   curve_breaks_x = scales::breaks_width(10),
   curve_limits = c(0, 90)
 )
-
 ```
 
 :::
@@ -492,11 +487,11 @@ plot_num_distribution(
 
 ### Why the predictor analysis matters
 
-It tells us which features carry signal for the PFA classifier. Strong variation in hour, borough, service zone, and location IDs confirms that the state variables we used in the baseline simulation are indeed predictive of the optimal decision. Weak predictors (trip_miles and trip_time alone) will be combined with others in the full model.
+It tells us which features carry signal for the PFA classifier. Strong variation in hour, borough, and location IDs confirms that the state variables we used in the baseline simulation are indeed predictive of the optimal decision under an ambitious heuristic.
 :::
 
 ## Forward link to the next chapter
 
-We now possess a clean, large-scale, labeled dataset whose labels were generated under the **exact same mathematical model** used for the baseline hourly wage. In the next chapter we will train a classifier on these labels, convert its probability output into a tunable threshold policy $\pi^\tau$, and re-run the same **full-day empirical simulation** (Monte-Carlo averaging over many trajectories sampled directly from the historical data) from Chapter 4. The resulting hourly wage (and its confidence interval) will be directly comparable to the myopic baseline, giving us a quantifiable improvement from the Policy Function Approximation.
+We now possess a clean, large-scale, labeled dataset where the target variable represents an **ambitious, high-performance decision**. Unlike the myopic baseline, these labels account for the **opportunity cost of waiting time** and the statistical distribution of local trip values.
 
-This completes the critical data-preparation stage of the ADP pipeline.
+In the next chapter, we will train a classifier to approximate this selective behavior, turning the probability output into a tunable threshold policy $\pi^\tau$. By re-running the **full-day empirical simulation** (Monte-Carlo averaging) from Chapter 4, we will be able to measure exactly how much an "ambitious" lookahead strategy improves the driver's hourly wage compared to the myopic starting point.
