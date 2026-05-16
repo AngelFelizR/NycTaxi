@@ -40,9 +40,12 @@ library(DBI)
 library(duckdb)
 library(lubridate)
 library(timeDate)
+library(ggtext)
 
 ## To run predictions
 library(tidymodels)
+library(embed)
+library(themis)
 
 ## Custom functions, board & params
 devtools::load_all()
@@ -55,9 +58,16 @@ Params <- yaml::read_yaml(here("params.yml"))
 ## Getting shapes to use
 ZonesShapes <-
   pin_read(BoardLocal, "ZonesShapes") |>
-  subset(borough %in% names(Params$BoroughColors))
+  as.data.frame() |>
+  subset(
+    borough %in% names(Params$BoroughColors),
+    select = c("LocationID", "borough", "zone")
+  )
 
-UniqueZoneIds <- as.character(ZonesShapes$LocationID) |> unique() |> sort()
+setDT(ZonesShapes)
+ZonesShapes[, LocationID := as.character(LocationID)]
+
+UniqueZoneIds <- unique(ZonesShapes$LocationID) |> sort()
 
 
 ## Defining days to sample
@@ -384,7 +394,7 @@ drwxr-xr-x 3 root root 4.0K Apr 22 14:39 ../NycTaxiPins/Board/InitialZoneSim_Zon
 drwxr-xr-x 3 root root 4.0K Apr 22 16:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_98
 ```
 
-## Exploring results
+Now we just need to summary the results to start the exploration.
 
 ```{r}
 #| eval: false
@@ -418,6 +428,13 @@ InitialZoneSimResults <-
   ) |>
   rbindlist()
 
+# Adding region info
+InitialZoneSimResults[
+  ZonesShapes,
+  on = c("start_zone" = "LocationID"),
+  `:=`(borough = borough, start_zone_name = zone)
+]
+
 # Save immediately with clear name
 pin_write(
   BoardLocal,
@@ -428,27 +445,595 @@ pin_write(
 ```
 
 
+## Exploring results
+
+Before anything, it's important to confirm if after changing the initial conditions of trips had an effect over the target variable. Just imagene that the we see the same value for all combinations we could stop the question just by making the first chart.
+
+But you can see floowing chart preset a lot variation, it seems like the data is following a **log-normal** due it's right tail. This are really promessing results, the goal behind this experiment is to indentify the starting configurations that can beat the current baseline of **`r here::here("../NycTaxiPins/Board") |> pins::board_folder() |> pins::pin_read( "BaseLineHourlyWage") |> scales::dollar()`** and it's clear based on the chart that the **top 10%** presented higher daily hourly have than the base line.
+
 ```{r}
-pin_read(
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Showing distribution
+InitialZoneSimResults <- pin_read(
   BoardLocal,
   "InitialZoneSimResults"
-)[, .N, keyby = c("week_day", "time_hour")]
+)
+
+FinalPfaMeans <- pin_read(
+  BoardLocal,
+  "FinalPfaMeans"
+)
 
 
-# Assuming your data is called 'sim_results'
-rec <- recipe(~ week_day + time_hour, data = sim_results) %>%
-  # 1. Combine day and hour into a single timeline (0 to 167)
+TopDailyHourlyWage <- quantile(
+  InitialZoneSimResults$daily_hourly_wage_mean,
+  0.90
+)
+
+InitialZoneSimResults[,
+  is_top_trip := fifelse(
+    daily_hourly_wage_mean >= TopDailyHourlyWage,
+    "yes",
+    "no"
+  ) |>
+    factor(levels = c("yes", "no"))
+]
+
+
+BreaksToPlot <- c(seq(20, 200, 10), unname(FinalPfaMeans)) |> setdiff(60L)
+
+highlight_text <- function(x) {
+  paste0(
+    " <span style='color:",
+    Params$ColorHighlight,
+    ";'>**",
+    x,
+    "**</span> "
+  )
+}
+
+ggplot(
+  InitialZoneSimResults,
+  aes(daily_hourly_wage_mean, fill = is_top_trip)
+) +
+  geom_histogram(color = "black", bins = 30) +
+  geom_vline(
+    xintercept = FinalPfaMeans[2L],
+    linetype = 2
+  ) +
+  scale_y_continuous(
+    label = scales::label_comma(accuracy = 1)
+  ) +
+  scale_x_continuous(
+    label = scales::label_currency(accuracy = 1),
+    breaks = setdiff(BreaksToPlot, FinalPfaMeans[1L])
+  ) +
+  scale_fill_manual(
+    values = c("yes" = Params$ColorHighlight, "no" = Params$ColorGray)
+  ) +
+  labs(
+    title = paste0(
+      "**Top**",
+      highlight_text("10%"),
+      "**of combinations make at least**",
+      highlight_text("_$70 per hour_")
+    ),
+    y = "Count",
+    x = "Daily Hourly Wage"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily, base_size = 12) +
+  theme(
+    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    axis.title = element_text(face = "bold", family = Params$BaseFontFamily),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none"
+  )
+```
+
+As we can see the improment behind the the policy only benefit a **Uber** drivers as the median Hourly Wage for **Lyft** drivers match this the exact value of the baseline, as result our policy will always recomend **Uber** as taxi company.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Showing taxi company effect
+TaxiCompanyFillColors <- c(
+  "Uber" = Params$ColorHighlight,
+  "Lyft" = Params$ColorGray
+)
+
+ggplot(
+  InitialZoneSimResults,
+  aes(
+    factor(taxi_company, levels = names(TaxiCompanyFillColors)),
+    daily_hourly_wage_mean,
+    fill = taxi_company
+  )
+) +
+  geom_boxplot(width = 0.5) +
+  geom_hline(
+    yintercept = FinalPfaMeans[2L],
+    linetype = 2
+  ) +
+  geom_hline(
+    yintercept = FinalPfaMeans[1L],
+    linetype = 2
+  ) +
+  scale_fill_manual(
+    values = TaxiCompanyFillColors
+  ) +
+  scale_y_continuous(
+    breaks = BreaksToPlot,
+    label = dollar_format(1)
+  ) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**_Uber_**</span> ",
+      "**drivers makes more money than** ",
+      "<span style='color:",
+      "#5b5b5b",
+      ";'>**_Lyft_**</span> **drivers**"
+    ),
+    x = "Taxi Company",
+    y = "Daily Hourly Wage"
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    axis.title = element_text(face = "bold", family = Params$BaseFontFamily),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none"
+  )
+```
+
+After isoliating the effect of the taxi company in the hourly wage we can see by selected the zones with highest and lowers median that change in the target variable explanied by starting zone is low due that that we are evaluating **`{r} uniqueN(InitialZoneSimResults$start_zone)` zones** that increase in the median of Uber drivers was only **$2** over or baseline ($`{r} round(FinalPfaMeans[2L], 2)`) after implementing the trip selection model and based on the boxplot we can conclude that zones don't provide enough information to explain the variance present in the target variable.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Showing hour cycles effect
+TopBottomZonesMedian <- InitialZoneSimResults[,
+  list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
+  by = c("taxi_company", "start_zone")
+][order(daily_hourly_wage_mean)][,
+  .SD[c(1:10, .N - 0:9)],
+  by = "taxi_company",
+  .SDcols = "start_zone"
+][, InitialZoneSimResults[.SD, on = c("taxi_company", "start_zone")]][,
+  start_zone_name := reorder(
+    paste0(start_zone_name, "-", taxi_company),
+    daily_hourly_wage_mean,
+    median
+  )
+]
+
+ggplot(
+  TopBottomZonesMedian,
+  aes(daily_hourly_wage_mean, start_zone_name, fill = borough)
+) +
+  geom_boxplot() +
+  geom_vline(xintercept = FinalPfaMeans[1L], linetype = 2) +
+  geom_vline(xintercept = FinalPfaMeans[2L], linetype = 2) +
+  scale_fill_manual(values = Params$BoroughColors) +
+  scale_x_continuous(
+    breaks = BreaksToPlot,
+    label = scales::dollar_format(1)
+  ) +
+  scale_y_discrete(label = \(x) sub("-(.|\\s)+$", "", x)) +
+  facet_wrap(vars(taxi_company), ncol = 1, scales = "free_y") +
+  labs(
+    title = "Some Difference Can Be Explained Start Zone",
+    y = "Start Simulation Zone",
+    x = "Daily Hourly Wage",
+    fill = "Borough"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_text(
+      size = 14,
+      face = "bold",
+      family = Params$BaseFontFamily
+    ),
+    axis.text.y = element_text(
+      size = 10,
+      face = "italic",
+      family = Params$BaseFontFamily
+    ),
+    axis.title = element_text(face = "bold", family = Params$BaseFontFamily),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", family = Params$BaseFontFamily),
+    strip.text = element_text(
+      size = 12,
+      face = "bold",
+      family = Params$BaseFontFamily
+    )
+  )
+```
+
+Based on the next chart we can see a strong effect of start hour in the target variable and some moderate interactions with the day of the week as the hourly wage is higher at 0 hours on Sundays and Saturdays, but those increases are not present on week days.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Showing hour cycles effect
+Weekdays <- c(
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+)
+
+BetterThanModelFillColors <- c(
+  "TRUE" = Params$ColorHighlight,
+  "FALSE" = Params$ColorGray
+)
+
+ggplot(
+  copy(InitialZoneSimResults)[, `:=`(
+    taxi_company = factor(taxi_company, levels = c("Uber", "Lyft")),
+    time_hour = reorder(time_hour, time_hour, FUN = sum),
+    week_day = factor(Weekdays[week_day], levels = Weekdays)
+  )][,
+    better_than_model := median(daily_hourly_wage_mean) > FinalPfaMeans[2L],
+    by = c("time_hour", "taxi_company", "week_day")
+  ],
+  aes(
+    time_hour,
+    daily_hourly_wage_mean,
+    fill = better_than_model
+  )
+) +
+  geom_boxplot() +
+  geom_hline(yintercept = FinalPfaMeans[1L], linetype = 2) +
+  geom_hline(yintercept = FinalPfaMeans[2L], linetype = 2) +
+  scale_fill_manual(
+    values = BetterThanModelFillColors
+  ) +
+  scale_y_continuous(breaks = BreaksToPlot, label = scales::dollar_format(1)) +
+  facet_grid(vars(taxi_company), vars(week_day)) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**Start Time**</span> ",
+      "**Can Increase Earning Reguardless Day of Week**"
+    ),
+    x = "Hour Of The Day",
+    y = "Daily Hourly Wage"
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none",
+    strip.text = element_text(
+      size = 12,
+      face = "bold",
+      family = Params$BaseFontFamily
+    )
+  )
+```
+
+## Modeling Exploration
+
+Based on the prior exploration it's clear that the most important rule found so far is to take Uber as the company, but to improve earning we need to find better interactions between variables and for that reason we are going to start with tree model to see the model can find the most important interactions to explain changes in the target variable.
+
+### Tree models
+
+To get the best from the tree model we will tune the following params:
+
+* `tree_depth` to limit how many splits the tree can make (controls vertical complexity).
+* `min_n` to set the minimum number of data points required in a node to allow a further split (controls leaf size and horizontal complexity).
+
+For the feature engeniereeng part we took the following decisions:
+
+* `start_zone` to about the problem of high cardinality of zone we substitute the each zone by their mean after separaring the effect of the company.
+* `taxi_company` was transformed into binary varible as we only have 2 companies for know.
+* `time_hour` was transform to make splict the 24 hour cycle we face everyday.
+* `week_day` was combined with the `time_hour` to make explicit the cycle that we face every week.
+
+```{r}
+#| label: Defining Tree Workdflow
+DecisionTreeSpec <- decision_tree(
+  mode = "classification",
+  tree_depth = tune("tree_depth"),
+  min_n = tune("min_n_trees")
+)
+
+ExperimentTreeRecipe <- recipe(
+  is_top_trip ~ taxi_company +
+    start_zone +
+    week_day +
+    time_hour +
+    simulation_id +
+    daily_hourly_wage_mean,
+  data = InitialZoneSimResults
+) |>
+  update_role(
+    simulation_id,
+    daily_hourly_wage_mean,
+    new_role = "additional info"
+  ) |>
+  # Creating variables to use later
   step_mutate(
-    week_time = (week_day - 1) * 24 + time_hour
-  ) %>%
-  # 2. Create sine and cosine features based on a 168-hour cycle
+    week_time = (week_day - 1) * 24 + time_hour,
+    start_zone_taxi = paste0(start_zone, "-", taxi_company)
+  ) |>
+  # Changing zones with their mean
+  step_lencode(
+    start_zone_taxi,
+    outcome = vars(daily_hourly_wage_mean),
+    smooth = FALSE
+  ) |>
+  # Transforming company to binary variable
+  step_dummy(taxi_company) |>
+  # Making clear 24h cycles
+  step_harmonic(
+    time_hour,
+    cycle_size = 24,
+    frequency = 1,
+    keep_original_cols = TRUE
+  ) |>
   step_harmonic(
     week_time,
     cycle_size = 168,
     frequency = 1,
-    keep_original_cols = FALSE
+    keep_original_cols = TRUE
+  ) |>
+  # Removing original variables
+  step_rm(week_day, time_hour, start_zone, week_time)
+
+ExperimentTreeRecipeBalance <- step_upsample(ExperimentTreeRecipe, is_top_trip)
+
+ExperimentTreeWfSet <- workflow_set(
+  preproc = list(
+    TreeTransformations = ExperimentTreeRecipe,
+    TreeTransformationsBalance = ExperimentTreeRecipeBalance
+  ),
+  models = list(
+    tree = DecisionTreeSpec
+  )
+)
+```
+
+As this as simple model and we just need to tune 2 params we can use the grid method the find the best trip possible with 10 fold cross validation to estimate the model error without taking testing data, as we just need to understand the results of the experiment rather than using this model to make predictions.
+
+```{r}
+#| eval: false
+#| label: Tuning tree model
+ExperimentTreeWfRegularGrid <-
+  extract_parameter_set_dials(
+    ExperimentTreeWfSet,
+    id = "TreeTransformations_tree"
+  ) |>
+  grid_regular(levels = 5)
+
+set.seed(5878)
+InitialZoneSimResultsResamples <- vfold_cv(
+  InitialZoneSimResults,
+  v = 10,
+  strata = is_top_trip
+)
+
+# Tunning and saving ----
+ExperimentTreeWfTuned <- list()
+
+for (wf_id_i in ExperimentTreeWfSet$wflow_id) {
+  wf_i <- extract_workflow(ExperimentTreeWfSet, id = wf_id_i)
+  cat(paste("Tuning", wf_id_i))
+
+  ExperimentTreeWfTuned[[wf_id_i]] <- tune_grid(
+    object = wf_i,
+    resamples = InitialZoneSimResultsResamples,
+    grid = ExperimentTreeWfRegularGrid,
+    metrics = metric_set(roc_auc, brier_class),
+    control = control_grid(
+      verbose = TRUE,
+      parallel_over = NULL,
+      save_pred = TRUE
+    )
   )
 
-# Prepare and bake to see the results
-processed_data <- prep(rec) %>% bake(new_data = NULL)
+  cat(paste("Completed", wf_id_i))
+
+  # Free memory
+  gc()
+}
+
+pin_write(
+  BoardLocal,
+  ExperimentTreeWfTuned,
+  name = "ExperimentTreeWfTuned",
+  type = "qs2"
+)
+```
+
+Based on the results we can see that `min_n_trees` don't present any change on model performance, that we get the best results when `min_n` is at lest 4.
+
+```{r}
+ExperimentTreeWfTuned <- pin_read(
+  BoardLocal,
+  "ExperimentTreeWfTuned"
+)
+
+autoplot(ExperimentTreeWfTuned) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(legend.position = "top")
+```
+
+```{r}
+
+```
+
+```{r}
+#| eval: false
+ExperimentTreeWfBestConfig <- select_best(
+  ExperimentTreeWfTuned,
+  metric = "rmse"
+)
+
+collect_metrics(ExperimentTreeWfTuned) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config")
+
+collect_predictions(ExperimentTreeWfTuned) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config")
+
+ExperimentTreeWfFitted <- ExperimentTreeWf |>
+  finalize_workflow(parameters = ExperimentTreeWfBestConfig) |>
+  fit(data = InitialZoneSimResults)
+
+pin_write(
+  BoardLocal,
+  ExperimentTreeWfFitted,
+  name = "ExperimentTreeWfFitted",
+  type = "qs2"
+)
+```
+
+Based on the model results we can see that the `start_zone_taxi` became the must important variable to start the model then we see how
+
+```{r}
+ExperimentTreeWfFitted <- pin_read(
+  BoardLocal,
+  "ExperimentTreeWfFitted"
+)
+
+extract_fit_engine(ExperimentTreeWfFitted)
+```
+
+Based on what what we have learned
+
+```{r}
+# Regularised linear model
+LinearModelSpec <- linear_reg()
+
+# Recipe to implement
+ExperimentLinearRecipe <- recipe(
+  daily_hourly_wage_mean ~ taxi_company +
+    start_zone +
+    week_day +
+    time_hour +
+    simulation_id,
+  data = InitialZoneSimResults
+) |>
+  update_role(simulation_id, new_role = "additional info") |>
+
+  step_mutate(
+    week_time = (week_day - 1) * 24 + time_hour,
+    start_zone_taxi = paste0(start_zone, "-", taxi_company)
+  ) |>
+  step_rm(start_zone, taxi_company) |>
+
+  step_lencode(
+    start_zone_taxi,
+    outcome = vars(daily_hourly_wage_mean),
+    smooth = TRUE
+  ) |>
+
+  step_mutate(
+    zone_bin = factor(
+      ifelse(start_zone_taxi < 59.65442, "low", "high"),
+      levels = c("low", "high")
+    )
+  ) |>
+  step_rm(start_zone_taxi) |>
+
+  step_harmonic(
+    time_hour,
+    cycle_size = 24,
+    frequency = 1,
+    keep_original_cols = TRUE
+  ) |>
+  step_harmonic(
+    week_time,
+    cycle_size = 168,
+    frequency = 1,
+    keep_original_cols = TRUE
+  ) |>
+
+  # ---- Tree‑split indicators ----
+  step_mutate(
+    cos1_low = ifelse(time_hour_cos_1 < -0.3535534, 1, 0),
+    sin1_high = ifelse(time_hour_sin_1 >= 6.123234e-17, 1, 0),
+    week_cos_high = ifelse(week_time_cos_1 >= 0.9594056, 1, 0)
+  ) |>
+
+  step_rm(week_day, time_hour, week_time) |>
+
+  step_dummy(zone_bin) |>
+
+  step_interact(
+    terms = ~ zone_bin_high:cos1_low +
+      zone_bin_high:sin1_high +
+      zone_bin_high:sin1_high:week_cos_high
+  ) |>
+
+  step_normalize(all_numeric_predictors())
+
+LinearWorkflow <- workflow() |>
+  add_recipe(ExperimentLinearRecipe) |>
+  add_model(LinearModelSpec)
+```
+
+
+```{r}
+#| eval: false
+set.seed(5878)
+InitialZoneSimResultsResamples <- vfold_cv(InitialZoneSimResults, v = 10)
+
+ExperimentLinearWfFitted <- fit_resamples(
+  LinearWorkflow,
+  resamples = InitialZoneSimResultsResamples,
+  control = control_resamples(save_pred = TRUE, save_workflow = FALSE)
+)
+
+pin_write(
+  BoardLocal,
+  ExperimentLinearWfFitted,
+  name = "ExperimentLinearWfFitted",
+  type = "qs2"
+)
+```
+
+```{r}
+ExperimentLinearWfFitted <- pin_read(
+  BoardLocal,
+  "ExperimentLinearWfFitted"
+)
+
+ExperimentLinearWfFitted |>
+  collect_predictions() |>
+  ggplot(aes(x = daily_hourly_wage_mean, y = .pred)) +
+  geom_point(alpha = .15) +
+  geom_abline(color = "red") +
+  coord_obs_pred() +
+  facet_wrap(vars(id)) +
+  ylab("Predicted")
+```
+
+```{r}
+ExperimentTreeWfFitted |>
+  collect_predictions() |>
+  ggplot(aes(x = daily_hourly_wage_mean, y = .pred)) +
+  geom_point(alpha = .15) +
+  geom_abline(color = "red") +
+  coord_obs_pred() +
+  facet_wrap(vars(id)) +
+  ylab("Predicted")
 ```

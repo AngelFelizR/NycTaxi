@@ -144,7 +144,6 @@ The simulator is called with `fitted_wf = XgboostFinalWorkflowTailorFitted` and 
 ```{r}
 #| eval: false
 #| label: tau-grid-search
-
 TauGrid <- seq(0.05, 0.95, by = 0.05)
 
 con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
@@ -277,7 +276,6 @@ This counter-intuitive outcome is a powerful validation of the entire ADP pipeli
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5
-
 ggplot(HourlyWageByTau, aes(tau_used, mean_wage)) +
   geom_vline(xintercept = BestResult$tau_used, linetype = 2) +
   geom_line(
@@ -305,7 +303,6 @@ ggplot(HourlyWageByTau, aes(tau_used, mean_wage)) +
     axis.title = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   )
-
 ```
 
 By exploring the average number of trips taken we see that, starting at $\tau=0.7$, the number of trips *increases*. This indicates that the policy is successfully avoiding long, low-value trips, thereby freeing time for more short, high-value trips within the same working hours.
@@ -315,7 +312,6 @@ By exploring the average number of trips taken we see that, starting at $\tau=0.
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5
-
 ggplot(HourlyWageByTau, aes(tau_used, mean_n_trips)) +
   geom_vline(xintercept = BestResult$tau_used, linetype = 2) +
   geom_line(color = Params$ColorHighlight, linewidth = 1) +
@@ -356,7 +352,6 @@ We now re-run the simulator **only** at the optimal $\tau^*$ using the **exact s
 
 ```{r}
 #| eval: false
-
 con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
 
 FinalPfaResults <- simulate_trips(
@@ -405,7 +400,6 @@ FinalPfaResultsSummary[, strategy := factor(strategy, PolicyLevels)]
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5
-
 PolicyLevelsFillColors <- c(Params$ColorGray, Params$ColorHighlight)
 setattr(PolicyLevelsFillColors, "names", PolicyLevels)
 
@@ -451,6 +445,17 @@ ggplot(FinalPfaResultsSummary, aes(strategy, daily_hourly_wage_mean)) +
   )
 ```
 
+```{r}
+#| eval: false
+#| echo: false
+pin_write(
+  BoardLocal,
+  FinalPfaMeans,
+  "FinalPfaMeans",
+  type = "qs2"
+)
+```
+
 When we examine the improvement on a per-simulation-day basis, the gains are remarkably consistent: most simulated days earn **at least $2 extra per hour**, and the distribution of improvements is approximately normal.
 
 ```{r}
@@ -474,7 +479,6 @@ shapiro.test(MeanPolicyDifference$mean_difference)
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5
-
 InterceptToValidate <- 2
 PropSimoOverIntercept <- MeanPolicyDifference[, mean(
   mean_difference >= InterceptToValidate
@@ -511,7 +515,6 @@ Now that the simulation has identified the **optimal operational threshold** ($\
 ```{r}
 #| label: Adding threshold to model
 #| eval: false
-
 AcceptRejectPolicyFitted <-
   XgboostFinalWorkflowTailorFitted |>
   remove_tailor() |>
@@ -537,7 +540,6 @@ This chapter completes the ADP loop for the trip-acceptance policy. The combinat
 #| fig.width: 9
 #| fig.height: 1
 #| out.width: "100%"
-
 DiagrammeR::grViz(
   "
 digraph ADP_Pipeline {
