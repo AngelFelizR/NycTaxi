@@ -477,7 +477,7 @@ InitialZoneSimResults[,
     "yes",
     "no"
   ) |>
-    factor(levels = c("yes", "no"))
+    factor(levels = c("no", "yes"))
 ]
 
 
@@ -597,7 +597,7 @@ After isoliating the effect of the taxi company in the hourly wage we can see by
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-#| label: Showing hour cycles effect
+#| label: Showing zone effect
 TopBottomZonesMedian <- InitialZoneSimResults[,
   list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
   by = c("taxi_company", "start_zone")
@@ -872,29 +872,31 @@ ExperimentTreeWfTuned <- pin_read(
   "ExperimentTreeWfTuned"
 )
 
-autoplot(ExperimentTreeWfTuned) +
+ExperimentTreeWfBestConfig <- select_best(
+  ExperimentTreeWfTuned$TreeTransformationsBalance_tree,
+  metric = "brier_class"
+)
+
+autoplot(ExperimentTreeWfTuned$TreeTransformations_tree) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(legend.position = "top")
+
+autoplot(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) +
   theme_light(base_family = Params$BaseFontFamily) +
   theme(legend.position = "top")
 ```
 
 ```{r}
-
+#| eval: false
+collect_predictions(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config")
 ```
+
 
 ```{r}
 #| eval: false
-ExperimentTreeWfBestConfig <- select_best(
-  ExperimentTreeWfTuned,
-  metric = "rmse"
-)
-
-collect_metrics(ExperimentTreeWfTuned) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config")
-
-collect_predictions(ExperimentTreeWfTuned) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config")
-
-ExperimentTreeWfFitted <- ExperimentTreeWf |>
+ExperimentTreeWfFitted <- ExperimentTreeWfSet |>
+  extract_workflow(id = "TreeTransformationsBalance_tree") |>
   finalize_workflow(parameters = ExperimentTreeWfBestConfig) |>
   fit(data = InitialZoneSimResults)
 
@@ -914,46 +916,46 @@ ExperimentTreeWfFitted <- pin_read(
   "ExperimentTreeWfFitted"
 )
 
+collect_metrics(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config")
+
 extract_fit_engine(ExperimentTreeWfFitted)
 ```
 
-Based on what what we have learned
 
 ```{r}
-# Regularised linear model
-LinearModelSpec <- linear_reg()
+# El árbol nos dijo 3 cosas clave:
+# 1. start_zone_taxi es el predictor dominante (threshold ~$59.65)
+# 2. time_hour tiene efecto armónico (sin < 0 = primera mitad del día)
+# 3. Interacción hora × día_semana (fin de semana nocturno es especial)
 
-# Recipe to implement
-ExperimentLinearRecipe <- recipe(
-  daily_hourly_wage_mean ~ taxi_company +
+LinearRecipe <- recipe(
+  is_top_trip ~ taxi_company +
     start_zone +
     week_day +
     time_hour +
-    simulation_id,
+    simulation_id +
+    daily_hourly_wage_mean,
   data = InitialZoneSimResults
 ) |>
-  update_role(simulation_id, new_role = "additional info") |>
+  update_role(
+    simulation_id,
+    daily_hourly_wage_mean,
+    new_role = "additional info"
+  ) |>
 
+  # --- Igual que el árbol ---
   step_mutate(
     week_time = (week_day - 1) * 24 + time_hour,
     start_zone_taxi = paste0(start_zone, "-", taxi_company)
   ) |>
-  step_rm(start_zone, taxi_company) |>
-
   step_lencode(
+    # mixed mejor que bayes para regresión logística
     start_zone_taxi,
     outcome = vars(daily_hourly_wage_mean),
-    smooth = TRUE
+    smooth = FALSE # shrinkage evita overfitting en zonas con pocas obs
   ) |>
-
-  step_mutate(
-    zone_bin = factor(
-      ifelse(start_zone_taxi < 59.65442, "low", "high"),
-      levels = c("low", "high")
-    )
-  ) |>
-  step_rm(start_zone_taxi) |>
-
+  step_dummy(taxi_company) |>
   step_harmonic(
     time_hour,
     cycle_size = 24,
@@ -967,73 +969,99 @@ ExperimentLinearRecipe <- recipe(
     keep_original_cols = TRUE
   ) |>
 
-  # ---- Tree‑split indicators ----
+  # --- Nuevo: lo que el árbol descubrió como interacciones ---
+
+  # Threshold de zona (~$59.65): captura el salto que encontró el árbol
   step_mutate(
-    cos1_low = ifelse(time_hour_cos_1 < -0.3535534, 1, 0),
-    sin1_high = ifelse(time_hour_sin_1 >= 6.123234e-17, 1, 0),
-    week_cos_high = ifelse(week_time_cos_1 >= 0.9594056, 1, 0)
+    zona_top = as.integer(start_zone_taxi >= 59.65)
   ) |>
 
-  step_rm(week_day, time_hour, week_time) |>
-
-  step_dummy(zone_bin) |>
-
+  # Interacción 1: zona × hora (el árbol dijo que hora solo importa en zonas buenas)
   step_interact(
-    terms = ~ zone_bin_high:cos1_low +
-      zone_bin_high:sin1_high +
-      zone_bin_high:sin1_high:week_cos_high
+    terms = ~ zona_top:time_hour_sin_1 + zona_top:time_hour_cos_1
   ) |>
 
-  step_normalize(all_numeric_predictors())
+  # Interacción 2: zona × fin de semana nocturno (el tercer split del árbol)
+  step_interact(
+    terms = ~ zona_top:week_time_cos_1 + zona_top:week_time_sin_1
+  ) |>
 
-LinearWorkflow <- workflow() |>
-  add_recipe(ExperimentLinearRecipe) |>
-  add_model(LinearModelSpec)
+  step_rm(week_day, time_hour, start_zone, week_time, zona_top) |>
+  step_zv(all_predictors()) |> # elimina constantes post-interacción
+  step_normalize(all_numeric_predictors()) # necesario para logística
+
+LogisticSpec <- logistic_reg() |>
+  set_engine("glm")
+
+LogisticWf <- workflow() |>
+  add_recipe(LinearRecipe) |>
+  add_model(LogisticSpec)
 ```
-
 
 ```{r}
 #| eval: false
 set.seed(5878)
-InitialZoneSimResultsResamples <- vfold_cv(InitialZoneSimResults, v = 10)
+InitialZoneSimResultsResamples <- vfold_cv(
+  InitialZoneSimResults,
+  v = 10,
+  strata = is_top_trip
+)
 
-ExperimentLinearWfFitted <- fit_resamples(
-  LinearWorkflow,
+# Reusar los mismos folds del árbol para comparación justa
+LogisticWfResampled <- fit_resamples(
+  LogisticWf,
   resamples = InitialZoneSimResultsResamples,
-  control = control_resamples(save_pred = TRUE, save_workflow = FALSE)
+  metrics = metric_set(roc_auc, brier_class),
+  control = control_resamples(
+    verbose = TRUE,
+    save_pred = TRUE
+  )
 )
 
 pin_write(
   BoardLocal,
-  ExperimentLinearWfFitted,
-  name = "ExperimentLinearWfFitted",
+  LogisticWfResampled,
+  name = "LogisticWfResampled",
   type = "qs2"
 )
 ```
 
 ```{r}
-ExperimentLinearWfFitted <- pin_read(
+LogisticWfResampled <- pin_read(
   BoardLocal,
-  "ExperimentLinearWfFitted"
+  name = "LogisticWfResampled"
 )
 
-ExperimentLinearWfFitted |>
-  collect_predictions() |>
-  ggplot(aes(x = daily_hourly_wage_mean, y = .pred)) +
-  geom_point(alpha = .15) +
-  geom_abline(color = "red") +
-  coord_obs_pred() +
-  facet_wrap(vars(id)) +
-  ylab("Predicted")
+# Métricas lado a lado
+tree_metrics <- collect_metrics(
+  ExperimentTreeWfTuned$TreeTransformationsBalance_tree
+) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
+  mutate(model = "Decision Tree")
+
+logistic_metrics <- collect_metrics(LogisticWfResampled) |>
+  mutate(model = "Logistic Regression")
+
+bind_rows(tree_metrics, logistic_metrics) |>
+  select(model, .metric, mean, std_err) |>
+  arrange(.metric, model)
 ```
 
 ```{r}
-ExperimentTreeWfFitted |>
-  collect_predictions() |>
-  ggplot(aes(x = daily_hourly_wage_mean, y = .pred)) +
-  geom_point(alpha = .15) +
-  geom_abline(color = "red") +
-  coord_obs_pred() +
-  facet_wrap(vars(id)) +
-  ylab("Predicted")
+LogisticWfFitted <- fit(LogisticWf, data = InitialZoneSimResults)
+
+# Para ver significancia de cada feature
+LogisticWfFitted |>
+  extract_fit_engine() |>
+  summary()
 ```
+
+```{r}
+# Para comparar con el árbol en mismo framework
+LogisticWfFitted |>
+  extract_fit_engine() |>
+  broom::tidy(conf.int = TRUE) |>
+  filter(p.value < 0.05) |>
+  arrange(desc(abs(estimate)))
+```
+
