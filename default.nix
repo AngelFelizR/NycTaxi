@@ -42,6 +42,7 @@ let
       qs2
       ranger
       recipes
+      rpart_plot
       rmarkdown
       rvest
       scales

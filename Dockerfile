@@ -28,8 +28,7 @@ RUN echo '. /nix/var/nix/profiles/default/etc/profile.d/nix.sh' >> /root/.bashrc
 COPY default.nix .
 
 # We now build the environment (~5000s, heavily cached)
-RUN nix-build
-RUN nix-collect-garbage -d
+RUN nix-build && nix-collect-garbage -d
 
 # Defining ports to share SSH
 EXPOSE 22
