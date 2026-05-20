@@ -919,7 +919,23 @@ ExperimentTreeWfFitted <- pin_read(
 collect_metrics(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) |>
   semi_join(ExperimentTreeWfBestConfig, by = ".config")
 
-extract_fit_engine(ExperimentTreeWfFitted)
+rpart.plot::prp(
+  extract_fit_engine(ExperimentTreeWfFitted),
+  type = 3,
+  extra = 101,
+  under = TRUE,
+  under.cex = 1,
+  box.palette = "GyPu",
+  branch = .3,
+  round = 0,
+  leaf.round = 9,
+  prefix = "ozone\n",
+  main = "An Example",
+  branch.lwd = 2,
+  roundint = FALSE,
+  family = Params$BaseFontFamily
+)
+dev.off() # close pdf file
 ```
 
 

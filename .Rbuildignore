@@ -1,5 +1,7 @@
 ^output$
 ^output/
+^nix$
+^nix/
 ^docs$
 ^docs/
 ^investigation-phases$
