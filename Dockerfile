@@ -66,12 +66,6 @@ COPY nix/r-custom.nix /root/nix/r-custom.nix
 RUN nix-build /root/nix/r-custom.nix -o /nix/profiles/r-custom && \
     nix-collect-garbage -d
 
-# ── Layer 11: shell.nix for Positron / direnv ────────────────────────────────
-COPY nix/shell.nix /root/nix/shell.nix
-# Added comment to force clear cache for this specific layer
-RUN nix-build /root/nix/shell.nix -o /nix/profiles/shell && \
-    nix-collect-garbage -d
-
 # ── SSH setup ────────────────────────────────────────────────────────────────
 EXPOSE 22
 
