@@ -8,9 +8,9 @@ in
         # Tree models
         xgboost
         ranger
-        rpart_plot
         C50
         baguette
+        rpart_plot
         # Linear models
         glmnet
         earth

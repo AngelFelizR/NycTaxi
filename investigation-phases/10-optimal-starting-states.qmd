@@ -598,6 +598,7 @@ After isoliating the effect of the taxi company in the hourly wage we can see by
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: Showing zone effect
+#| height: 
 TopBottomZonesMedian <- InitialZoneSimResults[,
   list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
   by = c("taxi_company", "start_zone")
@@ -773,31 +774,32 @@ ExperimentTreeRecipe <- recipe(
   # Creating variables to use later
   step_mutate(
     week_time = (week_day - 1) * 24 + time_hour,
-    start_zone_taxi = paste0(start_zone, "-", taxi_company)
+    hourly_wage_mean_by_zone = paste0(start_zone, "-", taxi_company)
   ) |>
   # Changing zones with their mean
   step_lencode(
-    start_zone_taxi,
+    hourly_wage_mean_by_zone,
     outcome = vars(daily_hourly_wage_mean),
     smooth = FALSE
   ) |>
   # Transforming company to binary variable
   step_dummy(taxi_company) |>
-  # Making clear 24h cycles
+  # Creating Cycles
+  step_rename(day_cycle = time_hour, week_cycle = week_time) |>
   step_harmonic(
-    time_hour,
+    day_cycle,
     cycle_size = 24,
     frequency = 1,
     keep_original_cols = TRUE
   ) |>
   step_harmonic(
-    week_time,
+    week_cycle,
     cycle_size = 168,
     frequency = 1,
     keep_original_cols = TRUE
   ) |>
   # Removing original variables
-  step_rm(week_day, time_hour, start_zone, week_time)
+  step_rm(week_day, day_cycle, week_cycle, start_zone)
 
 ExperimentTreeRecipeBalance <- step_upsample(ExperimentTreeRecipe, is_top_trip)
 
@@ -872,29 +874,85 @@ ExperimentTreeWfTuned <- pin_read(
   "ExperimentTreeWfTuned"
 )
 
+autoplot(ExperimentTreeWfTuned$TreeTransformations_tree) +
+  labs(
+    title = paste0(
+      highlight_text("Any"),
+      "**affects model's results**"
+    ),
+    color = "**_Minimum number of data points in a node_**"
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    legend.position = "top",
+    plot.title = element_markdown(family = Params$BaseFontFamily),
+    plot.subtitle = element_text(
+      family = Params$BaseFontFamily,
+      face = "italic"
+    ),
+    legend.title = element_markdown(family = Params$BaseFontFamily)
+  )
+```
+
+```{r}
 ExperimentTreeWfBestConfig <- select_best(
   ExperimentTreeWfTuned$TreeTransformationsBalance_tree,
   metric = "brier_class"
 )
 
-autoplot(ExperimentTreeWfTuned$TreeTransformations_tree) +
-  theme_light(base_family = Params$BaseFontFamily) +
-  theme(legend.position = "top")
-
 autoplot(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) +
+  labs(
+    title = paste0(
+      "**The best model only needs**",
+      highlight_text("4 as tree depth")
+    ),
+    subtitle = "The mininum number points per node don't have any influence",
+    color = "**_Minimum number of data points in a node_**"
+  ) +
   theme_light(base_family = Params$BaseFontFamily) +
-  theme(legend.position = "top")
+  theme(
+    legend.position = "top",
+    plot.title = element_markdown(family = Params$BaseFontFamily),
+    plot.subtitle = element_text(
+      family = Params$BaseFontFamily,
+      face = "italic"
+    ),
+    legend.title = element_markdown(family = Params$BaseFontFamily)
+  )
 ```
 
 ```{r}
-#| eval: false
-collect_predictions(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config")
+ExperimentTreeWfTuned$TreeTransformationsBalance_tree |>
+  collect_predictions() |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
+  mutate(
+    pred_class = fifelse(.pred_yes >= 0.50, "yes", "no") |>
+      factor(levels = c("yes", "no"))
+  ) |>
+  conf_mat(is_top_trip, pred_class) |>
+  autoplot(type = "heatmap") +
+  geom_label(aes(label = scales::percent(Freq / sum(Freq))), fill = "white") +
+  labs(
+    title = paste0(
+      highlight_text("False positives"),
+      "**are main challenge**"
+    )
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_markdown(family = Params$BaseFontFamily),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  )
 ```
 
 
 ```{r}
 #| eval: false
+#| echo: false
 ExperimentTreeWfFitted <- ExperimentTreeWfSet |>
   extract_workflow(id = "TreeTransformationsBalance_tree") |>
   finalize_workflow(parameters = ExperimentTreeWfBestConfig) |>
@@ -916,36 +974,44 @@ ExperimentTreeWfFitted <- pin_read(
   "ExperimentTreeWfFitted"
 )
 
-collect_metrics(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config")
-
 rpart.plot::prp(
-  extract_fit_engine(ExperimentTreeWfFitted),
+  # 1. Model Object
+  x = extract_fit_engine(ExperimentTreeWfFitted),
+
+  # 2. Labels & Formatting
+  main = "Strategy to find best trips",
+  prefix = "Best trip\n",
+  extra = 106,
+  digits = 2,
+
+  # 3. Tree Structure & Geometry
   type = 3,
-  extra = 101,
-  under = TRUE,
-  under.cex = 1,
-  box.palette = "GyPu",
-  branch = .3,
-  round = 0,
-  leaf.round = 9,
-  prefix = "ozone\n",
-  main = "An Example",
-  branch.lwd = 2,
+  branch = 0.3,
+  branch.lwd = 2.5,
   roundint = FALSE,
-  family = Params$BaseFontFamily
+
+  # 4. Node & Leaf Aesthetics
+  box.palette = "GyPu",
+  round = 2,
+  leaf.round = 9,
+  under = TRUE,
+  under.cex = 1.0,
+
+  # 5. Variable Name Handling
+  varlen = 0,
+  faclen = 0,
+  clip.facs = FALSE,
+
+  # 6. Typography & Fonts
+  family = Params$BaseFontFamily,
+  split.family = Params$BaseFontFamily,
+  split.cex = 1.0
 )
-dev.off() # close pdf file
 ```
 
 
 ```{r}
-# El árbol nos dijo 3 cosas clave:
-# 1. start_zone_taxi es el predictor dominante (threshold ~$59.65)
-# 2. time_hour tiene efecto armónico (sin < 0 = primera mitad del día)
-# 3. Interacción hora × día_semana (fin de semana nocturno es especial)
-
-LinearRecipe <- recipe(
+LinealRecipe <- recipe(
   is_top_trip ~ taxi_company +
     start_zone +
     week_day +
@@ -954,64 +1020,182 @@ LinearRecipe <- recipe(
     daily_hourly_wage_mean,
   data = InitialZoneSimResults
 ) |>
+
+  # ------------------------------------------------------------------
+  # Roles
+  # ------------------------------------------------------------------
+
   update_role(
     simulation_id,
     daily_hourly_wage_mean,
     new_role = "additional info"
   ) |>
 
-  # --- Igual que el árbol ---
+  # ------------------------------------------------------------------
+  # Feature engineering
+  # ------------------------------------------------------------------
+
   step_mutate(
     week_time = (week_day - 1) * 24 + time_hour,
-    start_zone_taxi = paste0(start_zone, "-", taxi_company)
+    hourly_wage_mean_by_zone = paste0(start_zone, "-", taxi_company)
   ) |>
+
+  # ------------------------------------------------------------------
+  # Target encoding
+  # ------------------------------------------------------------------
+
   step_lencode(
-    # mixed mejor que bayes para regresión logística
-    start_zone_taxi,
+    hourly_wage_mean_by_zone,
     outcome = vars(daily_hourly_wage_mean),
-    smooth = FALSE # shrinkage evita overfitting en zonas con pocas obs
+    smooth = FALSE
   ) |>
+
+  # ------------------------------------------------------------------
+  # Dummies
+  # ------------------------------------------------------------------
+
   step_dummy(taxi_company) |>
+
+  # ------------------------------------------------------------------
+  # Rename cycles
+  # ------------------------------------------------------------------
+
+  step_rename(
+    day_cycle = time_hour,
+    week_cycle = week_time
+  ) |>
+
+  # ------------------------------------------------------------------
+  # Harmonic encoding
+  # ------------------------------------------------------------------
+
   step_harmonic(
-    time_hour,
+    day_cycle,
     cycle_size = 24,
     frequency = 1,
     keep_original_cols = TRUE
   ) |>
+
   step_harmonic(
-    week_time,
+    week_cycle,
     cycle_size = 168,
     frequency = 1,
     keep_original_cols = TRUE
   ) |>
 
-  # --- Nuevo: lo que el árbol descubrió como interacciones ---
+  # ------------------------------------------------------------------
+  # INTERACTION FRAME
+  # ------------------------------------------------------------------
 
-  # Threshold de zona (~$59.65): captura el salto que encontró el árbol
-  step_mutate(
-    zona_top = as.integer(start_zone_taxi >= 59.65)
-  ) |>
-
-  # Interacción 1: zona × hora (el árbol dijo que hora solo importa en zonas buenas)
   step_interact(
-    terms = ~ zona_top:time_hour_sin_1 + zona_top:time_hour_cos_1
+    terms = ~
+      # --------------------------------------------------------------
+      # Company × zone quality
+      # --------------------------------------------------------------
+
+      taxi_company_Uber:hourly_wage_mean_by_zone +
+
+        # --------------------------------------------------------------
+        # Company × daily seasonality
+        # --------------------------------------------------------------
+
+        taxi_company_Uber:day_cycle_sin_1 +
+        taxi_company_Uber:day_cycle_cos_1 +
+
+        # --------------------------------------------------------------
+        # Company × weekly seasonality
+        # --------------------------------------------------------------
+
+        taxi_company_Uber:week_cycle_sin_1 +
+        taxi_company_Uber:week_cycle_cos_1 +
+
+        # --------------------------------------------------------------
+        # Zone quality × temporal behavior
+        # --------------------------------------------------------------
+
+        hourly_wage_mean_by_zone:day_cycle_sin_1 +
+        hourly_wage_mean_by_zone:day_cycle_cos_1 +
+        hourly_wage_mean_by_zone:week_cycle_sin_1 +
+        hourly_wage_mean_by_zone:week_cycle_cos_1 +
+
+        # --------------------------------------------------------------
+        # Daily × weekly harmonic interaction
+        # --------------------------------------------------------------
+
+        day_cycle_sin_1:week_cycle_sin_1 +
+        day_cycle_sin_1:week_cycle_cos_1 +
+        day_cycle_cos_1:week_cycle_sin_1 +
+        day_cycle_cos_1:week_cycle_cos_1 +
+
+        # --------------------------------------------------------------
+        # Higher-order interactions
+        # --------------------------------------------------------------
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1 +
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1 +
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:week_cycle_sin_1 +
+        taxi_company_Uber:hourly_wage_mean_by_zone:week_cycle_cos_1 +
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1:week_cycle_sin_1 +
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1:week_cycle_cos_1 +
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1:week_cycle_sin_1 +
+
+        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1:week_cycle_cos_1
   ) |>
 
-  # Interacción 2: zona × fin de semana nocturno (el tercer split del árbol)
-  step_interact(
-    terms = ~ zona_top:week_time_cos_1 + zona_top:week_time_sin_1
+  # ------------------------------------------------------------------
+  # Cleanup
+  # ------------------------------------------------------------------
+
+  step_rm(
+    week_day,
+    day_cycle,
+    week_cycle,
+    start_zone
   ) |>
 
-  step_rm(week_day, time_hour, start_zone, week_time, zona_top) |>
-  step_zv(all_predictors()) |> # elimina constantes post-interacción
-  step_normalize(all_numeric_predictors()) # necesario para logística
+  step_range(all_numeric_predictors())
 
-LogisticSpec <- logistic_reg() |>
-  set_engine("glm")
+LogisticSpec <- logistic_reg(
+  penalty = tune(),
+  mixture = 1
+) |>
+  set_engine("glmnet")
 
 LogisticWf <- workflow() |>
-  add_recipe(LinearRecipe) |>
+  add_recipe(LinealRecipe) |>
   add_model(LogisticSpec)
+```
+
+
+```{r}
+#| eval: false
+LogisticWfFitted <-
+  prep(LinealRecipe) |>
+  juice() |>
+  select(-c(simulation_id, daily_hourly_wage_mean)) |>
+  glm(formula = is_top_trip ~ ., family = binomial())
+
+BackwardLogisticModel <- MASS::stepAIC(
+  LogisticWfFitted,
+  direction = "backward",
+  trace = TRUE
+)
+
+pin_write(
+  BoardLocal,
+  BackwardLogisticModel,
+  name = "BackwardLogisticModel",
+  type = "qs2"
+)
+```
+
+
+```{r}
+summary(BackwardLogisticModel)
 ```
 
 ```{r}
@@ -1023,12 +1207,17 @@ InitialZoneSimResultsResamples <- vfold_cv(
   strata = is_top_trip
 )
 
-# Reusar los mismos folds del árbol para comparación justa
-LogisticWfResampled <- fit_resamples(
-  LogisticWf,
+PenaltyGrid <- grid_regular(
+  penalty(),
+  levels = 50
+)
+
+LogisticWfTuned <- tune_grid(
+  LogisticSpec,
   resamples = InitialZoneSimResultsResamples,
+  grid = PenaltyGrid,
   metrics = metric_set(roc_auc, brier_class),
-  control = control_resamples(
+  control = control_grid(
     verbose = TRUE,
     save_pred = TRUE
   )
@@ -1036,18 +1225,89 @@ LogisticWfResampled <- fit_resamples(
 
 pin_write(
   BoardLocal,
-  LogisticWfResampled,
-  name = "LogisticWfResampled",
+  LogisticWfTuned,
+  name = "LogisticWfTuned",
   type = "qs2"
 )
 ```
 
 ```{r}
-LogisticWfResampled <- pin_read(
+LogisticWfTuned <- pin_read(
   BoardLocal,
-  name = "LogisticWfResampled"
+  name = "LogisticWfTuned"
 )
 
+LogisticWfBestConfig <- select_by_pct_loss(
+  LogisticWfTuned,
+  metric = "brier_class",
+  limit = 1,
+  desc(penalty)
+)
+
+autoplot(LogisticWfTuned) +
+  geom_vline(xintercept = LogisticWfBestConfig$penalty, linetype = 2) +
+  labs(
+    title = paste0(
+      highlight_text(round(LogisticWfBestConfig$penalty, 4)),
+      "**represent the hightest penalty**"
+    )
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    legend.position = "top",
+    plot.title = element_markdown(family = Params$BaseFontFamily)
+  )
+```
+
+```{r}
+LogisticWfFitted <- finalize_workflow(
+  LogisticWf,
+  LogisticWfBestConfig
+) |>
+  fit(data = InitialZoneSimResults)
+
+VariablesToRemove <-
+  LogisticWfFitted |>
+  extract_fit_engine() |>
+  coef(s = LogisticWfBestConfig$penalty) |>
+  as.matrix() |>
+  as.data.table(keep.rownames = "variable") |>
+  setnames(c("variable", "coef")) |>
+  filter(coef == 0) |>
+  pull(variable)
+
+VariablesToRemove
+```
+
+```{r}
+LinealRecipe
+
+LogisticSpec <- logistic_reg(
+  penalty = tune(),
+  mixture = 1
+) |>
+  set_engine("glmnet")
+
+LogisticWf <- workflow() |>
+  add_recipe(LinealRecipe) |>
+  add_model(LogisticSpec)
+```
+
+
+```{r}
+LogisticWfFittedSimple <-
+  prep(LinealRecipe) |>
+  juice() |>
+  select(
+    -c(simulation_id, daily_hourly_wage_mean, all_of(VariablesToRemove))
+  ) |>
+  glm(formula = is_top_trip ~ ., family = binomial())
+
+summary(LogisticWfFittedSimple)
+```
+
+
+```{r}
 # Métricas lado a lado
 tree_metrics <- collect_metrics(
   ExperimentTreeWfTuned$TreeTransformationsBalance_tree
@@ -1063,21 +1323,6 @@ bind_rows(tree_metrics, logistic_metrics) |>
   arrange(.metric, model)
 ```
 
-```{r}
-LogisticWfFitted <- fit(LogisticWf, data = InitialZoneSimResults)
 
-# Para ver significancia de cada feature
-LogisticWfFitted |>
-  extract_fit_engine() |>
-  summary()
-```
 
-```{r}
-# Para comparar con el árbol en mismo framework
-LogisticWfFitted |>
-  extract_fit_engine() |>
-  broom::tidy(conf.int = TRUE) |>
-  filter(p.value < 0.05) |>
-  arrange(desc(abs(estimate)))
-```
 

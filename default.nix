@@ -42,7 +42,6 @@ let
       qs2
       ranger
       recipes
-      rpart_plot
       rmarkdown
       rvest
       scales
@@ -61,7 +60,8 @@ let
       units
       vip
       withr
-      xgboost;
+      xgboost
+      rpart_plot;
   };
  
     corrcat = (pkgs.rPackages.buildRPackage {

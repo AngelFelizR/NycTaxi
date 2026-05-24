@@ -46,19 +46,19 @@ COPY nix/r-core.nix /root/nix/r-core.nix
 RUN nix-build /root/nix/r-core.nix -o /nix/profiles/r-core && \
     nix-collect-garbage -d
 
-# ── Layer 7: ML / modelling packages ─────────────────────────────────────────
-COPY nix/r-ml.nix /root/nix/r-ml.nix
-RUN nix-build /root/nix/r-ml.nix -o /nix/profiles/r-ml && \
-    nix-collect-garbage -d
-
-# ── Layer 8: geo / spatial packages ──────────────────────────────────────────
+# ── Layer 7: geo / spatial packages ──────────────────────────────────────────
 COPY nix/r-geo.nix /root/nix/r-geo.nix
 RUN nix-build /root/nix/r-geo.nix -o /nix/profiles/r-geo && \
     nix-collect-garbage -d
 
-# ── Layer 9: data / IO packages ──────────────────────────────────────────────
+# ── Layer 8: data / IO packages ──────────────────────────────────────────────
 COPY nix/r-data.nix /root/nix/r-data.nix
 RUN nix-build /root/nix/r-data.nix -o /nix/profiles/r-data && \
+    nix-collect-garbage -d
+
+# ── Layer 9: ML / modelling packages ─────────────────────────────────────────
+COPY nix/r-ml.nix /root/nix/r-ml.nix
+RUN nix-build /root/nix/r-ml.nix -o /nix/profiles/r-ml && \
     nix-collect-garbage -d
 
 # ── Layer 10: custom-built packages (corrcat, pins, roxygen2) ────────────────
