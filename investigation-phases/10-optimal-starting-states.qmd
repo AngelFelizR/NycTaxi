@@ -598,7 +598,6 @@ After isoliating the effect of the taxi company in the hourly wage we can see by
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: Showing zone effect
-#| height: 
 TopBottomZonesMedian <- InitialZoneSimResults[,
   list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
   by = c("taxi_company", "start_zone")
@@ -751,13 +750,7 @@ For the feature engeniereeng part we took the following decisions:
 
 ```{r}
 #| label: Defining Tree Workdflow
-DecisionTreeSpec <- decision_tree(
-  mode = "classification",
-  tree_depth = tune("tree_depth"),
-  min_n = tune("min_n_trees")
-)
-
-ExperimentTreeRecipe <- recipe(
+DecisionTreeRecipe <- recipe(
   is_top_trip ~ taxi_company +
     start_zone +
     week_day +
@@ -799,19 +792,19 @@ ExperimentTreeRecipe <- recipe(
     keep_original_cols = TRUE
   ) |>
   # Removing original variables
-  step_rm(week_day, day_cycle, week_cycle, start_zone)
+  step_rm(week_day, day_cycle, week_cycle, start_zone) |>
+  step_upsample(is_top_trip, over_ratio = tune("over_ratio"))
 
-ExperimentTreeRecipeBalance <- step_upsample(ExperimentTreeRecipe, is_top_trip)
-
-ExperimentTreeWfSet <- workflow_set(
-  preproc = list(
-    TreeTransformations = ExperimentTreeRecipe,
-    TreeTransformationsBalance = ExperimentTreeRecipeBalance
-  ),
-  models = list(
-    tree = DecisionTreeSpec
-  )
+DecisionTreeSpec <- decision_tree(
+  mode = "classification",
+  tree_depth = tune("tree_depth"),
+  min_n = 10
 )
+
+DecisionTreeWf <-
+  workflow() |>
+  add_recipe(DecisionTreeRecipe) |>
+  add_model(DecisionTreeSpec)
 ```
 
 As this as simple model and we just need to tune 2 params we can use the grid method the find the best trip possible with 10 fold cross validation to estimate the model error without taking testing data, as we just need to understand the results of the experiment rather than using this model to make predictions.
@@ -819,12 +812,11 @@ As this as simple model and we just need to tune 2 params we can use the grid me
 ```{r}
 #| eval: false
 #| label: Tuning tree model
-ExperimentTreeWfRegularGrid <-
-  extract_parameter_set_dials(
-    ExperimentTreeWfSet,
-    id = "TreeTransformations_tree"
-  ) |>
-  grid_regular(levels = 5)
+DecisionTreeWfRegularGrid <- grid_regular(
+  tree_depth(range = c(2L, 16L)),
+  over_ratio(range = c(0.1, 1)),
+  levels = c(tree_depth = 5, over_ratio = 10)
+)
 
 set.seed(5878)
 InitialZoneSimResultsResamples <- vfold_cv(
@@ -833,35 +825,23 @@ InitialZoneSimResultsResamples <- vfold_cv(
   strata = is_top_trip
 )
 
-# Tunning and saving ----
-ExperimentTreeWfTuned <- list()
-
-for (wf_id_i in ExperimentTreeWfSet$wflow_id) {
-  wf_i <- extract_workflow(ExperimentTreeWfSet, id = wf_id_i)
-  cat(paste("Tuning", wf_id_i))
-
-  ExperimentTreeWfTuned[[wf_id_i]] <- tune_grid(
-    object = wf_i,
-    resamples = InitialZoneSimResultsResamples,
-    grid = ExperimentTreeWfRegularGrid,
-    metrics = metric_set(roc_auc, brier_class),
-    control = control_grid(
-      verbose = TRUE,
-      parallel_over = NULL,
-      save_pred = TRUE
-    )
+DecisionTreeWfTuned <- tune_grid(
+  object = DecisionTreeWf,
+  resamples = InitialZoneSimResultsResamples,
+  grid = DecisionTreeWfRegularGrid,
+  metrics = metric_set(recall, precision, brier_class),
+  control = control_grid(
+    verbose = TRUE,
+    parallel_over = NULL,
+    save_pred = TRUE
   )
+)
 
-  cat(paste("Completed", wf_id_i))
-
-  # Free memory
-  gc()
-}
 
 pin_write(
   BoardLocal,
-  ExperimentTreeWfTuned,
-  name = "ExperimentTreeWfTuned",
+  DecisionTreeWfTuned,
+  name = "DecisionTreeWfTuned",
   type = "qs2"
 )
 ```
@@ -869,19 +849,20 @@ pin_write(
 Based on the results we can see that `min_n_trees` don't present any change on model performance, that we get the best results when `min_n` is at lest 4.
 
 ```{r}
-ExperimentTreeWfTuned <- pin_read(
+DecisionTreeWfTuned <- pin_read(
   BoardLocal,
-  "ExperimentTreeWfTuned"
+  name = "DecisionTreeWfTuned"
 )
 
-autoplot(ExperimentTreeWfTuned$TreeTransformations_tree) +
-  labs(
-    title = paste0(
-      highlight_text("Any"),
-      "**affects model's results**"
-    ),
-    color = "**_Minimum number of data points in a node_**"
-  ) +
+DecisionTreeWfBestConfig <- select_by_pct_loss(
+  DecisionTreeWfTuned,
+  metric = "brier_class",
+  limit = 1,
+  tree_depth
+)
+
+autoplot(DecisionTreeWfTuned) +
+  geom_vline(xintercept = DecisionTreeWfBestConfig$over_ratio, linetype = 2) +
   theme_light(base_family = Params$BaseFontFamily) +
   theme(
     legend.position = "top",
@@ -894,48 +875,63 @@ autoplot(ExperimentTreeWfTuned$TreeTransformations_tree) +
   )
 ```
 
-```{r}
-ExperimentTreeWfBestConfig <- select_best(
-  ExperimentTreeWfTuned$TreeTransformationsBalance_tree,
-  metric = "brier_class"
-)
 
-autoplot(ExperimentTreeWfTuned$TreeTransformationsBalance_tree) +
-  labs(
-    title = paste0(
-      "**The best model only needs**",
-      highlight_text("4 as tree depth")
-    ),
-    subtitle = "The mininum number points per node don't have any influence",
-    color = "**_Minimum number of data points in a node_**"
-  ) +
-  theme_light(base_family = Params$BaseFontFamily) +
-  theme(
-    legend.position = "top",
-    plot.title = element_markdown(family = Params$BaseFontFamily),
-    plot.subtitle = element_text(
-      family = Params$BaseFontFamily,
-      face = "italic"
-    ),
-    legend.title = element_markdown(family = Params$BaseFontFamily)
-  )
+```{r}
+#| eval: false
+#| echo: false
+DecisionTreeWfFitted <-
+  finalize_workflow(DecisionTreeWf, DecisionTreeWfBestConfig) |>
+  fit(data = InitialZoneSimResults)
+
+pin_write(
+  BoardLocal,
+  DecisionTreeWfFitted,
+  name = "DecisionTreeWfFitted",
+  type = "qs2"
+)
 ```
 
 ```{r}
-ExperimentTreeWfTuned$TreeTransformationsBalance_tree |>
-  collect_predictions() |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
+DecisionTreeWfFitted <- pin_read(
+  BoardLocal,
+  "DecisionTreeWfFitted"
+)
+
+DecisionTreeResiduals <-
+  DecisionTreeWfFitted |>
+  augment(new_data = InitialZoneSimResults) |>
   mutate(
-    pred_class = fifelse(.pred_yes >= 0.50, "yes", "no") |>
-      factor(levels = c("yes", "no"))
-  ) |>
-  conf_mat(is_top_trip, pred_class) |>
-  autoplot(type = "heatmap") +
-  geom_label(aes(label = scales::percent(Freq / sum(Freq))), fill = "white") +
+    correct = .pred_class == is_top_trip
+  )
+```
+
+```{r}
+DecisionTreeConfMatrix <-
+  DecisionTreeResiduals |>
+  count(Truth = is_top_trip, Prediction = .pred_class, name = "Freq") |>
+  group_by(Truth) |>
+  mutate(truth_prop = Freq / sum(Freq))
+
+CorrectHighValue <-
+  DecisionTreeConfMatrix |>
+  filter(Truth == "yes", Prediction == "yes") |>
+  pull(truth_prop) |>
+  scales::percent()
+
+
+DecisionTreeConfMatrix |>
+  ggplot(aes(Truth, Prediction)) +
+  geom_tile(aes(fill = truth_prop)) +
+  geom_label(
+    aes(label = paste0(scales::percent(truth_prop), "\n", scales::comma(Freq))),
+    fill = "white"
+  ) +
+  scale_fill_continuous(palette = "Greys") +
   labs(
     title = paste0(
-      highlight_text("False positives"),
-      "**are main challenge**"
+      "**Only**",
+      CorrectHighValue |> paste("of high value trips") |> highlight_text(),
+      "**were predicted**"
     )
   ) +
   theme_minimal(base_family = Params$BaseFontFamily) +
@@ -949,34 +945,12 @@ ExperimentTreeWfTuned$TreeTransformationsBalance_tree |>
   )
 ```
 
-
-```{r}
-#| eval: false
-#| echo: false
-ExperimentTreeWfFitted <- ExperimentTreeWfSet |>
-  extract_workflow(id = "TreeTransformationsBalance_tree") |>
-  finalize_workflow(parameters = ExperimentTreeWfBestConfig) |>
-  fit(data = InitialZoneSimResults)
-
-pin_write(
-  BoardLocal,
-  ExperimentTreeWfFitted,
-  name = "ExperimentTreeWfFitted",
-  type = "qs2"
-)
-```
-
 Based on the model results we can see that the `start_zone_taxi` became the must important variable to start the model then we see how
 
 ```{r}
-ExperimentTreeWfFitted <- pin_read(
-  BoardLocal,
-  "ExperimentTreeWfFitted"
-)
-
 rpart.plot::prp(
   # 1. Model Object
-  x = extract_fit_engine(ExperimentTreeWfFitted),
+  x = extract_fit_engine(DecisionTreeWfFitted),
 
   # 2. Labels & Formatting
   main = "Strategy to find best trips",
@@ -1163,40 +1137,16 @@ LogisticSpec <- logistic_reg(
   penalty = tune(),
   mixture = 1
 ) |>
-  set_engine("glmnet")
+  set_engine(
+    "glmnet",
+    class.weights = c("no" = 1, "yes" = 9)
+  )
 
 LogisticWf <- workflow() |>
   add_recipe(LinealRecipe) |>
   add_model(LogisticSpec)
 ```
 
-
-```{r}
-#| eval: false
-LogisticWfFitted <-
-  prep(LinealRecipe) |>
-  juice() |>
-  select(-c(simulation_id, daily_hourly_wage_mean)) |>
-  glm(formula = is_top_trip ~ ., family = binomial())
-
-BackwardLogisticModel <- MASS::stepAIC(
-  LogisticWfFitted,
-  direction = "backward",
-  trace = TRUE
-)
-
-pin_write(
-  BoardLocal,
-  BackwardLogisticModel,
-  name = "BackwardLogisticModel",
-  type = "qs2"
-)
-```
-
-
-```{r}
-summary(BackwardLogisticModel)
-```
 
 ```{r}
 #| eval: false
@@ -1213,7 +1163,7 @@ PenaltyGrid <- grid_regular(
 )
 
 LogisticWfTuned <- tune_grid(
-  LogisticSpec,
+  LogisticWf,
   resamples = InitialZoneSimResultsResamples,
   grid = PenaltyGrid,
   metrics = metric_set(roc_auc, brier_class),
@@ -1259,6 +1209,36 @@ autoplot(LogisticWfTuned) +
   )
 ```
 
+
+
+```{r}
+LogisticWfTuned |>
+  collect_predictions() |>
+  semi_join(LogisticWfBestConfig, by = ".config") |>
+  mutate(
+    pred_class = fifelse(.pred_yes >= 0.50, "yes", "no") |>
+      factor(levels = c("no", "yes"))
+  ) |>
+  conf_mat(is_top_trip, pred_class) |>
+  autoplot(type = "heatmap") +
+  geom_label(aes(label = scales::percent(Freq / sum(Freq))), fill = "white") +
+  labs(
+    title = paste0(
+      highlight_text("False positives"),
+      "**are main challenge**"
+    )
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title.position = "plot",
+    plot.title = element_markdown(family = Params$BaseFontFamily),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  )
+```
+
 ```{r}
 LogisticWfFitted <- finalize_workflow(
   LogisticWf,
@@ -1266,63 +1246,30 @@ LogisticWfFitted <- finalize_workflow(
 ) |>
   fit(data = InitialZoneSimResults)
 
-VariablesToRemove <-
-  LogisticWfFitted |>
-  extract_fit_engine() |>
-  coef(s = LogisticWfBestConfig$penalty) |>
-  as.matrix() |>
-  as.data.table(keep.rownames = "variable") |>
-  setnames(c("variable", "coef")) |>
-  filter(coef == 0) |>
-  pull(variable)
+LogisticModelCoefs <-
+  tidy(LogisticWfFitted) |>
+  arrange((estimate == 0), term)
 
-VariablesToRemove
-```
-
-```{r}
-LinealRecipe
-
-LogisticSpec <- logistic_reg(
-  penalty = tune(),
-  mixture = 1
-) |>
-  set_engine("glmnet")
-
-LogisticWf <- workflow() |>
-  add_recipe(LinealRecipe) |>
-  add_model(LogisticSpec)
+print(LogisticModelCoefs, n = nrow(LogisticModelCoefs))
 ```
 
 
 ```{r}
-LogisticWfFittedSimple <-
-  prep(LinealRecipe) |>
-  juice() |>
-  select(
-    -c(simulation_id, daily_hourly_wage_mean, all_of(VariablesToRemove))
-  ) |>
-  glm(formula = is_top_trip ~ ., family = binomial())
-
-summary(LogisticWfFittedSimple)
-```
-
-
-```{r}
-# Métricas lado a lado
 tree_metrics <- collect_metrics(
   ExperimentTreeWfTuned$TreeTransformationsBalance_tree
 ) |>
   semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
   mutate(model = "Decision Tree")
 
-logistic_metrics <- collect_metrics(LogisticWfResampled) |>
+logistic_metrics <- collect_metrics(
+  LogisticWfTuned
+) |>
+  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
   mutate(model = "Logistic Regression")
 
 bind_rows(tree_metrics, logistic_metrics) |>
   select(model, .metric, mean, std_err) |>
   arrange(.metric, model)
 ```
-
-
 
 
