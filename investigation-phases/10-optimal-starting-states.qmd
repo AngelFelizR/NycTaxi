@@ -833,7 +833,7 @@ DecisionTreeWfTuned <- tune_grid(
   control = control_grid(
     verbose = TRUE,
     parallel_over = NULL,
-    save_pred = TRUE
+    save_pred = FALSE
   )
 )
 
@@ -891,6 +891,8 @@ pin_write(
 )
 ```
 
+
+
 ```{r}
 DecisionTreeWfFitted <- pin_read(
   BoardLocal,
@@ -901,16 +903,35 @@ DecisionTreeResiduals <-
   DecisionTreeWfFitted |>
   augment(new_data = InitialZoneSimResults) |>
   mutate(
-    correct = .pred_class == is_top_trip
+    correct = .pred_class == is_top_trip,
+    .pred_class2 = if_else(.pred_yes > 0.50, "yes", "no") |>
+      factor(levels = c("no", "yes"))
   )
 ```
 
 ```{r}
+ggplot(
+  DecisionTreeResiduals,
+  aes(round(.pred_yes, 2) |> forcats::as_factor(), fill = is_top_trip)
+) +
+  geom_bar(bins = 15, position = position_dodge()) +
+  scale_y_log10()
+```
+
+```{r}
+ggplot(DecisionTreeResiduals, aes(.pred_class2, daily_hourly_wage_mean)) +
+  geom_boxplot()
+```
+
+
+
+```{r}
 DecisionTreeConfMatrix <-
   DecisionTreeResiduals |>
-  count(Truth = is_top_trip, Prediction = .pred_class, name = "Freq") |>
-  group_by(Truth) |>
-  mutate(truth_prop = Freq / sum(Freq))
+  group_by(Truth = is_top_trip, Prediction = .pred_class) |>
+  summarize(Freq = n(), mean_pred_yes = mean(.pred_yes)) |>
+  mutate(truth_prop = Freq / sum(Freq)) |>
+  ungroup()
 
 CorrectHighValue <-
   DecisionTreeConfMatrix |>
@@ -923,7 +944,15 @@ DecisionTreeConfMatrix |>
   ggplot(aes(Truth, Prediction)) +
   geom_tile(aes(fill = truth_prop)) +
   geom_label(
-    aes(label = paste0(scales::percent(truth_prop), "\n", scales::comma(Freq))),
+    aes(
+      label = paste0(
+        scales::percent(truth_prop),
+        "\n",
+        scales::comma(Freq),
+        "\n Yes prob: ",
+        scales::percent(mean_pred_yes)
+      )
+    ),
     fill = "white"
   ) +
   scale_fill_continuous(palette = "Greys") +
