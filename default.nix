@@ -61,7 +61,8 @@ let
       vip
       withr
       xgboost
-      rpart_plot;
+      rpart_plot
+      GGally;
   };
  
     corrcat = (pkgs.rPackages.buildRPackage {

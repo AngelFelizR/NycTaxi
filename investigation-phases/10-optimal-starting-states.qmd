@@ -41,6 +41,7 @@ library(duckdb)
 library(lubridate)
 library(timeDate)
 library(ggtext)
+library(scales)
 
 ## To run predictions
 library(tidymodels)
@@ -449,7 +450,7 @@ pin_write(
 
 Before anything, it's important to confirm if after changing the initial conditions of trips had an effect over the target variable. Just imagene that the we see the same value for all combinations we could stop the question just by making the first chart.
 
-But you can see floowing chart preset a lot variation, it seems like the data is following a **log-normal** due it's right tail. This are really promessing results, the goal behind this experiment is to indentify the starting configurations that can beat the current baseline of **`r here::here("../NycTaxiPins/Board") |> pins::board_folder() |> pins::pin_read( "BaseLineHourlyWage") |> scales::dollar()`** and it's clear based on the chart that the **top 10%** presented higher daily hourly have than the base line.
+But you can see floowing chart preset a lot variation, it seems like the data is following a **log-normal** due it's right tail. This are really promessing results, the goal behind this experiment is to indentify the starting configurations that can beat the current baseline of **`r here::here("../NycTaxiPins/Board") |> pins::board_folder() |> pins::pin_read( "BaseLineHourlyWage") |> dollar()`** and it's clear based on the chart that the **top 10%** presented higher daily hourly have than the base line.
 
 ```{r}
 #| code-fold: true
@@ -503,10 +504,10 @@ ggplot(
     linetype = 2
   ) +
   scale_y_continuous(
-    label = scales::label_comma(accuracy = 1)
+    label = label_comma(accuracy = 1)
   ) +
   scale_x_continuous(
-    label = scales::label_currency(accuracy = 1),
+    label = label_currency(accuracy = 1),
     breaks = setdiff(BreaksToPlot, FinalPfaMeans[1L])
   ) +
   scale_fill_manual(
@@ -517,7 +518,7 @@ ggplot(
       "**Top**",
       highlight_text("10%"),
       "**of combinations make at least**",
-      highlight_text("_$70 per hour_")
+      highlight_text(paste0("_", dollar(TopDailyHourlyWage), " per hour_"))
     ),
     y = "Count",
     x = "Daily Hourly Wage"
@@ -623,7 +624,7 @@ ggplot(
   scale_fill_manual(values = Params$BoroughColors) +
   scale_x_continuous(
     breaks = BreaksToPlot,
-    label = scales::dollar_format(1)
+    label = dollar_format(1)
   ) +
   scale_y_discrete(label = \(x) sub("-(.|\\s)+$", "", x)) +
   facet_wrap(vars(taxi_company), ncol = 1, scales = "free_y") +
@@ -701,7 +702,7 @@ ggplot(
   scale_fill_manual(
     values = BetterThanModelFillColors
   ) +
-  scale_y_continuous(breaks = BreaksToPlot, label = scales::dollar_format(1)) +
+  scale_y_continuous(breaks = BreaksToPlot, label = dollar_format(1)) +
   facet_grid(vars(taxi_company), vars(week_day)) +
   labs(
     title = paste0(
@@ -875,10 +876,8 @@ autoplot(DecisionTreeWfTuned) +
   )
 ```
 
-
 ```{r}
 #| eval: false
-#| echo: false
 DecisionTreeWfFitted <-
   finalize_workflow(DecisionTreeWf, DecisionTreeWfBestConfig) |>
   fit(data = InitialZoneSimResults)
@@ -891,87 +890,107 @@ pin_write(
 )
 ```
 
-
-
 ```{r}
 DecisionTreeWfFitted <- pin_read(
   BoardLocal,
   "DecisionTreeWfFitted"
 )
 
-DecisionTreeResiduals <-
-  DecisionTreeWfFitted |>
-  augment(new_data = InitialZoneSimResults) |>
-  mutate(
-    correct = .pred_class == is_top_trip,
-    .pred_class2 = if_else(.pred_yes > 0.50, "yes", "no") |>
-      factor(levels = c("no", "yes"))
-  )
-```
+DecisionTreeAugmented <-
+  augment(DecisionTreeWfFitted, new_data = InitialZoneSimResults)
 
-```{r}
 ggplot(
-  DecisionTreeResiduals,
-  aes(round(.pred_yes, 2) |> forcats::as_factor(), fill = is_top_trip)
+  DecisionTreeAugmented,
+  aes(
+    round(.pred_yes, 2) |> forcats::as_factor(),
+    daily_hourly_wage_mean
+  )
 ) +
-  geom_bar(bins = 15, position = position_dodge()) +
-  scale_y_log10()
-```
-
-```{r}
-ggplot(DecisionTreeResiduals, aes(.pred_class2, daily_hourly_wage_mean)) +
-  geom_boxplot()
-```
-
-
-
-```{r}
-DecisionTreeConfMatrix <-
-  DecisionTreeResiduals |>
-  group_by(Truth = is_top_trip, Prediction = .pred_class) |>
-  summarize(Freq = n(), mean_pred_yes = mean(.pred_yes)) |>
-  mutate(truth_prop = Freq / sum(Freq)) |>
-  ungroup()
-
-CorrectHighValue <-
-  DecisionTreeConfMatrix |>
-  filter(Truth == "yes", Prediction == "yes") |>
-  pull(truth_prop) |>
-  scales::percent()
-
-
-DecisionTreeConfMatrix |>
-  ggplot(aes(Truth, Prediction)) +
-  geom_tile(aes(fill = truth_prop)) +
-  geom_label(
-    aes(
-      label = paste0(
-        scales::percent(truth_prop),
-        "\n",
-        scales::comma(Freq),
-        "\n Yes prob: ",
-        scales::percent(mean_pred_yes)
-      )
-    ),
-    fill = "white"
+  geom_jitter(aes(color = is_top_trip), alpha = 0.1) +
+  geom_boxplot() +
+  geom_hline(yintercept = TopDailyHourlyWage, linetype = 2) +
+  scale_y_continuous(
+    breaks = seq(0, 150, 10) |> setdiff(70) |> c(unname(TopDailyHourlyWage)),
+    label = label_currency(accuracy = 1)
   ) +
-  scale_fill_continuous(palette = "Greys") +
+  scale_color_manual(
+    values = c("yes" = Params$ColorHighlight, "no" = Params$ColorGray)
+  ) +
   labs(
     title = paste0(
-      "**Only**",
-      CorrectHighValue |> paste("of high value trips") |> highlight_text(),
-      "**were predicted**"
-    )
+      "**After**",
+      highlight_text("50%"),
+      "**we can confirm a change in distribution**"
+    ),
+    y = "Daily Hourly Wage",
+    x = "Probabilty to be High Trip"
   ) +
-  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme_light(base_family = Params$BaseFontFamily) +
   theme(
-    plot.title.position = "plot",
     plot.title = element_markdown(family = Params$BaseFontFamily),
     axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 12),
-    panel.grid = element_blank(),
-    legend.position = 'none'
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.subtitle = element_text(
+      family = Params$BaseFontFamily,
+      face = "italic"
+    ),
+    legend.position = "none"
   )
+```
+
+```{r}
+plot_custom_conf_matrix <- function(dt) {
+  procced_data =
+    dt |>
+    group_by(Truth = is_top_trip, Prediction = .pred_class) |>
+    summarize(Freq = n(), mean_pred_yes = mean(.pred_yes)) |>
+    mutate(truth_prop = Freq / sum(Freq)) |>
+    ungroup()
+
+  true_positive_prob =
+    procced_data |>
+    filter(Truth == "yes", Prediction == "yes") |>
+    pull(truth_prop) |>
+    percent()
+
+  created_plot =
+    procced_data |>
+    ggplot(aes(Truth, Prediction)) +
+    geom_tile(aes(fill = truth_prop)) +
+    geom_label(
+      aes(
+        label = paste0(
+          percent(truth_prop),
+          "\n",
+          comma(Freq),
+          "\n Yes prob: ",
+          percent(mean_pred_yes)
+        )
+      ),
+      fill = "white"
+    ) +
+    scale_fill_continuous(palette = "Greys") +
+    labs(
+      title = paste0(
+        true_positive_prob |> paste("of high value trips") |> highlight_text(),
+        "**were predicted**"
+      )
+    ) +
+    theme_minimal(base_family = Params$BaseFontFamily) +
+    theme(
+      plot.title.position = "plot",
+      plot.title = element_markdown(family = Params$BaseFontFamily),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 12),
+      panel.grid = element_blank(),
+      legend.position = 'none'
+    )
+
+  return(created_plot)
+}
+
+plot_custom_conf_matrix(DecisionTreeAugmented)
 ```
 
 Based on the model results we can see that the `start_zone_taxi` became the must important variable to start the model then we see how
@@ -1160,16 +1179,14 @@ LinealRecipe <- recipe(
     start_zone
   ) |>
 
-  step_range(all_numeric_predictors())
+  step_range(all_numeric_predictors()) |>
+  step_upsample(is_top_trip, over_ratio = tune("over_ratio"))
 
 LogisticSpec <- logistic_reg(
   penalty = tune(),
   mixture = 1
 ) |>
-  set_engine(
-    "glmnet",
-    class.weights = c("no" = 1, "yes" = 9)
-  )
+  set_engine("glmnet")
 
 LogisticWf <- workflow() |>
   add_recipe(LinealRecipe) |>
@@ -1186,19 +1203,20 @@ InitialZoneSimResultsResamples <- vfold_cv(
   strata = is_top_trip
 )
 
-PenaltyGrid <- grid_regular(
+LogisticGrid <- grid_regular(
   penalty(),
-  levels = 50
+  over_ratio(range = c(0.1, 1)),
+  levels = c(penalty = 25, over_ratio = 10)
 )
 
 LogisticWfTuned <- tune_grid(
   LogisticWf,
   resamples = InitialZoneSimResultsResamples,
-  grid = PenaltyGrid,
-  metrics = metric_set(roc_auc, brier_class),
+  grid = LogisticGrid,
+  metrics = metric_set(recall, precision, brier_class),
   control = control_grid(
     verbose = TRUE,
-    save_pred = TRUE
+    save_pred = FALSE
   )
 )
 
@@ -1228,7 +1246,7 @@ autoplot(LogisticWfTuned) +
   labs(
     title = paste0(
       highlight_text(round(LogisticWfBestConfig$penalty, 4)),
-      "**represent the hightest penalty**"
+      "**represent the best penalty**"
     )
   ) +
   theme_light(base_family = Params$BaseFontFamily) +
@@ -1239,35 +1257,6 @@ autoplot(LogisticWfTuned) +
 ```
 
 
-
-```{r}
-LogisticWfTuned |>
-  collect_predictions() |>
-  semi_join(LogisticWfBestConfig, by = ".config") |>
-  mutate(
-    pred_class = fifelse(.pred_yes >= 0.50, "yes", "no") |>
-      factor(levels = c("no", "yes"))
-  ) |>
-  conf_mat(is_top_trip, pred_class) |>
-  autoplot(type = "heatmap") +
-  geom_label(aes(label = scales::percent(Freq / sum(Freq))), fill = "white") +
-  labs(
-    title = paste0(
-      highlight_text("False positives"),
-      "**are main challenge**"
-    )
-  ) +
-  theme_minimal(base_family = Params$BaseFontFamily) +
-  theme(
-    plot.title.position = "plot",
-    plot.title = element_markdown(family = Params$BaseFontFamily),
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 12),
-    panel.grid = element_blank(),
-    legend.position = 'none'
-  )
-```
-
 ```{r}
 LogisticWfFitted <- finalize_workflow(
   LogisticWf,
@@ -1275,30 +1264,9 @@ LogisticWfFitted <- finalize_workflow(
 ) |>
   fit(data = InitialZoneSimResults)
 
-LogisticModelCoefs <-
-  tidy(LogisticWfFitted) |>
-  arrange((estimate == 0), term)
 
-print(LogisticModelCoefs, n = nrow(LogisticModelCoefs))
+LogisticWfFitted |>
+  augment(new_data = InitialZoneSimResults) |>
+  plot_custom_conf_matrix()
 ```
-
-
-```{r}
-tree_metrics <- collect_metrics(
-  ExperimentTreeWfTuned$TreeTransformationsBalance_tree
-) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
-  mutate(model = "Decision Tree")
-
-logistic_metrics <- collect_metrics(
-  LogisticWfTuned
-) |>
-  semi_join(ExperimentTreeWfBestConfig, by = ".config") |>
-  mutate(model = "Logistic Regression")
-
-bind_rows(tree_metrics, logistic_metrics) |>
-  select(model, .metric, mean, std_err) |>
-  arrange(.metric, model)
-```
-
 

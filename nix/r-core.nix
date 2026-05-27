@@ -22,6 +22,7 @@ in
         ggplot2
         ggtext
         ggiraph
+        GGally
         plotly
         gt
         # Utilities
