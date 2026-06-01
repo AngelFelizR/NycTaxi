@@ -521,16 +521,13 @@ visualize(SimulationVisData) +
 ```{r}
 #| label: Defining Goal
 #| echo: false
+#| output: false
 CurrentRate <- mean(SimulationHourlyWageSummary$daily_hourly_wage_mean)
 GoalRate <- CurrentRate * 1.2
-```
 
-```{r}
-#| label: Defining Goal
-#| echo: false
-#| eval: false
 pin_write(BoardLocal, CurrentRate, "BaseLineHourlyWage", type = "qs2")
 ```
+
 
 Based on the simulation's results we can confirm that the average earnings for a taxi driver per hour goes between `r scales::dollar(SimulationInterval$lower_ci)` and `r scales::dollar(SimulationInterval$upper_ci)` with 95% confidence with a mean of **`r scales::dollar(CurrentRate)` dollars per hour**.
 

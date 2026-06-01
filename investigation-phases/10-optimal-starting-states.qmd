@@ -196,203 +196,8 @@ cat("✅ All zones simulated!\n")
 Here is the list of zone simulated and we can see that it took around **102 minutes** to complete each zone which mean that I invest around **14 days** of computation to see the next results.
 
 ```bash
-angelfeliz@debian:~/r-projects/NycTaxi$ ls -lahd ../NycTaxiPins/Board/InitialZoneSim_ZoneId_*
-drwxr-xr-x 3 root root 4.0K Apr  7 10:21 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_10
-drwxr-xr-x 3 root root 4.0K Apr  7 12:03 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_100
-drwxr-xr-x 3 root root 4.0K Apr  7 13:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_101
-drwxr-xr-x 3 root root 4.0K Apr  7 15:24 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_102
-drwxr-xr-x 3 root root 4.0K Apr  7 17:06 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_103
-drwxr-xr-x 3 root root 4.0K Apr  7 18:48 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_106
-drwxr-xr-x 3 root root 4.0K Apr  7 20:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_107
-drwxr-xr-x 3 root root 4.0K Apr  7 22:31 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_108
-drwxr-xr-x 3 root root 4.0K Apr  8 00:11 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_11
-drwxr-xr-x 3 root root 4.0K Apr  8 01:48 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_111
-drwxr-xr-x 3 root root 4.0K Apr  8 03:28 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_112
-drwxr-xr-x 3 root root 4.0K Apr  8 05:09 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_113
-drwxr-xr-x 3 root root 4.0K Apr  8 06:53 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_114
-drwxr-xr-x 3 root root 4.0K Apr  8 08:35 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_116
-drwxr-xr-x 3 root root 4.0K Apr  8 10:16 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_117
-drwxr-xr-x 3 root root 4.0K Apr  8 11:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_12
-drwxr-xr-x 3 root root 4.0K Apr  8 13:37 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_120
-drwxr-xr-x 3 root root 4.0K Apr  8 15:18 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_121
-drwxr-xr-x 3 root root 4.0K Apr  8 16:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_122
-drwxr-xr-x 3 root root 4.0K Apr  8 18:40 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_123
-drwxr-xr-x 3 root root 4.0K Apr  8 20:20 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_124
-drwxr-xr-x 3 root root 4.0K Apr  8 22:04 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_125
-drwxr-xr-x 3 root root 4.0K Apr  9 01:50 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_127
-drwxr-xr-x 3 root root 4.0K Apr  9 03:28 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_128
-drwxr-xr-x 3 root root 4.0K Apr  9 05:09 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_129
-drwxr-xr-x 3 root root 4.0K Apr  9 06:51 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_13
-drwxr-xr-x 3 root root 4.0K Apr  9 08:30 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_130
-drwxr-xr-x 3 root root 4.0K Apr  9 11:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_131
-drwxr-xr-x 3 root root 4.0K Apr  9 13:20 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_132
-drwxr-xr-x 3 root root 4.0K Apr  9 15:01 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_133
-drwxr-xr-x 3 root root 4.0K Apr  9 16:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_134
-drwxr-xr-x 3 root root 4.0K Apr  9 18:23 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_135
-drwxr-xr-x 3 root root 4.0K Apr  9 20:09 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_137
-drwxr-xr-x 3 root root 4.0K Apr  9 21:51 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_138
-drwxr-xr-x 3 root root 4.0K Apr  9 23:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_139
-drwxr-xr-x 3 root root 4.0K Apr 10 01:37 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_14
-drwxr-xr-x 3 root root 4.0K Apr 10 03:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_140
-drwxr-xr-x 3 root root 4.0K Apr 10 05:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_141
-drwxr-xr-x 3 root root 4.0K Apr 10 06:41 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_142
-drwxr-xr-x 3 root root 4.0K Apr 10 10:25 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_143
-drwxr-xr-x 3 root root 4.0K Apr 10 12:08 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_144
-drwxr-xr-x 3 root root 4.0K Apr 10 13:53 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_145
-drwxr-xr-x 3 root root 4.0K Apr 10 15:33 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_146
-drwxr-xr-x 3 root root 4.0K Apr 10 17:17 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_148
-drwxr-xr-x 3 root root 4.0K Apr 10 18:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_149
-drwxr-xr-x 3 root root 4.0K Apr 10 20:39 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_15
-drwxr-xr-x 3 root root 4.0K Apr 10 22:22 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_150
-drwxr-xr-x 3 root root 4.0K Apr 11 00:03 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_151
-drwxr-xr-x 3 root root 4.0K Apr 11 01:43 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_152
-drwxr-xr-x 3 root root 4.0K Apr 11 03:21 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_153
-drwxr-xr-x 3 root root 4.0K Apr 11 05:02 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_154
-drwxr-xr-x 3 root root 4.0K Apr 11 06:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_155
-drwxr-xr-x 3 root root 4.0K Apr 11 08:22 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_157
-drwxr-xr-x 3 root root 4.0K Apr 11 10:07 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_158
-drwxr-xr-x 3 root root 4.0K Apr 11 11:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_16
-drwxr-xr-x 3 root root 4.0K Apr 11 13:47 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_160
-drwxr-xr-x 3 root root 4.0K Apr 11 15:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_161
-drwxr-xr-x 3 root root 4.0K Apr 12 00:48 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_162
-drwxr-xr-x 3 root root 4.0K Apr 12 02:32 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_163
-drwxr-xr-x 3 root root 4.0K Apr 12 04:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_164
-drwxr-xr-x 3 root root 4.0K Apr 12 05:54 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_165
-drwxr-xr-x 3 root root 4.0K Apr 12 07:34 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_166
-drwxr-xr-x 3 root root 4.0K Apr 12 09:18 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_17
-drwxr-xr-x 3 root root 4.0K Apr 12 10:59 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_170
-drwxr-xr-x 3 root root 4.0K Apr 12 12:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_171
-drwxr-xr-x 3 root root 4.0K Apr 12 14:21 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_173
-drwxr-xr-x 3 root root 4.0K Apr 12 16:13 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_175
-drwxr-xr-x 3 root root 4.0K Apr 12 18:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_177
-drwxr-xr-x 3 root root 4.0K Apr 12 20:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_178
-drwxr-xr-x 3 root root 4.0K Apr 12 22:08 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_179
-drwxr-xr-x 3 root root 4.0K Apr 12 23:49 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_180
-drwxr-xr-x 3 root root 4.0K Apr 13 01:33 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_181
-drwxr-xr-x 3 root root 4.0K Apr 13 03:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_186
-drwxr-xr-x 3 root root 4.0K Apr 13 04:56 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_188
-drwxr-xr-x 3 root root 4.0K Apr 13 06:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_189
-drwxr-xr-x 3 root root 4.0K Apr 13 08:17 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_19
-drwxr-xr-x 3 root root 4.0K Apr 13 09:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_190
-drwxr-xr-x 3 root root 4.0K Apr 13 11:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_191
-drwxr-xr-x 3 root root 4.0K Apr 13 13:17 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_192
-drwxr-xr-x 3 root root 4.0K Apr 13 14:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_193
-drwxr-xr-x 3 root root 4.0K Apr 13 18:01 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_194
-drwxr-xr-x 3 root root 4.0K Apr 13 19:54 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_195
-drwxr-xr-x 3 root root 4.0K Apr 13 21:37 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_196
-drwxr-xr-x 3 root root 4.0K Apr 13 23:30 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_197
-drwxr-xr-x 3 root root 4.0K Apr 14 01:20 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_198
-drwxr-xr-x 3 root root 4.0K Apr 14 02:59 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_2
-drwxr-xr-x 3 root root 4.0K Apr 14 04:35 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_201
-drwxr-xr-x 3 root root 4.0K Apr 14 06:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_202
-drwxr-xr-x 3 root root 4.0K Apr 14 07:52 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_203
-drwxr-xr-x 3 root root 4.0K Apr 14 09:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_205
-drwxr-xr-x 3 root root 4.0K Apr 14 11:18 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_207
-drwxr-xr-x 3 root root 4.0K Apr 14 13:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_209
-drwxr-xr-x 3 root root 4.0K Apr 14 14:44 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_21
-drwxr-xr-x 3 root root 4.0K Apr 14 16:27 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_210
-drwxr-xr-x 3 root root 4.0K Apr 14 18:09 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_211
-drwxr-xr-x 3 root root 4.0K Apr 14 22:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_215
-drwxr-xr-x 3 root root 4.0K Apr 15 00:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_216
-drwxr-xr-x 3 root root 4.0K Apr 15 02:39 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_217
-drwxr-xr-x 3 root root 4.0K Apr 15 04:18 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_218
-drwxr-xr-x 3 root root 4.0K Apr 15 05:56 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_219
-drwxr-xr-x 3 root root 4.0K Apr 15 07:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_22
-drwxr-xr-x 3 root root 4.0K Apr 15 09:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_222
-drwxr-xr-x 3 root root 4.0K Apr 15 11:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_223
-drwxr-xr-x 3 root root 4.0K Apr 15 13:02 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_224
-drwxr-xr-x 3 root root 4.0K Apr 15 14:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_225
-drwxr-xr-x 3 root root 4.0K Apr 15 16:28 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_226
-drwxr-xr-x 3 root root 4.0K Apr 15 18:10 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_227
-drwxr-xr-x 3 root root 4.0K Apr 15 19:52 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_228
-drwxr-xr-x 3 root root 4.0K Apr 15 21:34 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_229
-drwxr-xr-x 3 root root 4.0K Apr 15 23:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_230
-drwxr-xr-x 3 root root 4.0K Apr 16 00:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_231
-drwxr-xr-x 3 root root 4.0K Apr 16 02:38 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_232
-drwxr-xr-x 3 root root 4.0K Apr 16 04:18 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_233
-drwxr-xr-x 3 root root 4.0K Apr 16 05:59 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_234
-drwxr-xr-x 3 root root 4.0K Apr 16 07:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_236
-drwxr-xr-x 3 root root 4.0K Apr 16 09:22 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_237
-drwxr-xr-x 3 root root 4.0K Apr 16 11:03 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_238
-drwxr-xr-x 3 root root 4.0K Apr 16 12:45 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_239
-drwxr-xr-x 3 root root 4.0K Apr 16 14:24 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_24
-drwxr-xr-x 3 root root 4.0K Apr 16 16:03 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_243
-drwxr-xr-x 3 root root 4.0K Apr 16 17:43 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_244
-drwxr-xr-x 3 root root 4.0K Apr 16 19:25 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_246
-drwxr-xr-x 3 root root 4.0K Apr 16 21:08 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_249
-drwxr-xr-x 3 root root 4.0K Apr 16 22:52 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_25
-drwxr-xr-x 3 root root 4.0K Apr 17 00:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_252
-drwxr-xr-x 3 root root 4.0K Apr 17 02:37 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_253
-drwxr-xr-x 3 root root 4.0K Apr 17 04:17 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_255
-drwxr-xr-x 3 root root 4.0K Apr 17 05:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_256
-drwxr-xr-x 3 root root 4.0K Apr 17 07:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_257
-drwxr-xr-x 3 root root 4.0K Apr 17 09:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_258
-drwxr-xr-x 3 root root 4.0K Apr 17 11:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_26
-drwxr-xr-x 3 root root 4.0K Apr 17 13:10 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_260
-drwxr-xr-x 3 root root 4.0K Apr 17 14:52 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_261
-drwxr-xr-x 3 root root 4.0K Apr 17 16:34 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_262
-drwxr-xr-x 3 root root 4.0K Apr 17 18:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_263
-drwxr-xr-x 3 root root 4.0K Apr 17 19:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_27
-drwxr-xr-x 3 root root 4.0K Apr 17 21:37 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_28
-drwxr-xr-x 3 root root 4.0K Apr 17 23:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_29
-drwxr-xr-x 3 root root 4.0K Apr 18 00:54 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_30
-drwxr-xr-x 3 root root 4.0K Apr 18 02:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_33
-drwxr-xr-x 3 root root 4.0K Apr 18 04:16 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_34
-drwxr-xr-x 3 root root 4.0K Apr 18 05:55 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_35
-drwxr-xr-x 3 root root 4.0K Apr 18 07:40 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_36
-drwxr-xr-x 3 root root 4.0K Apr 18 09:30 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_37
-drwxr-xr-x 3 root root 4.0K Apr 18 11:20 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_38
-drwxr-xr-x 3 root root 4.0K Apr 18 13:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_39
-drwxr-xr-x 3 root root 4.0K Apr 18 15:03 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_4
-drwxr-xr-x 3 root root 4.0K Apr 18 16:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_40
-drwxr-xr-x 3 root root 4.0K Apr 18 19:10 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_41
-drwxr-xr-x 3 root root 4.0K Apr 18 20:52 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_42
-drwxr-xr-x 3 root root 4.0K Apr 18 22:41 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_43
-drwxr-xr-x 3 root root 4.0K Apr 19 00:30 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_45
-drwxr-xr-x 3 root root 4.0K Apr 19 02:15 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_48
-drwxr-xr-x 3 root root 4.0K Apr 19 03:57 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_49
-drwxr-xr-x 3 root root 4.0K Apr 19 05:39 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_50
-drwxr-xr-x 3 root root 4.0K Apr 19 07:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_52
-drwxr-xr-x 3 root root 4.0K Apr 19 09:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_53
-drwxr-xr-x 3 root root 4.0K Apr 19 10:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_54
-drwxr-xr-x 3 root root 4.0K Apr 19 12:29 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_55
-drwxr-xr-x 3 root root 4.0K Apr 19 14:11 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_56
-drwxr-xr-x 3 root root 4.0K Apr 19 16:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_61
-drwxr-xr-x 3 root root 4.0K Apr 19 17:50 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_62
-drwxr-xr-x 3 root root 4.0K Apr 19 19:39 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_63
-drwxr-xr-x 3 root root 4.0K Apr 19 21:27 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_64
-drwxr-xr-x 3 root root 4.0K Apr 19 23:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_65
-drwxr-xr-x 3 root root 4.0K Apr 20 01:01 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_66
-drwxr-xr-x 3 root root 4.0K Apr 20 02:43 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_67
-drwxr-xr-x 3 root root 4.0K Apr 20 04:24 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_68
-drwxr-xr-x 3 root root 4.0K Apr 20 06:04 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_7
-drwxr-xr-x 3 root root 4.0K Apr 20 07:46 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_70
-drwxr-xr-x 3 root root 4.0K Apr 20 09:31 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_71
-drwxr-xr-x 3 root root 4.0K Apr 20 11:10 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_72
-drwxr-xr-x 3 root root 4.0K Apr 20 12:49 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_73
-drwxr-xr-x 3 root root 4.0K Apr 20 14:34 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_74
-drwxr-xr-x 3 root root 4.0K Apr 20 16:20 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_75
-drwxr-xr-x 3 root root 4.0K Apr 20 18:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_76
-drwxr-xr-x 3 root root 4.0K Apr 20 22:13 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_77
-drwxr-xr-x 3 root root 4.0K Apr 21 00:36 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_79
-drwxr-xr-x 3 root root 4.0K Apr 21 02:54 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_8
-drwxr-xr-x 3 root root 4.0K Apr 21 09:47 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_80
-drwxr-xr-x 3 root root 4.0K Apr 21 11:30 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_82
-drwxr-xr-x 3 root root 4.0K Apr 21 13:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_83
-drwxr-xr-x 3 root root 4.0K Apr 21 17:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_85
-drwxr-xr-x 3 root root 4.0K Apr 21 18:58 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_86
-drwxr-xr-x 3 root root 4.0K Apr 21 20:59 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_87
-drwxr-xr-x 3 root root 4.0K Apr 21 23:00 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_88
-drwxr-xr-x 3 root root 4.0K Apr 22 00:45 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_89
-drwxr-xr-x 3 root root 4.0K Apr 22 02:24 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_9
-drwxr-xr-x 3 root root 4.0K Apr 22 04:04 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_90
-drwxr-xr-x 3 root root 4.0K Apr 22 05:44 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_91
-drwxr-xr-x 3 root root 4.0K Apr 22 07:42 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_92
-drwxr-xr-x 3 root root 4.0K Apr 22 09:26 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_93
-drwxr-xr-x 3 root root 4.0K Apr 22 11:14 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_95
-drwxr-xr-x 3 root root 4.0K Apr 22 12:53 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_96
-drwxr-xr-x 3 root root 4.0K Apr 22 14:39 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_97
-drwxr-xr-x 3 root root 4.0K Apr 22 16:19 ../NycTaxiPins/Board/InitialZoneSim_ZoneId_98
+angelfeliz@debian:~/r-projects/NycTaxi$ ls -ld ../NycTaxiPins/Board/InitialZoneSim_ZoneId_* | wc -l
+196
 ```
 
 Now we just need to summary the results to start the exploration.
@@ -539,6 +344,7 @@ As we can see the improment behind the the policy only benefit a **Uber** driver
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: Showing taxi company effect
+#| fig-height: 10
 TaxiCompanyFillColors <- c(
   "Uber" = Params$ColorHighlight,
   "Lyft" = Params$ColorGray
@@ -731,23 +537,27 @@ ggplot(
   )
 ```
 
-## Modeling Exploration
+## Finding hidden patterns
 
-Based on the prior exploration it's clear that the most important rule found so far is to take Uber as the company, but to improve earning we need to find better interactions between variables and for that reason we are going to start with tree model to see the model can find the most important interactions to explain changes in the target variable.
+Based on the prior exploration it's clear that the most important rule found so far is to take Uber as the company, but to improve earning we need to find better interactions between variables and for that reason we are going to start with **tree model to see the model can find the most important interactions** to explain changes in the target variable.
 
-### Tree models
+To tune the model we know that the must important hyperparam is the `tree_depth` to limit how many splits the tree can make, which controls vertical complexity of the model and as result we want to use the **minimum value** posible.
 
-To get the best from the tree model we will tune the following params:
+As we have a lot of data to explore due the number of zones of the experiment we know that the `min_n` to set the minimum number of data points required in a node to allow a further split won't be a important hyperparam as must of the split will have many data points to avoid overfit.
 
-* `tree_depth` to limit how many splits the tree can make (controls vertical complexity).
-* `min_n` to set the minimum number of data points required in a node to allow a further split (controls leaf size and horizontal complexity).
+```{r}
+DecisionTreeSpec <- decision_tree(
+  mode = "classification",
+  tree_depth = tune("tree_depth"),
+  min_n = 10
+)
+```
 
-For the feature engeniereeng part we took the following decisions:
+To help the tree finding the important pattern we are going to apply the following transformations to the orininal data:
 
-* `start_zone` to about the problem of high cardinality of zone we substitute the each zone by their mean after separaring the effect of the company.
-* `taxi_company` was transformed into binary varible as we only have 2 companies for know.
-* `time_hour` was transform to make splict the 24 hour cycle we face everyday.
-* `week_day` was combined with the `time_hour` to make explicit the cycle that we face every week.
+* As `start_zone` present high cardinality of zone we substitute with `hourly_wage_mean_by_zone` after isolating the effect of taxi company.
+* To allow the model to see hour of the day and the time of  the week as the cycles they represent in the real live where the same time is repited very 24 hours and the same time in the week is repeted every 168 hours we are creating the variabes `day_cycle_sin_1` and `day_cycle_cos_1` instead of just showing `time_hour` and `week_cycle_sin_1` and `week_cycle_cos_1` instead of using the original `week_day`.
+* We are showing the `taxi_company` company as boolean variable to keep all variable numeric.
 
 ```{r}
 #| label: Defining Tree Workdflow
@@ -760,14 +570,10 @@ DecisionTreeRecipe <- recipe(
     daily_hourly_wage_mean,
   data = InitialZoneSimResults
 ) |>
-  update_role(
-    simulation_id,
-    daily_hourly_wage_mean,
-    new_role = "additional info"
-  ) |>
   # Creating variables to use later
   step_mutate(
-    week_time = (week_day - 1) * 24 + time_hour,
+    day_cycle = time_hour,
+    week_cycle = (week_day - 1) * 24 + time_hour,
     hourly_wage_mean_by_zone = paste0(start_zone, "-", taxi_company)
   ) |>
   # Changing zones with their mean
@@ -779,29 +585,34 @@ DecisionTreeRecipe <- recipe(
   # Transforming company to binary variable
   step_dummy(taxi_company) |>
   # Creating Cycles
-  step_rename(day_cycle = time_hour, week_cycle = week_time) |>
   step_harmonic(
     day_cycle,
     cycle_size = 24,
     frequency = 1,
-    keep_original_cols = TRUE
+    keep_original_cols = FALSE
   ) |>
   step_harmonic(
     week_cycle,
     cycle_size = 168,
     frequency = 1,
-    keep_original_cols = TRUE
+    keep_original_cols = FALSE
+  ) |>
+  # Saving original vars
+  update_role(
+    simulation_id,
+    daily_hourly_wage_mean,
+    start_zone,
+    time_hour,
+    week_day,
+    new_role = "additional info"
   ) |>
   # Removing original variables
-  step_rm(week_day, day_cycle, week_cycle, start_zone) |>
   step_upsample(is_top_trip, over_ratio = tune("over_ratio"))
+```
 
-DecisionTreeSpec <- decision_tree(
-  mode = "classification",
-  tree_depth = tune("tree_depth"),
-  min_n = 10
-)
+Now after all this configuration we are ready to consolidate all that logic into a compact workflow that will help us to fit and evaluate our model using all tools from tidymodels.
 
+```{r}
 DecisionTreeWf <-
   workflow() |>
   add_recipe(DecisionTreeRecipe) |>
@@ -838,7 +649,6 @@ DecisionTreeWfTuned <- tune_grid(
   )
 )
 
-
 pin_write(
   BoardLocal,
   DecisionTreeWfTuned,
@@ -847,7 +657,7 @@ pin_write(
 )
 ```
 
-Based on the results we can see that `min_n_trees` don't present any change on model performance, that we get the best results when `min_n` is at lest 4.
+After making all this expliration we not only need to take the configuration that better predict the results, but instead the one that loss less prediction power without moving too high in the `tree_depth`. For that reason rathen than using the default function `select_best` we are going to use a diferent version that is more flexible in the **brier_class** score to select the configuration with less model complexity as we want a model **easy to explain**.
 
 ```{r}
 DecisionTreeWfTuned <- pin_read(
@@ -861,9 +671,26 @@ DecisionTreeWfBestConfig <- select_by_pct_loss(
   limit = 1,
   tree_depth
 )
+```
 
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Results of tunning
 autoplot(DecisionTreeWfTuned) +
   geom_vline(xintercept = DecisionTreeWfBestConfig$over_ratio, linetype = 2) +
+  scale_x_continuous(breaks = breaks_width(0.1)) +
+  labs(
+    title = paste0(
+      "**With a tree depth of**",
+      highlight_text(DecisionTreeWfBestConfig$tree_depth),
+      "**and**",
+      DecisionTreeWfBestConfig$over_ratio |>
+        scales::percent() |>
+        highlight_text(),
+      "**of oversampling**<br>**We can get the best model**"
+    )
+  ) +
   theme_light(base_family = Params$BaseFontFamily) +
   theme(
     legend.position = "top",
@@ -872,9 +699,12 @@ autoplot(DecisionTreeWfTuned) +
       family = Params$BaseFontFamily,
       face = "italic"
     ),
-    legend.title = element_markdown(family = Params$BaseFontFamily)
+    legend.title = element_markdown(family = Params$BaseFontFamily),
+    panel.grid.minor = element_blank()
   )
 ```
+
+Now we are ready to train train the model and see the probabilities predicted by the model are related with the variable that we want to maximize and the results we really good as we can see that the median of `daily_hourly_wage_mean` increases with the probability of the trip to be of high value.
 
 ```{r}
 #| eval: false
@@ -891,6 +721,9 @@ pin_write(
 ```
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Tree prop vs target variable
 DecisionTreeWfFitted <- pin_read(
   BoardLocal,
   "DecisionTreeWfFitted"
@@ -939,7 +772,12 @@ ggplot(
   )
 ```
 
+I feel really good of the resolts provided in the confution matrix, as it was able to predict 41% of days with high value and only predict as high value trips wrongly for 5% of all trips possible, which seems to be a solic pattern. 
+
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Conf matrix
 plot_custom_conf_matrix <- function(dt) {
   procced_data =
     dt |>
@@ -993,7 +831,11 @@ plot_custom_conf_matrix <- function(dt) {
 plot_custom_conf_matrix(DecisionTreeAugmented)
 ```
 
-Based on the model results we can see that the `start_zone_taxi` became the must important variable to start the model then we see how
+The decision tree shown in the chart reveals that the most important factor for identifying a best trip is the **historical hourly wage associated with each zone and taxi company combination**. The first split separates low-value zones, where the probability of obtaining a best trip is almost zero, from high-value zones, where the probability increases substantially. 
+
+For trips originating in these more profitable zones, the model further refines its decisions using cyclical representations of the time of day and time within the week, uncovering **patterns that correspond to recurring demand peaks**. In particular, the tree identifies specific evening periods and weekly time windows where the likelihood of a best trip exceeds 60%, while other periods remain considerably less favorable. 
+
+The visualization therefore highlights a clear hierarchy of decision rules: selecting the right zone is the primary driver of success, and timing the trip within favorable daily and weekly demand cycles provides an additional competitive advantage.
 
 ```{r}
 rpart.plot::prp(
@@ -1032,241 +874,84 @@ rpart.plot::prp(
 ```
 
 
-```{r}
-LinealRecipe <- recipe(
-  is_top_trip ~ taxi_company +
-    start_zone +
-    week_day +
-    time_hour +
-    simulation_id +
-    daily_hourly_wage_mean,
-  data = InitialZoneSimResults
-) |>
-
-  # ------------------------------------------------------------------
-  # Roles
-  # ------------------------------------------------------------------
-
-  update_role(
-    simulation_id,
-    daily_hourly_wage_mean,
-    new_role = "additional info"
-  ) |>
-
-  # ------------------------------------------------------------------
-  # Feature engineering
-  # ------------------------------------------------------------------
-
-  step_mutate(
-    week_time = (week_day - 1) * 24 + time_hour,
-    hourly_wage_mean_by_zone = paste0(start_zone, "-", taxi_company)
-  ) |>
-
-  # ------------------------------------------------------------------
-  # Target encoding
-  # ------------------------------------------------------------------
-
-  step_lencode(
-    hourly_wage_mean_by_zone,
-    outcome = vars(daily_hourly_wage_mean),
-    smooth = FALSE
-  ) |>
-
-  # ------------------------------------------------------------------
-  # Dummies
-  # ------------------------------------------------------------------
-
-  step_dummy(taxi_company) |>
-
-  # ------------------------------------------------------------------
-  # Rename cycles
-  # ------------------------------------------------------------------
-
-  step_rename(
-    day_cycle = time_hour,
-    week_cycle = week_time
-  ) |>
-
-  # ------------------------------------------------------------------
-  # Harmonic encoding
-  # ------------------------------------------------------------------
-
-  step_harmonic(
-    day_cycle,
-    cycle_size = 24,
-    frequency = 1,
-    keep_original_cols = TRUE
-  ) |>
-
-  step_harmonic(
-    week_cycle,
-    cycle_size = 168,
-    frequency = 1,
-    keep_original_cols = TRUE
-  ) |>
-
-  # ------------------------------------------------------------------
-  # INTERACTION FRAME
-  # ------------------------------------------------------------------
-
-  step_interact(
-    terms = ~
-      # --------------------------------------------------------------
-      # Company × zone quality
-      # --------------------------------------------------------------
-
-      taxi_company_Uber:hourly_wage_mean_by_zone +
-
-        # --------------------------------------------------------------
-        # Company × daily seasonality
-        # --------------------------------------------------------------
-
-        taxi_company_Uber:day_cycle_sin_1 +
-        taxi_company_Uber:day_cycle_cos_1 +
-
-        # --------------------------------------------------------------
-        # Company × weekly seasonality
-        # --------------------------------------------------------------
-
-        taxi_company_Uber:week_cycle_sin_1 +
-        taxi_company_Uber:week_cycle_cos_1 +
-
-        # --------------------------------------------------------------
-        # Zone quality × temporal behavior
-        # --------------------------------------------------------------
-
-        hourly_wage_mean_by_zone:day_cycle_sin_1 +
-        hourly_wage_mean_by_zone:day_cycle_cos_1 +
-        hourly_wage_mean_by_zone:week_cycle_sin_1 +
-        hourly_wage_mean_by_zone:week_cycle_cos_1 +
-
-        # --------------------------------------------------------------
-        # Daily × weekly harmonic interaction
-        # --------------------------------------------------------------
-
-        day_cycle_sin_1:week_cycle_sin_1 +
-        day_cycle_sin_1:week_cycle_cos_1 +
-        day_cycle_cos_1:week_cycle_sin_1 +
-        day_cycle_cos_1:week_cycle_cos_1 +
-
-        # --------------------------------------------------------------
-        # Higher-order interactions
-        # --------------------------------------------------------------
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1 +
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1 +
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:week_cycle_sin_1 +
-        taxi_company_Uber:hourly_wage_mean_by_zone:week_cycle_cos_1 +
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1:week_cycle_sin_1 +
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_sin_1:week_cycle_cos_1 +
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1:week_cycle_sin_1 +
-
-        taxi_company_Uber:hourly_wage_mean_by_zone:day_cycle_cos_1:week_cycle_cos_1
-  ) |>
-
-  # ------------------------------------------------------------------
-  # Cleanup
-  # ------------------------------------------------------------------
-
-  step_rm(
-    week_day,
-    day_cycle,
-    week_cycle,
-    start_zone
-  ) |>
-
-  step_range(all_numeric_predictors()) |>
-  step_upsample(is_top_trip, over_ratio = tune("over_ratio"))
-
-LogisticSpec <- logistic_reg(
-  penalty = tune(),
-  mixture = 1
-) |>
-  set_engine("glmnet")
-
-LogisticWf <- workflow() |>
-  add_recipe(LinealRecipe) |>
-  add_model(LogisticSpec)
-```
+## Confirming pattern effect
 
 
 ```{r}
-#| eval: false
-set.seed(5878)
-InitialZoneSimResultsResamples <- vfold_cv(
-  InitialZoneSimResults,
-  v = 10,
-  strata = is_top_trip
-)
-
-LogisticGrid <- grid_regular(
-  penalty(),
-  over_ratio(range = c(0.1, 1)),
-  levels = c(penalty = 25, over_ratio = 10)
-)
-
-LogisticWfTuned <- tune_grid(
-  LogisticWf,
-  resamples = InitialZoneSimResultsResamples,
-  grid = LogisticGrid,
-  metrics = metric_set(recall, precision, brier_class),
-  control = control_grid(
-    verbose = TRUE,
-    save_pred = FALSE
+TreeResultsToExplore <-
+  DecisionTreeRecipe |>
+  step_range() |>
+  finalize_recipe(DecisionTreeWfBestConfig) |>
+  prep(training = InitialZoneSimResults) |>
+  bake(new_data = InitialZoneSimResults) |>
+  bind_cols(
+    select(DecisionTreeAugmented, .pred_yes)
   )
-)
 
-pin_write(
-  BoardLocal,
-  LogisticWfTuned,
-  name = "LogisticWfTuned",
-  type = "qs2"
-)
+
+TreeModelEffectInTarget <- linear_reg() |>
+  set_engine("lm") |>
+  fit(
+    daily_hourly_wage_mean ~
+      .pred_yes +
+      hourly_wage_mean_by_zone +
+      day_cycle_sin_1 +
+      day_cycle_cos_1 +
+      week_cycle_sin_1 +
+      week_cycle_cos_1,
+    data = TreeResultsToExplore
+  )
+
+# 4. Extraer resultados tabulares impecables con broom
+# conf.int = TRUE te añade los intervalos de confianza automáticamente
+LinealModelResults <- tidy(TreeModelEffectInTarget, conf.int = TRUE)
 ```
 
+
 ```{r}
-LogisticWfTuned <- pin_read(
-  BoardLocal,
-  name = "LogisticWfTuned"
-)
+library(gt)
+library(dplyr)
 
-LogisticWfBestConfig <- select_by_pct_loss(
-  LogisticWfTuned,
-  metric = "brier_class",
-  limit = 1,
-  desc(penalty)
-)
+# 1. Preparar la tabla ordenando por importancia (abs estimate)
+tabla_impacto <- LinealModelResults |>
+  arrange(desc(abs(estimate))) |>
+  # Seleccionamos columnas clave para el reporte académico
+  transmute(term, estimate, std.error = round(std.error, 2), p.value)
 
-autoplot(LogisticWfTuned) +
-  geom_vline(xintercept = LogisticWfBestConfig$penalty, linetype = 2) +
-  labs(
-    title = paste0(
-      highlight_text(round(LogisticWfBestConfig$penalty, 4)),
-      "**represent the best penalty**"
-    )
-  ) +
-  theme_light(base_family = Params$BaseFontFamily) +
-  theme(
-    legend.position = "top",
-    plot.title = element_markdown(family = Params$BaseFontFamily)
+# 2. Construir la tabla con formato profesional
+tabla_impacto |>
+  gt() |>
+  tab_header(
+    title = "Impact Analysis: Decision Tree Policy vs. Baseline Components",
+    subtitle = "Hierarchy of factors determining hourly income"
+  ) |>
+  cols_label(
+    term = "Variable",
+    estimate = "Estimate (Coeff.)",
+    std.error = "Std. Error",
+    p.value = "p-value"
+  ) |>
+  # Formato de moneda y científico
+  fmt_currency(columns = estimate, decimals = 2) |>
+  fmt_scientific(columns = p.value, decimals = 2) |>
+  # Estilo visual profesional
+  tab_style(
+    style = cell_fill(color = "#f2f2f2"),
+    locations = cells_body(columns = everything())
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = term)
+  ) |>
+  # Resaltar tu política principal
+  tab_style(
+    style = list(
+      cell_fill(color = Params$ColorHighlightLow),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(rows = term == ".pred_yes")
+  ) |>
+  tab_source_note(
+    source_note = "Note: Based on 65,856 simulated days. OLS regression with robust standard errors."
   )
 ```
-
-
-```{r}
-LogisticWfFitted <- finalize_workflow(
-  LogisticWf,
-  LogisticWfBestConfig
-) |>
-  fit(data = InitialZoneSimResults)
-
-
-LogisticWfFitted |>
-  augment(new_data = InitialZoneSimResults) |>
-  plot_custom_conf_matrix()
-```
-
