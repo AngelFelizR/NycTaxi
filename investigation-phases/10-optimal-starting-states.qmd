@@ -42,6 +42,7 @@ library(lubridate)
 library(timeDate)
 library(ggtext)
 library(scales)
+library(gt)
 
 ## To run predictions
 library(tidymodels)
@@ -330,7 +331,7 @@ ggplot(
   ) +
   theme_minimal(base_family = Params$BaseFontFamily, base_size = 12) +
   theme(
-    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    plot.title = element_markdown(size = 12, family = Params$BaseFontFamily),
     axis.title = element_text(face = "bold", family = Params$BaseFontFamily),
     panel.grid.minor.x = element_blank(),
     panel.grid.minor.y = element_blank(),
@@ -344,7 +345,7 @@ As we can see the improment behind the the policy only benefit a **Uber** driver
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: Showing taxi company effect
-#| fig-height: 10
+#| fig-height: 6
 TaxiCompanyFillColors <- c(
   "Uber" = Params$ColorHighlight,
   "Lyft" = Params$ColorGray
@@ -405,6 +406,7 @@ After isoliating the effect of the taxi company in the hourly wage we can see by
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: Showing zone effect
+#| fig-height:  8
 TopBottomZonesMedian <- InitialZoneSimResults[,
   list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
   by = c("taxi_company", "start_zone")
@@ -435,16 +437,23 @@ ggplot(
   scale_y_discrete(label = \(x) sub("-(.|\\s)+$", "", x)) +
   facet_wrap(vars(taxi_company), ncol = 1, scales = "free_y") +
   labs(
-    title = "Some Difference Can Be Explained Start Zone",
+    title = "Some difference can be explained by start zone",
+    subtitle = "After splitting by taxi company",
     y = "Start Simulation Zone",
     x = "Daily Hourly Wage",
     fill = "Borough"
   ) +
   theme_minimal(base_family = Params$BaseFontFamily) +
   theme(
+    plot.title.position = "plot",
     plot.title = element_text(
       size = 14,
       face = "bold",
+      family = Params$BaseFontFamily
+    ),
+    plot.subtitle = element_text(
+      size = 12,
+      face = "italic",
       family = Params$BaseFontFamily
     ),
     axis.text.y = element_text(
@@ -522,15 +531,16 @@ ggplot(
   ) +
   theme_light(base_family = Params$BaseFontFamily) +
   theme(
-    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
-    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    plot.title = element_markdown(size = 12, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(size = 10, family = Params$BaseFontFamily),
     axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(size = 6, family = Params$BaseFontFamily),
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
     panel.grid.minor.y = element_blank(),
     legend.position = "none",
     strip.text = element_text(
-      size = 12,
+      size = 10,
       face = "bold",
       family = Params$BaseFontFamily
     )
@@ -831,13 +841,124 @@ plot_custom_conf_matrix <- function(dt) {
 plot_custom_conf_matrix(DecisionTreeAugmented)
 ```
 
-The decision tree shown in the chart reveals that the most important factor for identifying a best trip is the **historical hourly wage associated with each zone and taxi company combination**. The first split separates low-value zones, where the probability of obtaining a best trip is almost zero, from high-value zones, where the probability increases substantially. 
 
-For trips originating in these more profitable zones, the model further refines its decisions using cyclical representations of the time of day and time within the week, uncovering **patterns that correspond to recurring demand peaks**. In particular, the tree identifies specific evening periods and weekly time windows where the likelihood of a best trip exceeds 60%, while other periods remain considerably less favorable. 
+## Confirming pattern effect
 
-The visualization therefore highlights a clear hierarchy of decision rules: selecting the right zone is the primary driver of success, and timing the trip within favorable daily and weekly demand cycles provides an additional competitive advantage.
+To facilite the interpretation of the effect of using the tree model to change the behavior of the taxi driver, we will range all variables from 0 to 1 in under to have the model coeffitins in dollars per hour.
 
 ```{r}
+TreeResultsToExplore <-
+  DecisionTreeRecipe |>
+  step_range(all_numeric_predictors()) |>
+  finalize_recipe(DecisionTreeWfBestConfig) |>
+  prep(training = InitialZoneSimResults) |>
+  bake(new_data = InitialZoneSimResults) |>
+  select(
+    daily_hourly_wage_mean,
+    hourly_wage_mean_by_zone,
+    day_cycle_sin_1,
+    day_cycle_cos_1,
+    week_cycle_sin_1,
+    week_cycle_cos_1
+  ) |>
+  bind_cols(
+    transmute(
+      DecisionTreeAugmented,
+      tree_model_high_value = (.pred_yes > 0.5) * 1
+    )
+  )
+
+summary(TreeResultsToExplore)
+```
+
+We also can confirm low correlation between predictors its low.
+
+```{r}
+cor(TreeResultsToExplore) |> round(2)
+```
+
+With 65,856 simulated days all coefficients are statistically significant,
+so the focus should be on the magnitude of each effect.
+
+The regression reveals a clear hierarchy of factors:
+
+- A driver starting in a high-value zone (top of the zone quality index)
+  can earn up to **$10.55 more per hour** compared to a driver starting
+  in the lowest-value zones — confirming that zone selection is the
+  single largest lever available.
+- Starting at a favorable time of day can add up to **$5.08 per hour**
+  (captured by `day_cycle_cos_1`), while an unfavorable hour can subtract
+  up to **$2.94** — a combined swing of roughly **$8** depending on when
+  the shift starts.
+- Day-of-week effects are small (under **$1.58** in either direction),
+  confirming that *what time of day* the driver starts matters far more
+  than *which day of the week* they work.
+- A driver who follows the tree model's accept/reject strategy earns an
+  additional **$5.02 per hour** on top of all the above. This reflects
+  the specific zone-and-timing combinations the tree identified as
+  high-value that no single variable captures independently.
+
+In practice, a driver making all the right decisions — starting with Uber 
+in a high-value zone at a favorable time and following the tree model's 
+strategy — can move from the baseline of **$53/hour** to approximately 
+**$70/hour**, representing a **`r round((53.06+10.55+5.08+5.02-55.09)/55.09,2)*100`% improvement** in hourly earnings.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: lm coef table
+TreeModelEffectInTarget <- linear_reg() |>
+  set_engine("lm") |>
+  fit(
+    daily_hourly_wage_mean ~ .,
+    data = TreeResultsToExplore
+  )
+
+TreeModelEffectInTargetCoef <-
+  tidy(TreeModelEffectInTarget, conf.int = TRUE) |>
+  arrange(desc(abs(estimate))) |>
+  # Seleccionamos columnas clave para el reporte académico
+  select(term, conf.low, estimate, conf.high)
+
+# 2. Construir la tabla con formato profesional
+TreeModelEffectInTargetCoef |>
+  gt() |>
+  tab_header(
+    title = "Impact Analysis: Decision Tree Policy vs. Baseline Components",
+    subtitle = "Hierarchy of factors determining hourly income"
+  ) |>
+  cols_label(
+    term = "Variable",
+    conf.low = "Lower",
+    estimate = "Estimate (Coeff.)",
+    conf.high = "Upper"
+  ) |>
+  # Formato de moneda
+  fmt_currency(columns = c(conf.low, estimate, conf.high), decimals = 2) |>
+  # Estilo visual profesional
+  tab_style(
+    style = cell_text(style = "italic"),
+    locations = cells_body(columns = term)
+  ) |>
+  # Resaltar tu política principal
+  tab_style(
+    style = list(
+      cell_fill(color = Params$ColorHighlightLow),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(rows = term == "tree_model_high_value")
+  ) |>
+  tab_source_note(
+    source_note = "Note: Based on 65,856 simulated days. OLS regression with robust standard errors."
+  )
+```
+
+## Extracting bussines rules from tree model
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Tree Plot
 rpart.plot::prp(
   # 1. Model Object
   x = extract_fit_engine(DecisionTreeWfFitted),
@@ -871,87 +992,4 @@ rpart.plot::prp(
   split.family = Params$BaseFontFamily,
   split.cex = 1.0
 )
-```
-
-
-## Confirming pattern effect
-
-
-```{r}
-TreeResultsToExplore <-
-  DecisionTreeRecipe |>
-  step_range() |>
-  finalize_recipe(DecisionTreeWfBestConfig) |>
-  prep(training = InitialZoneSimResults) |>
-  bake(new_data = InitialZoneSimResults) |>
-  bind_cols(
-    select(DecisionTreeAugmented, .pred_yes)
-  )
-
-
-TreeModelEffectInTarget <- linear_reg() |>
-  set_engine("lm") |>
-  fit(
-    daily_hourly_wage_mean ~
-      .pred_yes +
-      hourly_wage_mean_by_zone +
-      day_cycle_sin_1 +
-      day_cycle_cos_1 +
-      week_cycle_sin_1 +
-      week_cycle_cos_1,
-    data = TreeResultsToExplore
-  )
-
-# 4. Extraer resultados tabulares impecables con broom
-# conf.int = TRUE te añade los intervalos de confianza automáticamente
-LinealModelResults <- tidy(TreeModelEffectInTarget, conf.int = TRUE)
-```
-
-
-```{r}
-library(gt)
-library(dplyr)
-
-# 1. Preparar la tabla ordenando por importancia (abs estimate)
-tabla_impacto <- LinealModelResults |>
-  arrange(desc(abs(estimate))) |>
-  # Seleccionamos columnas clave para el reporte académico
-  transmute(term, estimate, std.error = round(std.error, 2), p.value)
-
-# 2. Construir la tabla con formato profesional
-tabla_impacto |>
-  gt() |>
-  tab_header(
-    title = "Impact Analysis: Decision Tree Policy vs. Baseline Components",
-    subtitle = "Hierarchy of factors determining hourly income"
-  ) |>
-  cols_label(
-    term = "Variable",
-    estimate = "Estimate (Coeff.)",
-    std.error = "Std. Error",
-    p.value = "p-value"
-  ) |>
-  # Formato de moneda y científico
-  fmt_currency(columns = estimate, decimals = 2) |>
-  fmt_scientific(columns = p.value, decimals = 2) |>
-  # Estilo visual profesional
-  tab_style(
-    style = cell_fill(color = "#f2f2f2"),
-    locations = cells_body(columns = everything())
-  ) |>
-  tab_style(
-    style = cell_text(weight = "bold"),
-    locations = cells_body(columns = term)
-  ) |>
-  # Resaltar tu política principal
-  tab_style(
-    style = list(
-      cell_fill(color = Params$ColorHighlightLow),
-      cell_text(weight = "bold")
-    ),
-    locations = cells_body(rows = term == ".pred_yes")
-  ) |>
-  tab_source_note(
-    source_note = "Note: Based on 65,856 simulated days. OLS regression with robust standard errors."
-  )
 ```
