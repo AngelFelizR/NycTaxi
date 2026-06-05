@@ -86,7 +86,10 @@ Details on how this data was obtained can be found in the **Data Collection Proc
 ZonesShapes <-
   pin_read(BoardLocal, "ZonesShapes") |>
   (\(df) {
-    df[df[["borough"]] %chin% names(Params$BoroughColors), c("OBJECTID", "LocationID")]
+    df[
+      df[["borough"]] %chin% names(Params$BoroughColors),
+      c("OBJECTID", "LocationID")
+    ]
   })() |>
   st_cast(to = "MULTIPOLYGON")
 
@@ -178,7 +181,6 @@ To solve that question, we only need to scrap the table available in [https://ap
 
 ```{r}
 #| eval: false
-
 CensusTables <-
   rvest::read_html("https://api.census.gov/data.html") |>
   rvest::html_table() |>
@@ -203,9 +205,9 @@ CensusTables[, `:=`(
 
 CensusTables[, `:=`(
   survey = fcase(
-    `Dataset Name` %like% "^dec",
-    "dec",
-    `Dataset Name` %like% "^acs",
+    `Dataset Name` %like% "^dec" ,
+    "dec"                        ,
+    `Dataset Name` %like% "^acs" ,
     "acs"
   ),
   `Dataset Name` = gsub("(dec|acs)/", "", `Dataset Name`)
@@ -232,7 +234,6 @@ ValidTablesYears[, head(.SD, 5), by = "survey"]
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("ValidTablesYears")) {
   ValidTablesYears <- pin_read(BoardLocal, "ValidTablesYears")
 }
@@ -240,7 +241,6 @@ if (!exists("ValidTablesYears")) {
 
 ```{r}
 #| echo: false
-
 ValidTablesYears[, head(.SD, 5), by = "survey"]
 ```
 
@@ -282,7 +282,6 @@ nrow(ValidTablesLastYear) |> comma()
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("ValidTablesLastYear")) {
   ValidTablesLastYear <- pin_read(BoardLocal, "ValidTablesLastYear")
 }
@@ -290,7 +289,6 @@ if (!exists("ValidTablesLastYear")) {
 
 ```{r}
 #| echo: false
-
 nrow(ValidTablesLastYear) |> comma()
 ```
 
@@ -302,7 +300,6 @@ To understand what have we have let's plot the number of variables by dataset an
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 7.5
-
 VariablesPerDataset <-
   ValidTablesLastYear[, .N, .(year = factor(year), dataset, survey)][,
     dataset := reorder(dataset, N, FUN = sum)
@@ -310,7 +307,9 @@ VariablesPerDataset <-
 
 ggplot(VariablesPerDataset) +
   geom_col(aes(N, dataset, fill = year), color = "black", linewidth = 0.2) +
-  scale_fill_manual(values = c("2022" = Params$ColorHighlight, "2020" = Params$ColorGray)) +
+  scale_fill_manual(
+    values = c("2022" = Params$ColorHighlight, "2020" = Params$ColorGray)
+  ) +
   scale_x_continuous(
     labels = scales::label_comma(scale = 1 / 1000, suffix = "k")
   ) +
@@ -379,7 +378,6 @@ Another aspect we found out by exploring the data it's that some variables names
 ```{r}
 #| echo: false
 #| output: asis
-
 ConceptsToExplore[
   nchar(concept) == max(nchar(concept)),
   paste0("> ", concept)
@@ -401,7 +399,6 @@ By exploring the cumulative distribution we can see that near 50% of the variabl
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ConceptsToExplore[, concept_length := nchar(concept)]
 
 ggplot(ConceptsToExplore) +
@@ -434,7 +431,6 @@ To confirm if that action make sense we can print the longer variables and confi
 ```{r}
 #| output: asis
 #| echo: false
-
 ConceptsToExploreValidConceptLength[
   concept_length == max(concept_length),
   paste0("- `", concept, "`")
@@ -499,12 +495,10 @@ ConceptsToExploreWordDistanceDt <-
   )
 ```
 
-
 With this inter-concept distance we can use the `edge_betweenness` argoritm to define the cluster to use. But as the result for this method will change depending the min Jaccard Distance selected to do the analysis, we need to explore several options before taking a final decision.
 
 ```{r}
 #| eval: false
-
 define_clusters_by_distance <- function(min_jaccard_distance, dt) {
   dt_filtered = dt[`Jaccard Distance` <= min_jaccard_distance]
 
@@ -533,15 +527,22 @@ ConceptsToExploreByDistance <-
   ) |>
   rbindlist()
 
-BoardLocal |> pin_write(ConceptsToExploreByDistance, "ConceptsToExploreByDistance", type = "qs2")
+BoardLocal |>
+  pin_write(
+    ConceptsToExploreByDistance,
+    "ConceptsToExploreByDistance",
+    type = "qs2"
+  )
 ```
 
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("ConceptsToExploreByDistance")) {
-  ConceptsToExploreByDistance <- pin_read(BoardLocal, "ConceptsToExploreByDistance")
+  ConceptsToExploreByDistance <- pin_read(
+    BoardLocal,
+    "ConceptsToExploreByDistance"
+  )
 }
 ```
 
@@ -550,7 +551,6 @@ After exploring several configurations we can see that that the as we expand the
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ConceptsToExploreByDistance[,
   unique(.SD),
   .SDcols = c("Jaccard Distance Threshold", "modularity", "n_clusters")
@@ -675,7 +675,6 @@ TopWordsByCluster <-
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 gt(TopWordsByCluster) |>
   # Apply visual styling
   tab_header(
@@ -761,7 +760,6 @@ Checking the data we can see that some concept are duplicated in some in some da
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ConceptByDatasetToExplore[,
   .(N = .N, dataset = sort(dataset) |> paste(collapse = ", ")),
   by = "concept"
@@ -838,7 +836,6 @@ ConceptByValidDatasetToExplore <-
     on = "dataset",
     .(dataset, concept, cluster)
   ]
-
 ```
 
 Now we are ready to identify the particular codes (names) related to each variable concept. In this step are going to exclude variables that:
@@ -877,7 +874,6 @@ As we are getting also the geometry information is much efficient to change the 
 
 ```{r}
 #| eval: false
-
 AcsVariableTracts <-
   get_acs(
     geography = "tract",
@@ -913,7 +909,6 @@ BoardLocal |> pin_write(DecVariableTracts, "DecVariableTracts", type = "qs2")
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("AcsVariableTracts")) {
   AcsVariableTracts <- pin_read(BoardLocal, "AcsVariableTracts")
 }
@@ -948,7 +943,6 @@ We need to join to the original zones of our training set in to 2 steps:
 
 ```{r}
 #| eval: false
-
 ConsolidatedVariableTractsJoinedList <-
   lapply(
     list(within = st_within, overlaps = st_overlaps),
@@ -965,7 +959,6 @@ Now we need to go over each of the original zone shapes and cut the tracts parts
 
 ```{r}
 #| eval: false
-
 apply_intersection_by_id <- function(features, shapes, id_col) {
   intersection_by_id = function(id, features, shapes, id_col) {
     features_sub = features[features[[id_col]] == id, ]
@@ -1001,20 +994,23 @@ ConsolidatedVariableTractsJoinedList$overlaps <-
 ConsolidatedVariableTractsJoined <-
   do.call(what = "rbind", ConsolidatedVariableTractsJoinedList)
 
-BoardLocal |> pin_write(
-  ConsolidatedVariableTractsJoined,
-  name = "ConsolidatedVariableTractsJoined",
-  type = "qs2",
-  title = "Consolidated Variable Tracts Joined"
-)
+BoardLocal |>
+  pin_write(
+    ConsolidatedVariableTractsJoined,
+    name = "ConsolidatedVariableTractsJoined",
+    type = "qs2",
+    title = "Consolidated Variable Tracts Joined"
+  )
 ```
 
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("ConsolidatedVariableTractsJoined")) {
-  ConsolidatedVariableTractsJoined <- pin_read(BoardLocal, "ConsolidatedVariableTractsJoined")
+  ConsolidatedVariableTractsJoined <- pin_read(
+    BoardLocal,
+    "ConsolidatedVariableTractsJoined"
+  )
 }
 ```
 
@@ -1023,7 +1019,6 @@ Perfect, we have joined the to shapes, but we still need to have only one estima
 
 ```{r}
 #| eval: false
-
 ConsolidatedVariableTractsJoined$tract_area <-
   st_area(ConsolidatedVariableTractsJoined$geometry)
 
@@ -1077,21 +1072,24 @@ ConsolidatedVariableTractsByZoneId <-
   )][, dcast(.SD, LocationID ~ variable + variable_type, value.var = "value")]
 
 
-BoardLocal |> pin_write(
-  ConsolidatedVariableTractsByZoneId,
-  name = "ConsolidatedVariableTractsByZoneId",
-  type = "qs2",
-  title = "Consolidated Variable Tracts By Zone Id"
-)
+BoardLocal |>
+  pin_write(
+    ConsolidatedVariableTractsByZoneId,
+    name = "ConsolidatedVariableTractsByZoneId",
+    type = "qs2",
+    title = "Consolidated Variable Tracts By Zone Id"
+  )
 
 dim(ConsolidatedVariableTractsByZoneId)
 ```
 
 ```{r}
 #| echo: false
-
 if (!exists("ConsolidatedVariableTractsByZoneId")) {
-  ConsolidatedVariableTractsByZoneId <- pin_read(BoardLocal, "ConsolidatedVariableTractsByZoneId")
+  ConsolidatedVariableTractsByZoneId <- pin_read(
+    BoardLocal,
+    "ConsolidatedVariableTractsByZoneId"
+  )
 }
 
 dim(ConsolidatedVariableTractsByZoneId)
@@ -1102,7 +1100,6 @@ dim(ConsolidatedVariableTractsByZoneId)
 
 ```{r}
 #| eval: false
-
 PuVariableTractsMeanDiff <-
   ConsolidatedVariableTractsByZoneId[
     SampledData[, .(LocationID = PULocationID, take_current_trip)],
@@ -1142,25 +1139,26 @@ DoVariableTractsMeanDiff <-
     by = "variable"
   ][order(-abs(not_take_vs_take))]
 
-BoardLocal |> pin_write(
-  PuVariableTractsMeanDiff,
-  name = "PuVariableTractsMeanDiff",
-  type = "qs2",
-  title = "PU Variable Tracts Mean Diff"
-)
+BoardLocal |>
+  pin_write(
+    PuVariableTractsMeanDiff,
+    name = "PuVariableTractsMeanDiff",
+    type = "qs2",
+    title = "PU Variable Tracts Mean Diff"
+  )
 
-BoardLocal |> pin_write(
-  DoVariableTractsMeanDiff,
-  name = "DoVariableTractsMeanDiff",
-  type = "qs2",
-  title = "DO Variable Tracts Mean Diff"
-)
+BoardLocal |>
+  pin_write(
+    DoVariableTractsMeanDiff,
+    name = "DoVariableTractsMeanDiff",
+    type = "qs2",
+    title = "DO Variable Tracts Mean Diff"
+  )
 ```
 
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("PuVariableTractsMeanDiff")) {
   PuVariableTractsMeanDiff <- pin_read(BoardLocal, "PuVariableTractsMeanDiff")
 }
@@ -1181,7 +1179,6 @@ VariableTractsMeanDiff <-
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ggplot(VariableTractsMeanDiff) +
   geom_histogram(aes(not_take_vs_take)) +
   scale_y_continuous(
@@ -1209,7 +1206,6 @@ TopVariableTractsMeanDiff <- VariableTractsMeanDiff[
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 # Enhanced contest-winning gt table with improved styling
 VariablesToUse[
   .(sub("_estimate(_(low|high))*", "", TopVariableTractsMeanDiff) |> unique()),
@@ -1220,12 +1216,12 @@ VariablesToUse[
   # Add improved row groups with better categorization
 ][,
   category := fcase(
-    grepl("Earnings|Income|Poverty", concept, ignore.case = TRUE),
-    "💰 Economic Indicators",
-    grepl("Industry|Occupation|Employment", concept, ignore.case = TRUE),
-    "🏭 Employment & Industry",
-    grepl("Transportation|Commuting|Vehicle", concept, ignore.case = TRUE),
-    "🚗 Transportation & Mobility",
+    grepl("Earnings|Income|Poverty", concept, ignore.case = TRUE)          ,
+    "💰 Economic Indicators"                                                ,
+    grepl("Industry|Occupation|Employment", concept, ignore.case = TRUE)   ,
+    "🏭 Employment & Industry"                                              ,
+    grepl("Transportation|Commuting|Vehicle", concept, ignore.case = TRUE) ,
+    "🚗 Transportation & Mobility"                                          ,
     default = "📊 Other Variables"
   )
 ] |>
@@ -1424,15 +1420,16 @@ After confirming these promising results we can save the most import features fo
 
 ```{r}
 #| eval: false
-
-BoardLocal |> pin_write(
-  ConsolidatedVariableTractsByZoneId[, .SD, 
-                                      .SDcols = c("LocationID",
-                                                  TopVariableTractsMeanDiff)],
-  "AcsVariablesByZoneId",
-  type = "qs2",
-  title = "Acs Variables By Zone Id"
-)
+BoardLocal |>
+  pin_write(
+    ConsolidatedVariableTractsByZoneId[,
+      .SD,
+      .SDcols = c("LocationID", TopVariableTractsMeanDiff)
+    ],
+    "AcsVariablesByZoneId",
+    type = "qs2",
+    title = "Acs Variables By Zone Id"
+  )
 ```
 
 ## Conclusion

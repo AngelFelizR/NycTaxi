@@ -147,7 +147,6 @@ Now we can create a bounding box that encompasses the selected boroughs to effic
 
 ```{r}
 #| eval: false
-
 bb_box <-
   lapply(
     X = paste0(names(Params$BoroughColors), ", NY"),
@@ -162,7 +161,6 @@ BoardLocal |> pin_write(bb_box, "bb_box", type = "qs2")
 ```{r}
 #| echo: false
 #| output: false
-
 if (!exists("bb_box")) {
   bb_box <- pin_read(BoardLocal, "bb_box")
 }
@@ -213,7 +211,6 @@ This simple caching strategy provides two major benefits:
 
 ```{r}
 #| eval: false
-
 # A custom function to query OSM for a specific feature within a bounding box.
 import_osm_feature <- function(feature_name, bb_box) {
   # Build and execute the OSM query.
@@ -321,7 +318,6 @@ OsmDataComplete
 
 ```{r}
 #| echo: false
-
 # If the final data object doesn't exist in the current session...
 if (!exists("OsmDataComplete")) {
   # ...read it directly from the remote cache instead of re-running the slow code.
@@ -341,7 +337,6 @@ Using the `st_within` function, this section identifies OpenStreetMap featuresâ€
 
 ```{r}
 #| eval: false
-
 PointsWithinZones <-
   OsmDataComplete$osm_points |>
   st_join(y = ZonesShapes, join = st_within, left = FALSE)
@@ -365,7 +360,6 @@ MultiPolygonWithinZones <-
 
 ```{r}
 #| echo: false
-
 if (!exists("PointsWithinZones")) {
   PointsWithinZones <- pin_read(BoardLocal, "PointsWithinZones")
 }
@@ -394,12 +388,15 @@ By examining this map, we can visually confirm that the **lines and polygons dis
 ```{r}
 ZoneToCheck <- 191L
 
-ZonesShapesToCheck <- subset(ZonesShapes, LocationID == ZoneToCheck)
-LinesWithinZonesToCheck <- subset(LinesWithinZones, LocationID == ZoneToCheck)
-PolygonWithinZonesToCheck <- subset(
-  PolygonWithinZones,
-  LocationID == ZoneToCheck
-)
+ZonesShapesToCheck <- ZonesShapes[
+  ZonesShapes[["LocationID"]] == ZoneToCheck,
+]
+LinesWithinZonesToCheck <- LinesWithinZones[
+  LinesWithinZones[["LocationID"]] == ZoneToCheck,
+]
+PolygonWithinZonesToCheck <- PolygonWithinZones[
+  PolygonWithinZones[["LocationID"]] == ZoneToCheck,
+]
 
 tm_shape(ZonesShapesToCheck) +
   tm_polygons(fill = "grey") +
@@ -415,7 +412,6 @@ Now we can save the save the results.
 
 ```{r}
 #| eval: false
-
 BoardLocal |>
   pin_write(PointsWithinZones, "PointsWithinZones", type = "qs2")
 BoardLocal |>
@@ -436,7 +432,6 @@ In this section, we identify OSM features that are not entirely within a taxi zo
 
 ```{r}
 #| eval: false
-
 LinesInSeveralZones <-
   OsmDataComplete$osm_lines |>
   st_join(y = ZonesShapes, join = st_crosses, left = FALSE)
@@ -456,7 +451,6 @@ MultiPolygonInSeveralZones <-
 
 ```{r}
 #| echo: false
-
 if (!exists("LinesInSeveralZones")) {
   LinesInSeveralZones <- pin_read(BoardLocal, "LinesInSeveralZones")
 }
@@ -503,7 +497,6 @@ Let's save the data for future use.
 
 ```{r}
 #| eval: false
-
 BoardLocal |>
   pin_write(LinesInSeveralZones, "LinesInSeveralZones", type = "qs2")
 BoardLocal |>
@@ -528,7 +521,6 @@ This step is crucial for accurately calculating metrics like the length of roads
 
 ```{r}
 #| eval: false
-
 apply_intersection_by_id <- function(features, shapes) {
   intersection_by_id = function(id, features, shapes) {
     features_sub = subset(features, LocationID == id)
@@ -566,7 +558,6 @@ MultiPolygonInSeveralZonesCropped <-
 
 ```{r}
 #| echo: false
-
 if (!exists("LinesInSeveralZonesCropped")) {
   LinesInSeveralZonesCropped <- pin_read(
     BoardLocal,
@@ -621,7 +612,6 @@ After performing those operations, we can save the data for future use.
 
 ```{r}
 #| eval: false
-
 BoardLocal |>
   pin_write(
     LinesInSeveralZonesCropped,
@@ -659,7 +649,6 @@ After making those changes, we can consolidate all the data to use into 3 **geom
 
 ```{r}
 #| eval: false
-
 AllPointsZones <- as.data.table(PointsWithinZones)
 
 AllLinesZones <-
@@ -692,7 +681,6 @@ BoardLocal |>
 
 ```{r}
 #| echo: false
-
 if (!exists("AllPointsZones")) {
   AllPointsZones <- pin_read(
     BoardLocal,
@@ -721,7 +709,6 @@ if (!exists("AllPolygonZones")) {
 
 ```{r}
 #| eval: false
-
 PointDensityFeatures <-
   AllPointsZones[,
     .N,
@@ -746,7 +733,6 @@ BoardLocal |>
 
 ```{r}
 #| eval: false
-
 LineDensityFeatures <-
   AllLinesZones[,
     .(total_length = sum(st_length(geometry)) |> set_units(value = mi)),
@@ -772,7 +758,6 @@ BoardLocal |>
 
 ```{r}
 #| eval: false
-
 PolygonDensityFeatures <-
   AllPolygonZones[,
     .(total_area = sum(st_area(geometry)) |> set_units(value = mi^2)),
@@ -794,7 +779,6 @@ BoardLocal |>
 
 ```{r}
 #| echo: false
-
 if (!exists("PointDensityFeatures")) {
   PointDensityFeatures <- pin_read(
     BoardLocal,
@@ -850,7 +834,6 @@ dim(TrainingSampleOmsDensityFeatures) |> scales::comma()
 ```{r}
 #| echo: false
 #| output: false
-
 rm(
   list = grep(
     "OmsDensityFeatures|SampledData|Color|Board|Params",
@@ -866,7 +849,6 @@ Let's explore the correlated features.
 
 ```{r}
 #| eval: false
-
 CorMatrix <- cor(TrainingSampleOmsDensityFeatures[, !c("trip_id")])
 
 BoardLocal |>
@@ -875,7 +857,6 @@ BoardLocal |>
 
 ```{r}
 #| echo: false
-
 if (!exists("CorMatrix")) {
   CorMatrix <- pin_read(
     BoardLocal,
@@ -888,7 +869,6 @@ As we can see, the variables **don't show a strong correlation** (<11% for the t
 
 ```{r}
 #| eval: false
-
 TopOsmCorrelations <-
   as.data.table(CorMatrix, keep.rownames = "variable")[
     order(-abs(take_current_trip)),
@@ -905,7 +885,6 @@ BoardLocal |>
 
 ```{r}
 #| echo: false
-
 if (!exists("TopOsmCorrelations")) {
   TopOsmCorrelations <- pin_read(
     BoardLocal,
@@ -917,7 +896,6 @@ if (!exists("TopOsmCorrelations")) {
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ggplot(TopOsmCorrelations) +
   geom_col(
     aes(abs_cor, variable, fill = greater_than_0),
@@ -940,7 +918,6 @@ On the other hand, we can also explore in the target variable is correlated with
 
 ```{r}
 #| eval: false
-
 OsmMedianDiff <-
   TrainingSampleOmsDensityFeatures[,
     lapply(.SD, \(x) {
@@ -960,7 +937,6 @@ BoardLocal |>
 ```{r}
 #| echo: false
 #| output: false
-
 rm(
   list = setdiff(
     ls(),
@@ -987,7 +963,6 @@ In the below chart we can see that for majority of the variables the difference 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
-
 ggplot(OsmMedianDiff) +
   geom_histogram(aes(not_take_vs_take)) +
   scale_y_continuous(
@@ -1007,7 +982,6 @@ After selecting the to variables to explore, we just need to see
 
 ```{r}
 #| eval: false
-
 TopOsmMedianDiffFeatures <- OsmMedianDiff[abs(not_take_vs_take) > 0.1, variable]
 
 TopOsmMedianDiff <-
@@ -1026,7 +1000,6 @@ BoardLocal |>
 ```{r}
 #| echo: false
 #| output: false
-
 rm(
   list = setdiff(
     ls(),
@@ -1066,7 +1039,6 @@ Based on the next chart, we can see that the median change based on different fa
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 7.5
-
 ggplot(TopOsmMedianDiff) +
   geom_boxplot(aes(x = value, y = variable, fill = take_current_trip)) +
   scale_fill_manual(
@@ -1090,7 +1062,6 @@ After confirming these promising results we can save the most import features fo
 
 ```{r}
 #| eval: false
-
 OmsDensityFeatures <-
   c("LocationID", sub("(PU|DO)_", "", TopOsmMedianDiffFeatures)) |>
   unique()
