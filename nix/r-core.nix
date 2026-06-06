@@ -16,6 +16,7 @@ in
         tidymodels
         recipes
         infer
+        car
         # Reporting
         knitr
         rmarkdown

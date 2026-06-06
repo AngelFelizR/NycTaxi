@@ -1,6 +1,6 @@
 ---
-title: "From Predictions to Policies: Integrating ML into Stochastic Optimization"
-subtitle: ""
+title: "Maximizing Driver Earnings by Selecting the Best Configuration and Time to Start"
+subtitle: "A Simulation-Driven Optimization of Ride-Hail Policies Using Tree-Based Interactions"
 editor_options: 
   chunk_output_type: console
 execute:
@@ -846,7 +846,7 @@ plot_custom_conf_matrix(DecisionTreeAugmented)
 
 ## Confirming pattern effect
 
-To facilite the interpretation of the effect of using the tree model to change the behavior of the taxi driver, we will range all variables from 0 to 1 in under to have the model coeffitins in dollars per hour.
+To facilite the interpretation of the effect of using the tree model to change the behavior of the taxi driver, we will range all variables from 0 to 1 in under to have the model coefficients in dollars per hour.
 
 ```{r}
 TreeResultsToExplore <-
@@ -863,43 +863,58 @@ TreeResultsToExplore <-
   )
 ```
 
+As we want to define the effect of using the tree model over the hourly mean wage of the drivers it's really important to confirm that the variables used to train the model don't present colliniality and based on the table it's clear that `taxi_company_Uber` and `hourly_wage_mean_by_zone` are apporting the same information. As result we know that `hourly_wage_mean_by_zone` it's just dividing drivers's company an **the zone is not providing any information.**
+
+```{r}
+linear_reg() |>
+  set_engine("lm") |>
+  fit(
+    data = TreeResultsToExplore,
+    formula = daily_hourly_wage_mean ~
+      tree_model_high_value +
+      hourly_wage_mean_by_zone +
+      taxi_company_Uber +
+      day_cycle_sin_1 +
+      day_cycle_cos_1 +
+      week_cycle_sin_1 +
+      week_cycle_cos_1
+  ) |>
+  extract_fit_engine() |>
+  car::vif() |>
+  round(digits = 2) |>
+  (\(x) tibble(variable = names(x), vif = x))() |>
+  arrange(desc(vif)) |>
+  knitr::kable()
+```
+
 With 65,856 simulated days all coefficients are statistically significant,
 so the focus should be on the magnitude of each effect.
 
 The regression reveals a clear hierarchy of factors:
 
-- A driver starting in a high-value zone (top of the zone quality index)
-  can earn up to **$10.55 more per hour** compared to a driver starting
-  in the lowest-value zones — confirming that zone selection is the
-  single largest lever available.
-- Starting at a favorable time of day can add up to **$5.08 per hour**
-  (captured by `day_cycle_cos_1`), while an unfavorable hour can subtract
-  up to **$2.94** — a combined swing of roughly **$8** depending on when
-  the shift starts.
+- A driver that use Uber
+  can earn up to **$8.16 more per hour** compared to a driver that use Lyft.
+- Starting at a favorable time of day can add up to **$5.08 per hour** (captured by `day_cycle_cos_1`), while an unfavorable hour can subtract up to **$2.94**.
 - Day-of-week effects are small (under **$1.58** in either direction),
   confirming that *what time of day* the driver starts matters far more
   than *which day of the week* they work.
 - A driver who follows the tree model's accept/reject strategy earns an
-  additional **$5.02 per hour** on top of all the above. This reflects
-  the specific zone-and-timing combinations the tree identified as
-  high-value that no single variable captures independently.
+  additional **$5.04 per hour** on top of all the above. This reflects
+  the specific company-and-timing combinations the tree identified as
+  high-value that **no single variable captures independently**.
 
 In practice, a driver making all the right decisions — starting with Uber 
-in a high-value zone at a favorable time and following the tree model's 
-strategy — can move from the baseline of **$53/hour** to approximately 
-**$70/hour**, representing a **`r round((53.06+10.55+5.08+5.02-55.09)/55.09,2)*100`% improvement** in hourly earnings.
+at a favorable time and following the tree model's 
+strategy — can move from the baseline of **$54/hour** to approximately 
+**$70/hour**, representing a **`r round((8.16+5.08+5.04)/53.83,2)*100`% improvement** in hourly earnings.
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
 #| label: lm coef table
-create_lm_gt_table = function(df, formula) {
-  fitted_model = linear_reg() |>
-    set_engine("lm") |>
-    fit(formula, data = df)
-
+create_lm_gt_table = function(lm_model) {
   model_coef =
-    tidy(fitted_model, conf.int = TRUE) |>
+    tidy(lm_model, conf.int = TRUE) |>
     arrange(desc(abs(estimate))) |>
     select(term, conf.low, estimate, conf.high)
 
@@ -934,15 +949,20 @@ create_lm_gt_table = function(df, formula) {
   return(gt_final)
 }
 
-create_lm_gt_table(
-  df = TreeResultsToExplore,
-  formula = daily_hourly_wage_mean ~ tree_model_high_value +
-    hourly_wage_mean_by_zone +
-    day_cycle_sin_1 +
-    day_cycle_cos_1 +
-    week_cycle_sin_1 +
-    week_cycle_cos_1
-)
+LinearModelTreeEffect <- linear_reg() |>
+  set_engine("lm") |>
+  fit(
+    data = TreeResultsToExplore,
+    formula = daily_hourly_wage_mean ~
+      tree_model_high_value +
+      taxi_company_Uber +
+      day_cycle_sin_1 +
+      day_cycle_cos_1 +
+      week_cycle_sin_1 +
+      week_cycle_cos_1
+  )
+
+create_lm_gt_table(LinearModelTreeEffect)
 ```
 
 ## Extracting bussines rules from tree model
@@ -1017,7 +1037,7 @@ TreeResultsToExplain <-
 ```
 
 
-1. The `hourly_wage_mean_by_zone` only worked to seprate trips between **Uber** and **Lyft** to only select **Uber** at any zone.
+1. The `hourly_wage_mean_by_zone` (as explained before) only worked to seprate trips between **Uber** and **Lyft** to only select **Uber** at any zone.
 
 ```{r}
 TreeResultsToExplain |>
@@ -1028,22 +1048,7 @@ TreeResultsToExplain |>
   nrow()
 ```
 
-If we subtitute the `hourly_wage_mean_by_zone` by the `taxi_company_Uber` we get the same effect that we presented in the original table.
-
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| label: Just keeping taxi company
-create_lm_gt_table(
-  df = TreeResultsToExplore,
-  formula = daily_hourly_wage_mean ~ tree_model_high_value +
-    taxi_company_Uber +
-    day_cycle_sin_1 +
-    day_cycle_cos_1 +
-    week_cycle_sin_1 +
-    week_cycle_cos_1
-)
-```
+2. It's better to start working at night in order to get better results.
 
 ```{r}
 #| code-fold: true
@@ -1093,5 +1098,4 @@ TreeResultsToExplain |>
     plot.subtitle = element_markdown()
   )
 ```
-
 

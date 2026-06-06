@@ -33,7 +33,9 @@ website:
           - text: "08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data"
             href: investigation-phases/08-policy-function-approximation.qmd  
           - text: "09 - From Predictions to Policies: Integrating ML into Stochastic Optimization"
-            href: investigation-phases/09-from-predictions-to-policies.qmd  
+            href: investigation-phases/09-from-predictions-to-policies.qmd
+          - text: "10 - Optimal Starting States"
+            href: investigation-phases/10-optimal-starting-states.qmd  
     right:
       - text: "About Angel Feliz"
         href: https://angelfeliz.com/
