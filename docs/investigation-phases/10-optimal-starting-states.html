@@ -238,8 +238,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>Once have a policy to decide if a trip should be taken or rejected then it’s important to validate if any of the next factors could cause an increase of decrease on taxi results after blocking the <strong>company</strong> for taxi driver:</p>
+<p>Once have a policy to decide if a trip should be taken or rejected then it’s important to validate if any of the next factors could cause an increase of decrease on taxi results:</p>
 <ul>
+<li>Company</li>
 <li>Start zone</li>
 <li>Days of the week</li>
 <li>Hour of the day</li>
@@ -247,7 +248,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="defining-combinations-to-simulate" class="level2">
 <h2 class="anchored" data-anchor-id="defining-combinations-to-simulate">Defining combinations to simulate</h2>
 <p>As we have 196 zones to evaluete, 3 days to evaluete for each day of the week (7), 2 taxi companies and we divide the day in 8 moments to measure (one each 3 hours), we end with an experiment of <strong>65,856 days</strong> to simulate.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>As the <code>DOLocationID</code>is the variable used in the simulation to define the start zone of the fist trip to simulate we need to simulate all avaiable zones for each combination.</p>
+</div>
+</div>
 <div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading functions ----</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="do">## To manage relative paths</span></span>
@@ -317,47 +333,588 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>  <span class="at">trip_time =</span> <span class="dv">0</span></span>
 <span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>)]</span>
 <span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(DataToSimulate, <span class="dv">8</span>)</span>
-<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Key: &lt;DOLocationID, hvfhs_license_num, calendar_day, time_hour&gt;</span></span>
-<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    DOLocationID hvfhs_license_num calendar_day time_hour trip_id</span></span>
-<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;          &lt;char&gt;            &lt;char&gt;       &lt;char&gt;     &lt;num&gt;   &lt;num&gt;</span></span>
-<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1:           10            HV0003   2023-01-09         0       1</span></span>
-<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2:           10            HV0003   2023-01-09         3       2</span></span>
-<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3:           10            HV0003   2023-01-09         6       3</span></span>
-<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4:           10            HV0003   2023-01-09         9       4</span></span>
-<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5:           10            HV0003   2023-01-09        12       5</span></span>
-<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6:           10            HV0003   2023-01-09        15       6</span></span>
-<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7:           10            HV0003   2023-01-09        18       7</span></span>
-<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8:           10            HV0003   2023-01-09        21       8</span></span>
-<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       request_datetime trip_time</span></span>
-<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                 &lt;POSc&gt;     &lt;num&gt;</span></span>
-<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1: 2023-01-09 00:00:00         0</span></span>
-<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2: 2023-01-09 03:00:00         0</span></span>
-<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3: 2023-01-09 06:00:00         0</span></span>
-<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4: 2023-01-09 09:00:00         0</span></span>
-<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5: 2023-01-09 12:00:00         0</span></span>
-<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6: 2023-01-09 15:00:00         0</span></span>
-<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7: 2023-01-09 18:00:00         0</span></span>
-<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8: 2023-01-09 21:00:00         0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">4875</span>)</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>DataToSimulate <span class="sc">|&gt;</span></span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>  <span class="fu">slice_sample</span>(<span class="at">n =</span> <span class="dv">8</span>) <span class="sc">|&gt;</span></span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Add a title and subtitle</span></span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_header</span>(</span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">md</span>(<span class="st">"**Situations to evaluate**"</span>),</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="fu">paste</span>(</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>      <span class="st">"A sample of the"</span>,</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>      <span class="fu">comma</span>(<span class="fu">nrow</span>(DataToSimulate)),</span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>      <span class="st">"days to simulate"</span></span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Format the date-time column nicely</span></span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fmt_datetime</span>(</span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> request_datetime,</span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_style =</span> <span class="st">"iso"</span>,</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">time_style =</span> <span class="st">"hm"</span></span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Left-align text, center numbers for better readability</span></span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_align</span>(</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>    <span class="at">align =</span> <span class="st">"center"</span>,</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">everything</span>()</span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Give it a clean, modern theme</span></span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>  <span class="fu">opt_stylize</span>(<span class="at">style =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"blue"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="ziglifcplv" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ziglifcplv table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#ziglifcplv thead, #ziglifcplv tbody, #ziglifcplv tfoot, #ziglifcplv tr, #ziglifcplv td, #ziglifcplv th {
+  border-style: none;
+}
+
+#ziglifcplv p {
+  margin: 0;
+  padding: 0;
+}
+
+#ziglifcplv .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #004D80;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #004D80;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ziglifcplv .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#ziglifcplv .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ziglifcplv .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ziglifcplv .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ziglifcplv .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+}
+
+#ziglifcplv .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #0076BA;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ziglifcplv .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ziglifcplv .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ziglifcplv .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ziglifcplv .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ziglifcplv .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ziglifcplv .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#ziglifcplv .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #0076BA;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#ziglifcplv .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #0076BA;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+  vertical-align: middle;
+}
+
+#ziglifcplv .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ziglifcplv .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ziglifcplv .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: none;
+  border-top-width: 1px;
+  border-top-color: #89D3FE;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #89D3FE;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #89D3FE;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ziglifcplv .gt_stub {
+  color: #FFFFFF;
+  background-color: #0076BA;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #0076BA;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ziglifcplv .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#ziglifcplv .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#ziglifcplv .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#ziglifcplv .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ziglifcplv .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #0076BA;
+}
+
+#ziglifcplv .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#ziglifcplv .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+}
+
+#ziglifcplv .gt_grand_summary_row {
+  color: #333333;
+  background-color: #89D3FE;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ziglifcplv .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #0076BA;
+}
+
+#ziglifcplv .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #0076BA;
+}
+
+#ziglifcplv .gt_striped {
+  background-color: #F4F4F4;
+}
+
+#ziglifcplv .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #0076BA;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #0076BA;
+}
+
+#ziglifcplv .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ziglifcplv .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ziglifcplv .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ziglifcplv .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ziglifcplv .gt_left {
+  text-align: left;
+}
+
+#ziglifcplv .gt_center {
+  text-align: center;
+}
+
+#ziglifcplv .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ziglifcplv .gt_font_normal {
+  font-weight: normal;
+}
+
+#ziglifcplv .gt_font_bold {
+  font-weight: bold;
+}
+
+#ziglifcplv .gt_font_italic {
+  font-style: italic;
+}
+
+#ziglifcplv .gt_super {
+  font-size: 65%;
+}
+
+#ziglifcplv .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#ziglifcplv .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#ziglifcplv .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#ziglifcplv .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#ziglifcplv .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#ziglifcplv .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#ziglifcplv .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#ziglifcplv .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#ziglifcplv div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<thead>
+<tr class="gt_heading header">
+<th colspan="7" class="gt_heading gt_title gt_font_normal"><strong>Situations to evaluate</strong></th>
+</tr>
+<tr class="gt_heading even">
+<th colspan="7" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border">A sample of the 65,856 days to simulate</th>
+</tr>
+<tr class="gt_col_headings header">
+<th id="DOLocationID" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">DOLocationID</th>
+<th id="hvfhs_license_num" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">hvfhs_license_num</th>
+<th id="calendar_day" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">calendar_day</th>
+<th id="time_hour" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">time_hour</th>
+<th id="trip_id" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">trip_id</th>
+<th id="request_datetime" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">request_datetime</th>
+<th id="trip_time" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">trip_time</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<td class="gt_row gt_center" headers="DOLocationID">37</td>
+<td class="gt_row gt_center" headers="hvfhs_license_num">HV0005</td>
+<td class="gt_row gt_center" headers="calendar_day">2023-02-24</td>
+<td class="gt_row gt_center" headers="time_hour">15</td>
+<td class="gt_row gt_center" headers="trip_id">48230</td>
+<td class="gt_row gt_center" headers="request_datetime">2023-02-24 3:00 PM</td>
+<td class="gt_row gt_center" headers="trip_time">0</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="DOLocationID">125</td>
+<td class="gt_row gt_center gt_striped" headers="hvfhs_license_num">HV0003</td>
+<td class="gt_row gt_center gt_striped" headers="calendar_day">2023-07-03</td>
+<td class="gt_row gt_center gt_striped" headers="time_hour">6</td>
+<td class="gt_row gt_center gt_striped" headers="trip_id">7123</td>
+<td class="gt_row gt_center gt_striped" headers="request_datetime">2023-07-03 6:00 AM</td>
+<td class="gt_row gt_center gt_striped" headers="trip_time">0</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="DOLocationID">79</td>
+<td class="gt_row gt_center" headers="hvfhs_license_num">HV0003</td>
+<td class="gt_row gt_center" headers="calendar_day">2023-08-08</td>
+<td class="gt_row gt_center" headers="time_hour">12</td>
+<td class="gt_row gt_center" headers="trip_id">59565</td>
+<td class="gt_row gt_center" headers="request_datetime">2023-08-08 12:00 PM</td>
+<td class="gt_row gt_center" headers="trip_time">0</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="DOLocationID">236</td>
+<td class="gt_row gt_center gt_striped" headers="hvfhs_license_num">HV0003</td>
+<td class="gt_row gt_center gt_striped" headers="calendar_day">2023-11-01</td>
+<td class="gt_row gt_center gt_striped" headers="time_hour">15</td>
+<td class="gt_row gt_center gt_striped" headers="trip_id">38438</td>
+<td class="gt_row gt_center gt_striped" headers="request_datetime">2023-11-01 3:00 PM</td>
+<td class="gt_row gt_center gt_striped" headers="trip_time">0</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="DOLocationID">133</td>
+<td class="gt_row gt_center" headers="hvfhs_license_num">HV0005</td>
+<td class="gt_row gt_center" headers="calendar_day">2023-05-15</td>
+<td class="gt_row gt_center" headers="time_hour">15</td>
+<td class="gt_row gt_center" headers="trip_id">9958</td>
+<td class="gt_row gt_center" headers="request_datetime">2023-05-15 3:00 PM</td>
+<td class="gt_row gt_center" headers="trip_time">0</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="DOLocationID">125</td>
+<td class="gt_row gt_center gt_striped" headers="hvfhs_license_num">HV0005</td>
+<td class="gt_row gt_center gt_striped" headers="calendar_day">2023-05-15</td>
+<td class="gt_row gt_center gt_striped" headers="time_hour">12</td>
+<td class="gt_row gt_center gt_striped" headers="trip_id">7269</td>
+<td class="gt_row gt_center gt_striped" headers="request_datetime">2023-05-15 12:00 PM</td>
+<td class="gt_row gt_center gt_striped" headers="trip_time">0</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="DOLocationID">55</td>
+<td class="gt_row gt_center" headers="hvfhs_license_num">HV0003</td>
+<td class="gt_row gt_center" headers="calendar_day">2023-07-26</td>
+<td class="gt_row gt_center" headers="time_hour">12</td>
+<td class="gt_row gt_center" headers="trip_id">53173</td>
+<td class="gt_row gt_center" headers="request_datetime">2023-07-26 12:00 PM</td>
+<td class="gt_row gt_center" headers="trip_time">0</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="DOLocationID">82</td>
+<td class="gt_row gt_center gt_striped" headers="hvfhs_license_num">HV0005</td>
+<td class="gt_row gt_center gt_striped" headers="calendar_day">2023-12-08</td>
+<td class="gt_row gt_center gt_striped" headers="time_hour">6</td>
+<td class="gt_row gt_center gt_striped" headers="trip_id">60795</td>
+<td class="gt_row gt_center gt_striped" headers="request_datetime">2023-12-08 6:00 AM</td>
+<td class="gt_row gt_center gt_striped" headers="trip_time">0</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
 </div>
 </section>
 <section id="running-simulation" class="level2">
 <h2 class="anchored" data-anchor-id="running-simulation">Running simulation</h2>
 <p>As I knew that running the hole process would take me several days I decided to store the results of simulations on disk for each zone. In this way I was able to keep the experiment as I was expecting and stop the process between days to allow the computer to rest between days and redice the risk of loossing all the progress I had problems with memory while using the computer for dealy activities.</p>
 <p>To avoid the overhead of using a IDE the next code was source from terminal after connecting with <code>ssh NycTaxi</code> to consume the fewer results as possible.</p>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>In the below code you see an assigning the starting zone to <code>DOLocationID</code> as the simulation uses the last zone of the configuration trip (the one we are creting) to starting picking trips from that zone.</p>
-</div>
-</div>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="do">## Loading env</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -455,41 +1012,40 @@ Note
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    )[,</span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>      sim_start_days[, <span class="fu">list</span>(</span>
 <span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">simulation_id =</span> trip_id,</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">taxi_company =</span> <span class="fu">fifelse</span>(hvfhs_license_num <span class="sc">==</span> <span class="st">'HV0003'</span>, <span class="st">"Uber"</span>, <span class="st">"Lyft"</span>),</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">start_zone =</span> DOLocationID,</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">week_day =</span> <span class="fu">wday</span>(calendar_day),</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        time_hour</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>      )][.SD, on <span class="ot">=</span> <span class="st">"simulation_id"</span>],</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>      .SDcols <span class="ot">=</span> <span class="sc">!</span><span class="fu">patterns</span>(<span class="st">"_sd"</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(consolidated_data)</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>InitialZoneSimResults <span class="ot">&lt;-</span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pin_list</span>(BoardLocal) <span class="sc">|&gt;</span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span>(<span class="at">pattern =</span> <span class="st">"^InitialZoneSim_ZoneId_"</span>, <span class="at">value =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(</span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">FUN =</span> consolidate_all_simulations,</span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">board =</span> BoardLocal,</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">sim_start_days =</span> DataToSimulate</span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rbindlist</span>()</span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Adding region info</span></span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>InitialZoneSimResults[</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  ZonesShapes,</span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"start_zone"</span> <span class="ot">=</span> <span class="st">"LocationID"</span>),</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(<span class="at">borough =</span> borough, <span class="at">start_zone_name =</span> zone)</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="co"># Save immediately with clear name</span></span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="fu">pin_write</span>(</span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>  InitialZoneSimResults,</span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>  <span class="st">"InitialZoneSimResults"</span>,</span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"qs2"</span></span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        hvfhs_license_num,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        DOLocationID,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">request_datetime =</span> <span class="fu">paste</span>(calendar_day, time_hour) <span class="sc">|&gt;</span> <span class="fu">ymd_h</span>()</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>      )][.SD, on <span class="ot">=</span> <span class="st">"simulation_id"</span>],</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>      .SDcols <span class="ot">=</span> <span class="sc">!</span><span class="fu">patterns</span>(<span class="st">"_sd"</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(consolidated_data)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>InitialZoneSimResults <span class="ot">&lt;-</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pin_list</span>(BoardLocal) <span class="sc">|&gt;</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span>(<span class="at">pattern =</span> <span class="st">"^InitialZoneSim_ZoneId_"</span>, <span class="at">value =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">FUN =</span> consolidate_all_simulations,</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">board =</span> BoardLocal,</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">sim_start_days =</span> DataToSimulate</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rbindlist</span>()</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Adding region info</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>InitialZoneSimResults[</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  ZonesShapes,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"DOLocationID"</span> <span class="ot">=</span> <span class="st">"LocationID"</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(<span class="at">borough =</span> borough, <span class="at">start_zone_name =</span> zone)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Save immediately with clear name</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="fu">pin_write</span>(</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  InitialZoneSimResults,</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>  <span class="st">"InitialZoneSimResults"</span>,</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"qs2"</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="exploring-results" class="level2">
@@ -592,53 +1148,60 @@ Note
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Lyft"</span> <span class="ot">=</span> Params<span class="sc">$</span>ColorGray</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  InitialZoneSimResults,</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">factor</span>(taxi_company, <span class="at">levels =</span> <span class="fu">names</span>(TaxiCompanyFillColors)),</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> taxi_company</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>(<span class="at">width =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">2</span>L],</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">linetype =</span> <span class="dv">2</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>InitialZoneSimResults[,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  taxi_company <span class="sc">:</span><span class="er">=</span> <span class="fu">fifelse</span>(hvfhs_license_num <span class="sc">==</span> <span class="st">'HV0003'</span>, <span class="st">"Uber"</span>, <span class="st">"Lyft"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  InitialZoneSimResults,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">factor</span>(taxi_company, <span class="at">levels =</span> <span class="fu">names</span>(TaxiCompanyFillColors)),</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> taxi_company</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>(<span class="at">width =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">1</span>L],</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">2</span>L],</span>
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">linetype =</span> <span class="dv">2</span></span>
 <span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> TaxiCompanyFillColors</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">breaks =</span> BreaksToPlot,</span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">1</span>L],</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">linetype =</span> <span class="dv">2</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> TaxiCompanyFillColors</span>
 <span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**_Uber_**&lt;/span&gt; "</span>,</span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**drivers makes more money than** "</span>,</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">breaks =</span> BreaksToPlot,</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
 <span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>      <span class="st">"#5b5b5b"</span>,</span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**_Lyft_**&lt;/span&gt; **drivers**"</span></span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Taxi Company"</span>,</span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Daily Hourly Wage"</span></span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">14</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.subtitle =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">12</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.x =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.y =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"none"</span></span>
-<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**_Uber_**&lt;/span&gt; "</span>,</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**drivers makes more money than** "</span>,</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>      <span class="st">"#5b5b5b"</span>,</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**_Lyft_**&lt;/span&gt; **drivers**"</span></span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Taxi Company"</span>,</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Daily Hourly Wage"</span></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">14</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.subtitle =</span> <span class="fu">element_markdown</span>(</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>      <span class="at">size =</span> <span class="dv">12</span>,</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>      <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.y =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"none"</span></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -654,12 +1217,12 @@ Note
 <summary>Show the code</summary>
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>TopBottomZonesMedian <span class="ot">&lt;-</span> InitialZoneSimResults[,</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(<span class="at">daily_hourly_wage_mean =</span> <span class="fu">median</span>(daily_hourly_wage_mean)),</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  by <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"taxi_company"</span>, <span class="st">"start_zone"</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  by <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"taxi_company"</span>, <span class="st">"DOLocationID"</span>)</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>][<span class="fu">order</span>(daily_hourly_wage_mean)][,</span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  .SD[<span class="fu">c</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>, .N <span class="sc">-</span> <span class="dv">0</span><span class="sc">:</span><span class="dv">9</span>)],</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  by <span class="ot">=</span> <span class="st">"taxi_company"</span>,</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> <span class="st">"start_zone"</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>][, InitialZoneSimResults[.SD, on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"taxi_company"</span>, <span class="st">"start_zone"</span>)]][,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  .SDcols <span class="ot">=</span> <span class="st">"DOLocationID"</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>][, InitialZoneSimResults[.SD, on <span class="ot">=</span> <span class="fu">c</span>(<span class="st">"taxi_company"</span>, <span class="st">"DOLocationID"</span>)]][,</span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  start_zone_name <span class="sc">:</span><span class="er">=</span> <span class="fu">reorder</span>(</span>
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(start_zone_name, <span class="st">"-"</span>, taxi_company),</span>
 <span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
@@ -749,52 +1312,56 @@ Note
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(</span>
 <span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">copy</span>(InitialZoneSimResults)[, <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(</span>
 <span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">taxi_company =</span> <span class="fu">factor</span>(taxi_company, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"Uber"</span>, <span class="st">"Lyft"</span>)),</span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">time_hour =</span> <span class="fu">reorder</span>(time_hour, time_hour, <span class="at">FUN =</span> sum),</span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_day =</span> <span class="fu">factor</span>(Weekdays[week_day], <span class="at">levels =</span> Weekdays)</span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  )][,</span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">better_than_model :=</span> <span class="fu">median</span>(daily_hourly_wage_mean) <span class="sc">&gt;</span> FinalPfaMeans[<span class="dv">2</span>L],</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"time_hour"</span>, <span class="st">"taxi_company"</span>, <span class="st">"week_day"</span>)</span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>  ],</span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(</span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    time_hour,</span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
-<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> better_than_model</span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>() <span class="sc">+</span></span>
-<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">1</span>L], <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
-<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">2</span>L], <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
-<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
-<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> BetterThanModelFillColors</span>
-<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> BreaksToPlot, <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)) <span class="sc">+</span></span>
-<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">vars</span>(taxi_company), <span class="fu">vars</span>(week_day)) <span class="sc">+</span></span>
-<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
-<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
-<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
-<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**Start Time**&lt;/span&gt; "</span>,</span>
-<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**Can Increase Earning Reguardless Day of Week**"</span></span>
-<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Hour Of The Day"</span>,</span>
-<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Daily Hourly Wage"</span></span>
-<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
-<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
-<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">12</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.subtitle =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">10</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>),</span>
-<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">6</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
-<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.x =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.y =</span> <span class="fu">element_blank</span>(),</span>
-<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"none"</span>,</span>
-<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>    <span class="at">strip.text =</span> <span class="fu">element_text</span>(</span>
-<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>      <span class="at">size =</span> <span class="dv">10</span>,</span>
-<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a>      <span class="at">face =</span> <span class="st">"bold"</span>,</span>
-<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>      <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily</span>
-<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">time_hour =</span> <span class="fu">reorder</span>(</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>      <span class="fu">hour</span>(request_datetime),</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>      <span class="fu">hour</span>(request_datetime),</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>      <span class="at">FUN =</span> sum</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_day =</span> <span class="fu">factor</span>(Weekdays[<span class="fu">wday</span>(request_datetime)], <span class="at">levels =</span> Weekdays)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  )][,</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">better_than_model :=</span> <span class="fu">median</span>(daily_hourly_wage_mean) <span class="sc">&gt;</span> FinalPfaMeans[<span class="dv">2</span>L],</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"time_hour"</span>, <span class="st">"taxi_company"</span>, <span class="st">"week_day"</span>)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>  ],</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    time_hour,</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> better_than_model</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>() <span class="sc">+</span></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">1</span>L], <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> FinalPfaMeans[<span class="dv">2</span>L], <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> BetterThanModelFillColors</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> BreaksToPlot, <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">vars</span>(taxi_company), <span class="fu">vars</span>(week_day)) <span class="sc">+</span></span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**Start Time**&lt;/span&gt; "</span>,</span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**Can Increase Earning Reguardless Day of Week**"</span></span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Hour Of The Day"</span>,</span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Daily Hourly Wage"</span></span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">12</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.subtitle =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">10</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>),</span>
+<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">6</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.y =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"none"</span>,</span>
+<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a>    <span class="at">strip.text =</span> <span class="fu">element_text</span>(</span>
+<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a>      <span class="at">size =</span> <span class="dv">10</span>,</span>
+<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>      <span class="at">face =</span> <span class="st">"bold"</span>,</span>
+<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a>      <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily</span>
+<span id="cb8-67"><a href="#cb8-67" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -825,52 +1392,53 @@ Note
 </ul>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeRecipe <span class="ot">&lt;-</span> <span class="fu">recipe</span>(</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  is_top_trip <span class="sc">~</span> taxi_company <span class="sc">+</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    start_zone <span class="sc">+</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    week_day <span class="sc">+</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    time_hour <span class="sc">+</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    simulation_id <span class="sc">+</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> InitialZoneSimResults</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Creating variables to use later</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_mutate</span>(</span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">day_cycle =</span> time_hour,</span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_cycle =</span> (week_day <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> time_hour,</span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">hourly_wage_mean_by_zone =</span> <span class="fu">paste0</span>(start_zone, <span class="st">"-"</span>, taxi_company)</span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Changing zones with their mean</span></span>
-<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_lencode</span>(</span>
-<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    hourly_wage_mean_by_zone,</span>
-<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="fu">vars</span>(daily_hourly_wage_mean),</span>
-<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">smooth =</span> <span class="cn">FALSE</span></span>
-<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Transforming company to binary variable</span></span>
-<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(taxi_company) <span class="sc">|&gt;</span></span>
-<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Creating Cycles</span></span>
-<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_harmonic</span>(</span>
-<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>    day_cycle,</span>
-<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">cycle_size =</span> <span class="dv">24</span>,</span>
-<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">frequency =</span> <span class="dv">1</span>,</span>
-<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">keep_original_cols =</span> <span class="cn">FALSE</span></span>
-<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_harmonic</span>(</span>
-<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    week_cycle,</span>
-<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">cycle_size =</span> <span class="dv">168</span>,</span>
-<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">frequency =</span> <span class="dv">1</span>,</span>
-<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">keep_original_cols =</span> <span class="cn">FALSE</span></span>
-<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Saving original vars</span></span>
-<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">update_role</span>(</span>
-<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>    simulation_id,</span>
-<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
-<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>    start_zone,</span>
-<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    time_hour,</span>
-<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    week_day,</span>
-<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>    <span class="at">new_role =</span> <span class="st">"additional info"</span></span>
-<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Removing original variables</span></span>
-<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_upsample</span>(is_top_trip, <span class="at">over_ratio =</span> <span class="fu">tune</span>(<span class="st">"over_ratio"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  is_top_trip <span class="sc">~</span> hvfhs_license_num <span class="sc">+</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    DOLocationID <span class="sc">+</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    request_datetime <span class="sc">+</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    simulation_id <span class="sc">+</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> InitialZoneSimResults</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Creating variables to use later</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_mutate</span>(</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">taxi_company =</span> <span class="fu">ifelse</span>(hvfhs_license_num <span class="sc">==</span> <span class="st">'HV0003'</span>, <span class="st">"Uber"</span>, <span class="st">"Lyft"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>      <span class="fu">factor</span>(<span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"Lyft"</span>, <span class="st">"Uber"</span>)),</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">day_cycle =</span> <span class="fu">hour</span>(request_datetime),</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_cycle =</span> (<span class="fu">wday</span>(request_datetime) <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> day_cycle,</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">hourly_wage_mean_by_zone =</span> <span class="fu">paste0</span>(DOLocationID, <span class="st">"-"</span>, taxi_company)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Changing zones with their mean</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_lencode</span>(</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    hourly_wage_mean_by_zone,</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">outcome =</span> <span class="fu">vars</span>(daily_hourly_wage_mean),</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">smooth =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Transforming company to binary variable</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_dummy</span>(taxi_company) <span class="sc">|&gt;</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Creating Cycles</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_harmonic</span>(</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    day_cycle,</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">cycle_size =</span> <span class="dv">24</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">frequency =</span> <span class="dv">1</span>,</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">keep_original_cols =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_harmonic</span>(</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>    week_cycle,</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">cycle_size =</span> <span class="dv">168</span>,</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">frequency =</span> <span class="dv">1</span>,</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>    <span class="at">keep_original_cols =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Saving original vars</span></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">update_role</span>(</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    simulation_id,</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>    DOLocationID,</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    daily_hourly_wage_mean,</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    hvfhs_license_num,</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>    request_datetime,</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">new_role =</span> <span class="st">"additional info"</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Removing original variables</span></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_upsample</span>(is_top_trip, <span class="at">over_ratio =</span> <span class="fu">tune</span>(<span class="st">"over_ratio"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Now after all this configuration we are ready to consolidate all that logic into a compact workflow that will help us to fit and evaluate our model using all tools from tidymodels.</p>
 <div class="cell">
@@ -1119,6 +1687,8 @@ Note
 </div>
 <p>As we want to define the effect of using the tree model over the hourly mean wage of the drivers it’s really important to confirm that the variables used to train the model don’t present colliniality and based on the table it’s clear that <code>taxi_company_Uber</code> and <code>hourly_wage_mean_by_zone</code> are apporting the same information. As result we know that <code>hourly_wage_mean_by_zone</code> it’s just dividing drivers’s company an <strong>the zone is not providing any information.</strong></p>
 <div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">linear_reg</span>() <span class="sc">|&gt;</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_engine</span>(<span class="st">"lm"</span>) <span class="sc">|&gt;</span></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fit</span>(</span>
@@ -1137,55 +1707,543 @@ Note
 <span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">round</span>(<span class="at">digits =</span> <span class="dv">2</span>) <span class="sc">|&gt;</span></span>
 <span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>  (\(x) <span class="fu">tibble</span>(<span class="at">variable =</span> <span class="fu">names</span>(x), <span class="at">vif =</span> x))() <span class="sc">|&gt;</span></span>
 <span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(vif)) <span class="sc">|&gt;</span></span>
-<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_header</span>(</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"Multicollinearity Diagnostic: Variance Inflation Factor (VIF)"</span>,</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"Checking stability of factors determining hourly income"</span></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_label</span>(</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">variable =</span> <span class="st">"Variable"</span>,</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">vif =</span> <span class="st">"VIF Score"</span></span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Format VIF to 2 decimal places</span></span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fmt_number</span>(<span class="at">columns =</span> vif, <span class="at">decimals =</span> <span class="dv">2</span>) <span class="sc">|&gt;</span></span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Style variable names to be italicized</span></span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_style</span>(</span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">style =</span> <span class="fu">cell_text</span>(<span class="at">style =</span> <span class="st">"italic"</span>),</span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">locations =</span> <span class="fu">cells_body</span>(<span class="at">columns =</span> variable)</span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Add a visual warning for high multicollinearity (VIF &gt; 5 or 10)</span></span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_style</span>(</span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">style =</span> <span class="fu">cell_text</span>(<span class="at">color =</span> <span class="st">"darkred"</span>, <span class="at">weight =</span> <span class="st">"bold"</span>),</span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">locations =</span> <span class="fu">cells_body</span>(<span class="at">columns =</span> <span class="fu">everything</span>(), <span class="at">rows =</span> vif <span class="sc">&gt;=</span> <span class="fl">5.0</span>)</span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_source_note</span>(</span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">source_note =</span> <span class="st">"Note: VIF &gt; 5 indicates potential multicollinearity issues that may inflate standard errors."</span></span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 <div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
+<div id="eepyuqnwtb" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#eepyuqnwtb table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#eepyuqnwtb thead, #eepyuqnwtb tbody, #eepyuqnwtb tfoot, #eepyuqnwtb tr, #eepyuqnwtb td, #eepyuqnwtb th {
+  border-style: none;
+}
+
+#eepyuqnwtb p {
+  margin: 0;
+  padding: 0;
+}
+
+#eepyuqnwtb .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#eepyuqnwtb .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#eepyuqnwtb .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#eepyuqnwtb .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#eepyuqnwtb .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#eepyuqnwtb .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#eepyuqnwtb .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#eepyuqnwtb .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#eepyuqnwtb .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#eepyuqnwtb .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#eepyuqnwtb .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#eepyuqnwtb .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#eepyuqnwtb .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#eepyuqnwtb .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#eepyuqnwtb .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#eepyuqnwtb .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#eepyuqnwtb .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#eepyuqnwtb .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#eepyuqnwtb .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#eepyuqnwtb .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#eepyuqnwtb .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#eepyuqnwtb .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#eepyuqnwtb .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#eepyuqnwtb .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#eepyuqnwtb .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#eepyuqnwtb .gt_left {
+  text-align: left;
+}
+
+#eepyuqnwtb .gt_center {
+  text-align: center;
+}
+
+#eepyuqnwtb .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#eepyuqnwtb .gt_font_normal {
+  font-weight: normal;
+}
+
+#eepyuqnwtb .gt_font_bold {
+  font-weight: bold;
+}
+
+#eepyuqnwtb .gt_font_italic {
+  font-style: italic;
+}
+
+#eepyuqnwtb .gt_super {
+  font-size: 65%;
+}
+
+#eepyuqnwtb .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#eepyuqnwtb .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#eepyuqnwtb .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#eepyuqnwtb .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#eepyuqnwtb .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#eepyuqnwtb .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#eepyuqnwtb .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#eepyuqnwtb .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#eepyuqnwtb div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
 <thead>
-<tr class="header">
-<th style="text-align: left;">variable</th>
-<th style="text-align: right;">vif</th>
+<tr class="gt_heading header">
+<th colspan="2" class="gt_heading gt_title gt_font_normal">Multicollinearity Diagnostic: Variance Inflation Factor (VIF)</th>
+</tr>
+<tr class="gt_heading even">
+<th colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border">Checking stability of factors determining hourly income</th>
+</tr>
+<tr class="gt_col_headings header">
+<th id="variable" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Variable</th>
+<th id="vif" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">VIF Score</th>
 </tr>
 </thead>
-<tbody>
+<tbody class="gt_table_body">
 <tr class="odd">
-<td style="text-align: left;">taxi_company_Uber</td>
-<td style="text-align: right;">45.33</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic; color: #8B0000; font-weight: bold">taxi_company_Uber</td>
+<td class="gt_row gt_right" headers="vif" style="color: #8B0000; font-weight: bold">45.38</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">hourly_wage_mean_by_zone</td>
-<td style="text-align: right;">45.21</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic; color: #8B0000; font-weight: bold">hourly_wage_mean_by_zone</td>
+<td class="gt_row gt_right" headers="vif" style="color: #8B0000; font-weight: bold">45.21</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">tree_model_high_value</td>
-<td style="text-align: right;">1.24</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic">tree_model_high_value</td>
+<td class="gt_row gt_right" headers="vif">1.27</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">day_cycle_cos_1</td>
-<td style="text-align: right;">1.07</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic">day_cycle_sin_1</td>
+<td class="gt_row gt_right" headers="vif">1.08</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">day_cycle_sin_1</td>
-<td style="text-align: right;">1.04</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic">day_cycle_cos_1</td>
+<td class="gt_row gt_right" headers="vif">1.01</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">week_cycle_sin_1</td>
-<td style="text-align: right;">1.02</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic">week_cycle_cos_1</td>
+<td class="gt_row gt_right" headers="vif">1.01</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">week_cycle_cos_1</td>
-<td style="text-align: right;">1.00</td>
+<td class="gt_row gt_left" headers="variable" style="font-style: italic">week_cycle_sin_1</td>
+<td class="gt_row gt_right" headers="vif">1.00</td>
 </tr>
-</tbody>
+</tbody><tfoot>
+<tr class="gt_sourcenotes odd">
+<td colspan="2" class="gt_sourcenote">Note: VIF &gt; 5 indicates potential multicollinearity issues that may inflate standard errors.</td>
+</tr>
+</tfoot>
+
 </table>
+
 </div>
 </div>
+</div>
+<p><br></p>
 <p>With 65,856 simulated days all coefficients are statistically significant, so the focus should be on the magnitude of each effect.</p>
 <p>The regression reveals a clear hierarchy of factors:</p>
 <ul>
-<li>A driver that use Uber can earn up to <strong>$8.16 more per hour</strong> compared to a driver that use Lyft.</li>
-<li>Starting at a favorable time of day can add up to <strong>$5.08 per hour</strong> (captured by <code>day_cycle_cos_1</code>), while an unfavorable hour can subtract up to <strong>$2.94</strong>.</li>
+<li>A driver that use Uber can earn up to <strong>$7.71 more per hour</strong> compared to a driver that use Lyft.</li>
+<li>Starting at a favorable time of day can add up to <strong>$5.52 per hour</strong> (captured by <code>day_cycle_cos_1</code>), while an unfavorable hour can subtract up to <strong>$2.33</strong>.</li>
 <li>Day-of-week effects are small (under <strong>$1.58</strong> in either direction), confirming that <em>what time of day</em> the driver starts matters far more than <em>which day of the week</em> they work.</li>
-<li>A driver who follows the tree model’s accept/reject strategy earns an additional <strong>$5.04 per hour</strong> on top of all the above. This reflects the specific company-and-timing combinations the tree identified as high-value that <strong>no single variable captures independently</strong>.</li>
+<li>A driver who follows the tree model’s accept/reject strategy earns an additional <strong>$5.81 per hour</strong> on top of all the above. This reflects the specific company-and-timing combinations the tree identified as high-value that <strong>no single variable captures independently</strong>.</li>
 </ul>
 <p>In practice, a driver making all the right decisions — starting with Uber at a favorable time and following the tree model’s strategy — can move from the baseline of <strong>$54/hour</strong> to approximately <strong>$70/hour</strong>, representing a <strong>34% improvement</strong> in hourly earnings.</p>
 <div class="cell">
@@ -1244,23 +2302,23 @@ Note
 <span id="cb20-51"><a href="#cb20-51" aria-hidden="true" tabindex="-1"></a><span class="fu">create_lm_gt_table</span>(LinearModelTreeEffect)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<div id="pnwbsqdjaz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#pnwbsqdjaz table {
+<div id="mjmzzjagbb" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#mjmzzjagbb table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#pnwbsqdjaz thead, #pnwbsqdjaz tbody, #pnwbsqdjaz tfoot, #pnwbsqdjaz tr, #pnwbsqdjaz td, #pnwbsqdjaz th {
+#mjmzzjagbb thead, #mjmzzjagbb tbody, #mjmzzjagbb tfoot, #mjmzzjagbb tr, #mjmzzjagbb td, #mjmzzjagbb th {
   border-style: none;
 }
 
-#pnwbsqdjaz p {
+#mjmzzjagbb p {
   margin: 0;
   padding: 0;
 }
 
-#pnwbsqdjaz .gt_table {
+#mjmzzjagbb .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -1286,12 +2344,12 @@ Note
   border-left-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_caption {
+#mjmzzjagbb .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#pnwbsqdjaz .gt_title {
+#mjmzzjagbb .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -1303,7 +2361,7 @@ Note
   border-bottom-width: 0;
 }
 
-#pnwbsqdjaz .gt_subtitle {
+#mjmzzjagbb .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -1315,7 +2373,7 @@ Note
   border-top-width: 0;
 }
 
-#pnwbsqdjaz .gt_heading {
+#mjmzzjagbb .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -1327,13 +2385,13 @@ Note
   border-right-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_bottom_border {
+#mjmzzjagbb .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_col_headings {
+#mjmzzjagbb .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1348,7 +2406,7 @@ Note
   border-right-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_col_heading {
+#mjmzzjagbb .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1368,7 +2426,7 @@ Note
   overflow-x: hidden;
 }
 
-#pnwbsqdjaz .gt_column_spanner_outer {
+#mjmzzjagbb .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1380,15 +2438,15 @@ Note
   padding-right: 4px;
 }
 
-#pnwbsqdjaz .gt_column_spanner_outer:first-child {
+#mjmzzjagbb .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#pnwbsqdjaz .gt_column_spanner_outer:last-child {
+#mjmzzjagbb .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#pnwbsqdjaz .gt_column_spanner {
+#mjmzzjagbb .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -1400,11 +2458,11 @@ Note
   width: 100%;
 }
 
-#pnwbsqdjaz .gt_spanner_row {
+#mjmzzjagbb .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#pnwbsqdjaz .gt_group_heading {
+#mjmzzjagbb .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1430,7 +2488,7 @@ Note
   text-align: left;
 }
 
-#pnwbsqdjaz .gt_empty_group_heading {
+#mjmzzjagbb .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -1445,15 +2503,15 @@ Note
   vertical-align: middle;
 }
 
-#pnwbsqdjaz .gt_from_md > :first-child {
+#mjmzzjagbb .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#pnwbsqdjaz .gt_from_md > :last-child {
+#mjmzzjagbb .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#pnwbsqdjaz .gt_row {
+#mjmzzjagbb .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1472,7 +2530,7 @@ Note
   overflow-x: hidden;
 }
 
-#pnwbsqdjaz .gt_stub {
+#mjmzzjagbb .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1485,7 +2543,7 @@ Note
   padding-right: 5px;
 }
 
-#pnwbsqdjaz .gt_stub_row_group {
+#mjmzzjagbb .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1499,15 +2557,15 @@ Note
   vertical-align: top;
 }
 
-#pnwbsqdjaz .gt_row_group_first td {
+#mjmzzjagbb .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#pnwbsqdjaz .gt_row_group_first th {
+#mjmzzjagbb .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#pnwbsqdjaz .gt_summary_row {
+#mjmzzjagbb .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1517,16 +2575,16 @@ Note
   padding-right: 5px;
 }
 
-#pnwbsqdjaz .gt_first_summary_row {
+#mjmzzjagbb .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_first_summary_row.thick {
+#mjmzzjagbb .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#pnwbsqdjaz .gt_last_summary_row {
+#mjmzzjagbb .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1536,7 +2594,7 @@ Note
   border-bottom-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_grand_summary_row {
+#mjmzzjagbb .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1546,7 +2604,7 @@ Note
   padding-right: 5px;
 }
 
-#pnwbsqdjaz .gt_first_grand_summary_row {
+#mjmzzjagbb .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1556,7 +2614,7 @@ Note
   border-top-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_last_grand_summary_row_top {
+#mjmzzjagbb .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1566,11 +2624,11 @@ Note
   border-bottom-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_striped {
+#mjmzzjagbb .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#pnwbsqdjaz .gt_table_body {
+#mjmzzjagbb .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1579,7 +2637,7 @@ Note
   border-bottom-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_footnotes {
+#mjmzzjagbb .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1593,7 +2651,7 @@ Note
   border-right-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_footnote {
+#mjmzzjagbb .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -1602,7 +2660,7 @@ Note
   padding-right: 5px;
 }
 
-#pnwbsqdjaz .gt_sourcenotes {
+#mjmzzjagbb .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1616,7 +2674,7 @@ Note
   border-right-color: #D3D3D3;
 }
 
-#pnwbsqdjaz .gt_sourcenote {
+#mjmzzjagbb .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1624,72 +2682,72 @@ Note
   padding-right: 5px;
 }
 
-#pnwbsqdjaz .gt_left {
+#mjmzzjagbb .gt_left {
   text-align: left;
 }
 
-#pnwbsqdjaz .gt_center {
+#mjmzzjagbb .gt_center {
   text-align: center;
 }
 
-#pnwbsqdjaz .gt_right {
+#mjmzzjagbb .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#pnwbsqdjaz .gt_font_normal {
+#mjmzzjagbb .gt_font_normal {
   font-weight: normal;
 }
 
-#pnwbsqdjaz .gt_font_bold {
+#mjmzzjagbb .gt_font_bold {
   font-weight: bold;
 }
 
-#pnwbsqdjaz .gt_font_italic {
+#mjmzzjagbb .gt_font_italic {
   font-style: italic;
 }
 
-#pnwbsqdjaz .gt_super {
+#mjmzzjagbb .gt_super {
   font-size: 65%;
 }
 
-#pnwbsqdjaz .gt_footnote_marks {
+#mjmzzjagbb .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#pnwbsqdjaz .gt_asterisk {
+#mjmzzjagbb .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#pnwbsqdjaz .gt_indent_1 {
+#mjmzzjagbb .gt_indent_1 {
   text-indent: 5px;
 }
 
-#pnwbsqdjaz .gt_indent_2 {
+#mjmzzjagbb .gt_indent_2 {
   text-indent: 10px;
 }
 
-#pnwbsqdjaz .gt_indent_3 {
+#mjmzzjagbb .gt_indent_3 {
   text-indent: 15px;
 }
 
-#pnwbsqdjaz .gt_indent_4 {
+#mjmzzjagbb .gt_indent_4 {
   text-indent: 20px;
 }
 
-#pnwbsqdjaz .gt_indent_5 {
+#mjmzzjagbb .gt_indent_5 {
   text-indent: 25px;
 }
 
-#pnwbsqdjaz .katex-display {
+#mjmzzjagbb .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#pnwbsqdjaz div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#mjmzzjagbb div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -1712,45 +2770,45 @@ Note
 <tbody class="gt_table_body">
 <tr class="odd">
 <td class="gt_row gt_left" headers="term" style="font-style: italic">(Intercept)</td>
-<td class="gt_row gt_right" headers="conf.low">$53.68</td>
-<td class="gt_row gt_right" headers="estimate">$53.83</td>
-<td class="gt_row gt_right" headers="conf.high">$53.97</td>
+<td class="gt_row gt_right" headers="conf.low">$52.90</td>
+<td class="gt_row gt_right" headers="estimate">$53.04</td>
+<td class="gt_row gt_right" headers="conf.high">$53.18</td>
 </tr>
 <tr class="even">
 <td class="gt_row gt_left" headers="term" style="font-style: italic">taxi_company_Uber</td>
-<td class="gt_row gt_right" headers="conf.low">$8.06</td>
-<td class="gt_row gt_right" headers="estimate">$8.16</td>
-<td class="gt_row gt_right" headers="conf.high">$8.25</td>
+<td class="gt_row gt_right" headers="conf.low">$7.61</td>
+<td class="gt_row gt_right" headers="estimate">$7.71</td>
+<td class="gt_row gt_right" headers="conf.high">$7.80</td>
 </tr>
 <tr class="odd">
-<td class="gt_row gt_left" headers="term" style="font-style: italic">day_cycle_cos_1</td>
-<td class="gt_row gt_right" headers="conf.low">$4.95</td>
-<td class="gt_row gt_right" headers="estimate">$5.08</td>
-<td class="gt_row gt_right" headers="conf.high">$5.21</td>
+<td class="gt_row gt_left" headers="term" style="font-style: italic; font-weight: bold; background-color: #D3CDF7">tree_model_high_value</td>
+<td class="gt_row gt_right" headers="conf.low" style="background-color: #D3CDF7; font-weight: bold">$5.66</td>
+<td class="gt_row gt_right" headers="estimate" style="background-color: #D3CDF7; font-weight: bold">$5.81</td>
+<td class="gt_row gt_right" headers="conf.high" style="background-color: #D3CDF7; font-weight: bold">$5.97</td>
 </tr>
 <tr class="even">
-<td class="gt_row gt_left" headers="term" style="font-style: italic; font-weight: bold; background-color: #D3CDF7">tree_model_high_value</td>
-<td class="gt_row gt_right" headers="conf.low" style="background-color: #D3CDF7; font-weight: bold">$4.86</td>
-<td class="gt_row gt_right" headers="estimate" style="background-color: #D3CDF7; font-weight: bold">$5.04</td>
-<td class="gt_row gt_right" headers="conf.high" style="background-color: #D3CDF7; font-weight: bold">$5.21</td>
+<td class="gt_row gt_left" headers="term" style="font-style: italic">day_cycle_cos_1</td>
+<td class="gt_row gt_right" headers="conf.low">$5.40</td>
+<td class="gt_row gt_right" headers="estimate">$5.52</td>
+<td class="gt_row gt_right" headers="conf.high">$5.65</td>
 </tr>
 <tr class="odd">
 <td class="gt_row gt_left" headers="term" style="font-style: italic">day_cycle_sin_1</td>
-<td class="gt_row gt_right" headers="conf.low">−$3.07</td>
-<td class="gt_row gt_right" headers="estimate">−$2.94</td>
-<td class="gt_row gt_right" headers="conf.high">−$2.81</td>
+<td class="gt_row gt_right" headers="conf.low">−$2.46</td>
+<td class="gt_row gt_right" headers="estimate">−$2.33</td>
+<td class="gt_row gt_right" headers="conf.high">−$2.20</td>
 </tr>
 <tr class="even">
 <td class="gt_row gt_left" headers="term" style="font-style: italic">week_cycle_cos_1</td>
-<td class="gt_row gt_right" headers="conf.low">$1.45</td>
-<td class="gt_row gt_right" headers="estimate">$1.58</td>
-<td class="gt_row gt_right" headers="conf.high">$1.71</td>
+<td class="gt_row gt_right" headers="conf.low">$2.17</td>
+<td class="gt_row gt_right" headers="estimate">$2.29</td>
+<td class="gt_row gt_right" headers="conf.high">$2.42</td>
 </tr>
 <tr class="odd">
 <td class="gt_row gt_left" headers="term" style="font-style: italic">week_cycle_sin_1</td>
-<td class="gt_row gt_right" headers="conf.low">−$0.66</td>
-<td class="gt_row gt_right" headers="estimate">−$0.53</td>
-<td class="gt_row gt_right" headers="conf.high">−$0.40</td>
+<td class="gt_row gt_right" headers="conf.low">−$0.84</td>
+<td class="gt_row gt_right" headers="estimate">−$0.71</td>
+<td class="gt_row gt_right" headers="conf.high">−$0.59</td>
 </tr>
 </tbody><tfoot>
 <tr class="gt_sourcenotes odd">
@@ -1842,8 +2900,8 @@ Note
 <div class="cell">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplain <span class="sc">|&gt;</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">is_top_zone =</span> hourly_wage_mean_by_zone <span class="sc">&gt;=</span> HourlyWageMeanByZoneSplit) <span class="sc">|&gt;</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(start_zone, is_top_zone) <span class="sc">|&gt;</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(start_zone) <span class="sc">|&gt;</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(DOLocationID, is_top_zone) <span class="sc">|&gt;</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(DOLocationID) <span class="sc">|&gt;</span></span>
 <span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">==</span> <span class="dv">1</span>L) <span class="sc">|&gt;</span></span>
 <span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>()</span>
 <span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] 0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1858,11 +2916,11 @@ Note
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(taxi_company_Uber <span class="sc">==</span> <span class="dv">1</span>L) <span class="sc">|&gt;</span></span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(</span>
 <span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    .pred_class,</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    time_hour,</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    day_cycle_sin_1,</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    day_cycle_cos_1,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    day_cycle_sin_1,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    day_cycle_cos_1,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">time_hour =</span> <span class="fu">hour</span>(request_datetime),</span>
 <span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_day =</span> <span class="fu">factor</span>(</span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>      Weekdays[week_day],</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>      Weekdays[<span class="fu">wday</span>(request_datetime)],</span>
 <span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(Weekdays[<span class="sc">-</span><span class="dv">1</span>L], Weekdays[<span class="dv">1</span>L])</span>
 <span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    ),</span>
 <span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    week_cycle_sin_1,</span>
@@ -1884,7 +2942,7 @@ Note
 <span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**Must of the days taxi driver can start at**"</span>,</span>
 <span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a>      <span class="fu">highlight_text</span>(<span class="st">"21 hours"</span>)</span>
 <span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"_On **Mondays** taxi drivers could just rest_"</span></span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"_On **Mondays** and **Fridays** taxi drivers could just rest_"</span></span>
 <span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
 <span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily, <span class="at">base_size =</span> <span class="dv">12</span>) <span class="sc">+</span></span>
 <span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
@@ -1905,6 +2963,30 @@ Note
 </figure>
 </div>
 </div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplain <span class="sc">|&gt;</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(.pred_class <span class="sc">==</span> <span class="st">"yes"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_cycle =</span> (<span class="fu">wday</span>(request_datetime) <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> <span class="fu">hour</span>(request_datetime)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(week_cycle)</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 13 × 1</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    week_cycle</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         &lt;dbl&gt;</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1          0</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2          3</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3          6</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4         63</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5         66</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6         69</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7         87</span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8         90</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9         93</span></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10        111</span></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11        114</span></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12        117</span></span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13        165</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 
 

@@ -15,8 +15,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-Once have a policy to decide if a trip should be taken or rejected then it's important to validate if any of the next factors could cause an increase of decrease on taxi results after blocking the **company** for taxi driver:
+Once have a policy to decide if a trip should be taken or rejected then it's important to validate if any of the next factors could cause an increase of decrease on taxi results:
 
+- Company
 - Start zone
 - Days of the week
 - Hour of the day
@@ -25,8 +26,15 @@ Once have a policy to decide if a trip should be taken or rejected then it's imp
 
 As we have 196 zones to evaluete, 3 days to evaluete for each day of the week (7), 2 taxi companies and we divide the day in 8 moments to measure (one each 3 hours), we end with an experiment of **65,856 days** to simulate.
 
+::: {.callout-note}
+As the `DOLocationID`is the variable used in the simulation to define the start zone of the fist trip to simulate we need to simulate all avaiable zones for each combination.
+:::
+
+
 ```{r}
-#| label: Defining combinations
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Defining cases
 # Loading functions ----
 
 ## To manage relative paths
@@ -96,7 +104,34 @@ DataToSimulate[, `:=`(
   trip_time = 0
 )]
 
-head(DataToSimulate, 8)
+
+set.seed(4875)
+
+DataToSimulate |>
+  slice_sample(n = 8) |>
+  gt() |>
+  # Add a title and subtitle
+  tab_header(
+    title = md("**Situations to evaluate**"),
+    subtitle = paste(
+      "A sample of the",
+      comma(nrow(DataToSimulate)),
+      "days to simulate"
+    )
+  ) |>
+  # Format the date-time column nicely
+  fmt_datetime(
+    columns = request_datetime,
+    date_style = "iso",
+    time_style = "hm"
+  ) |>
+  # Left-align text, center numbers for better readability
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) |>
+  # Give it a clean, modern theme
+  opt_stylize(style = 1, color = "blue")
 ```
 
 ## Running simulation
@@ -105,9 +140,7 @@ As I knew that running the hole process would take me several days I decided to 
 
 To avoid the overhead of using a IDE the next code was source from terminal after connecting with `ssh NycTaxi` to consume the fewer results as possible.
 
-::: {.callout-note}
-In the below code you see an assigning the starting zone to `DOLocationID` as the simulation uses the last zone of the configuration trip (the one we are creting) to starting picking trips from that zone.
-:::
+
 
 ```{r}
 #| eval: false
@@ -216,10 +249,9 @@ consolidate_all_simulations <- function(zone_id_data, board, sim_start_days) {
     )[,
       sim_start_days[, list(
         simulation_id = trip_id,
-        taxi_company = fifelse(hvfhs_license_num == 'HV0003', "Uber", "Lyft"),
-        start_zone = DOLocationID,
-        week_day = wday(calendar_day),
-        time_hour
+        hvfhs_license_num,
+        DOLocationID,
+        request_datetime = paste(calendar_day, time_hour) |> ymd_h()
       )][.SD, on = "simulation_id"],
       .SDcols = !patterns("_sd")
     ]
@@ -240,7 +272,7 @@ InitialZoneSimResults <-
 # Adding region info
 InitialZoneSimResults[
   ZonesShapes,
-  on = c("start_zone" = "LocationID"),
+  on = c("DOLocationID" = "LocationID"),
   `:=`(borough = borough, start_zone_name = zone)
 ]
 
@@ -353,6 +385,10 @@ TaxiCompanyFillColors <- c(
   "Lyft" = Params$ColorGray
 )
 
+InitialZoneSimResults[,
+  taxi_company := fifelse(hvfhs_license_num == 'HV0003', "Uber", "Lyft")
+]
+
 ggplot(
   InitialZoneSimResults,
   aes(
@@ -393,7 +429,10 @@ ggplot(
   theme_light(base_family = Params$BaseFontFamily) +
   theme(
     plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
-    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(
+      size = 12,
+      family = Params$BaseFontFamily
+    ),
     axis.title = element_text(face = "bold", family = Params$BaseFontFamily),
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank(),
@@ -411,12 +450,12 @@ After isoliating the effect of the taxi company in the hourly wage we can see by
 #| fig-height:  8
 TopBottomZonesMedian <- InitialZoneSimResults[,
   list(daily_hourly_wage_mean = median(daily_hourly_wage_mean)),
-  by = c("taxi_company", "start_zone")
+  by = c("taxi_company", "DOLocationID")
 ][order(daily_hourly_wage_mean)][,
   .SD[c(1:10, .N - 0:9)],
   by = "taxi_company",
-  .SDcols = "start_zone"
-][, InitialZoneSimResults[.SD, on = c("taxi_company", "start_zone")]][,
+  .SDcols = "DOLocationID"
+][, InitialZoneSimResults[.SD, on = c("taxi_company", "DOLocationID")]][,
   start_zone_name := reorder(
     paste0(start_zone_name, "-", taxi_company),
     daily_hourly_wage_mean,
@@ -501,8 +540,12 @@ BetterThanModelFillColors <- c(
 ggplot(
   copy(InitialZoneSimResults)[, `:=`(
     taxi_company = factor(taxi_company, levels = c("Uber", "Lyft")),
-    time_hour = reorder(time_hour, time_hour, FUN = sum),
-    week_day = factor(Weekdays[week_day], levels = Weekdays)
+    time_hour = reorder(
+      hour(request_datetime),
+      hour(request_datetime),
+      FUN = sum
+    ),
+    week_day = factor(Weekdays[wday(request_datetime)], levels = Weekdays)
   )][,
     better_than_model := median(daily_hourly_wage_mean) > FinalPfaMeans[2L],
     by = c("time_hour", "taxi_company", "week_day")
@@ -574,19 +617,20 @@ To help the tree finding the important pattern we are going to apply the followi
 ```{r}
 #| label: Defining Tree Workdflow
 DecisionTreeRecipe <- recipe(
-  is_top_trip ~ taxi_company +
-    start_zone +
-    week_day +
-    time_hour +
+  is_top_trip ~ hvfhs_license_num +
+    DOLocationID +
+    request_datetime +
     simulation_id +
     daily_hourly_wage_mean,
   data = InitialZoneSimResults
 ) |>
   # Creating variables to use later
   step_mutate(
-    day_cycle = time_hour,
-    week_cycle = (week_day - 1) * 24 + time_hour,
-    hourly_wage_mean_by_zone = paste0(start_zone, "-", taxi_company)
+    taxi_company = ifelse(hvfhs_license_num == 'HV0003', "Uber", "Lyft") |>
+      factor(levels = c("Lyft", "Uber")),
+    day_cycle = hour(request_datetime),
+    week_cycle = (wday(request_datetime) - 1) * 24 + day_cycle,
+    hourly_wage_mean_by_zone = paste0(DOLocationID, "-", taxi_company)
   ) |>
   # Changing zones with their mean
   step_lencode(
@@ -612,10 +656,10 @@ DecisionTreeRecipe <- recipe(
   # Saving original vars
   update_role(
     simulation_id,
+    DOLocationID,
     daily_hourly_wage_mean,
-    start_zone,
-    time_hour,
-    week_day,
+    hvfhs_license_num,
+    request_datetime,
     new_role = "additional info"
   ) |>
   # Removing original variables
@@ -866,6 +910,9 @@ TreeResultsToExplore <-
 As we want to define the effect of using the tree model over the hourly mean wage of the drivers it's really important to confirm that the variables used to train the model don't present colliniality and based on the table it's clear that `taxi_company_Uber` and `hourly_wage_mean_by_zone` are apporting the same information. As result we know that `hourly_wage_mean_by_zone` it's just dividing drivers's company an **the zone is not providing any information.**
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Evaluating Collinality
 linear_reg() |>
   set_engine("lm") |>
   fit(
@@ -884,8 +931,33 @@ linear_reg() |>
   round(digits = 2) |>
   (\(x) tibble(variable = names(x), vif = x))() |>
   arrange(desc(vif)) |>
-  knitr::kable()
+  gt() |>
+  tab_header(
+    title = "Multicollinearity Diagnostic: Variance Inflation Factor (VIF)",
+    subtitle = "Checking stability of factors determining hourly income"
+  ) |>
+  cols_label(
+    variable = "Variable",
+    vif = "VIF Score"
+  ) |>
+  # Format VIF to 2 decimal places
+  fmt_number(columns = vif, decimals = 2) |>
+  # Style variable names to be italicized
+  tab_style(
+    style = cell_text(style = "italic"),
+    locations = cells_body(columns = variable)
+  ) |>
+  # Add a visual warning for high multicollinearity (VIF > 5 or 10)
+  tab_style(
+    style = cell_text(color = "darkred", weight = "bold"),
+    locations = cells_body(columns = everything(), rows = vif >= 5.0)
+  ) |>
+  tab_source_note(
+    source_note = "Note: VIF > 5 indicates potential multicollinearity issues that may inflate standard errors."
+  )
 ```
+
+<br>
 
 With 65,856 simulated days all coefficients are statistically significant,
 so the focus should be on the magnitude of each effect.
@@ -893,13 +965,13 @@ so the focus should be on the magnitude of each effect.
 The regression reveals a clear hierarchy of factors:
 
 - A driver that use Uber
-  can earn up to **$8.16 more per hour** compared to a driver that use Lyft.
-- Starting at a favorable time of day can add up to **$5.08 per hour** (captured by `day_cycle_cos_1`), while an unfavorable hour can subtract up to **$2.94**.
+  can earn up to **$7.71 more per hour** compared to a driver that use Lyft.
+- Starting at a favorable time of day can add up to **$5.52 per hour** (captured by `day_cycle_cos_1`), while an unfavorable hour can subtract up to **$2.33**.
 - Day-of-week effects are small (under **$1.58** in either direction),
   confirming that *what time of day* the driver starts matters far more
   than *which day of the week* they work.
 - A driver who follows the tree model's accept/reject strategy earns an
-  additional **$5.04 per hour** on top of all the above. This reflects
+  additional **$5.81 per hour** on top of all the above. This reflects
   the specific company-and-timing combinations the tree identified as
   high-value that **no single variable captures independently**.
 
@@ -1042,8 +1114,8 @@ TreeResultsToExplain <-
 ```{r}
 TreeResultsToExplain |>
   mutate(is_top_zone = hourly_wage_mean_by_zone >= HourlyWageMeanByZoneSplit) |>
-  distinct(start_zone, is_top_zone) |>
-  count(start_zone) |>
+  distinct(DOLocationID, is_top_zone) |>
+  count(DOLocationID) |>
   filter(n == 1L) |>
   nrow()
 ```
@@ -1058,11 +1130,11 @@ TreeResultsToExplain |>
   filter(taxi_company_Uber == 1L) |>
   distinct(
     .pred_class,
-    time_hour,
     day_cycle_sin_1,
     day_cycle_cos_1,
+    time_hour = hour(request_datetime),
     week_day = factor(
-      Weekdays[week_day],
+      Weekdays[wday(request_datetime)],
       levels = c(Weekdays[-1L], Weekdays[1L])
     ),
     week_cycle_sin_1,
@@ -1084,7 +1156,7 @@ TreeResultsToExplain |>
       "**Must of the days taxi driver can start at**",
       highlight_text("21 hours")
     ),
-    subtitle = "_On **Mondays** taxi drivers could just rest_"
+    subtitle = "_On **Mondays** and **Fridays** taxi drivers could just rest_"
   ) +
   theme_minimal(base_family = Params$BaseFontFamily, base_size = 12) +
   theme(
@@ -1097,5 +1169,14 @@ TreeResultsToExplain |>
     plot.title = element_markdown(),
     plot.subtitle = element_markdown()
   )
+```
+
+```{r}
+TreeResultsToExplain |>
+  filter(.pred_class == "yes") |>
+  distinct(
+    week_cycle = (wday(request_datetime) - 1) * 24 + hour(request_datetime)
+  ) |>
+  arrange(week_cycle)
 ```
 
