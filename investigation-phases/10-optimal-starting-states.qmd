@@ -131,7 +131,7 @@ DataToSimulate |>
     columns = everything()
   ) |>
   # Give it a clean, modern theme
-  opt_stylize(style = 1, color = "blue")
+  opt_stylize(style = 1, color = "gray")
 ```
 
 ## Running simulation
@@ -1171,12 +1171,127 @@ TreeResultsToExplain |>
   )
 ```
 
+## Creating policy
+
+As we know that this rule only works for **Uber**, then the first before validating with the tree model if the time is good is to make sure that the company for each start trip correspond to Uber.
+
+Then we will use the tree model see if the time is correct to start working of we should wait until finding the **next valid hour** to start working.
+
+Now we just need extract the valid hours and used as part of t reference for the simulation.
+
 ```{r}
-TreeResultsToExplain |>
+#| eval: false
+ValidHoursToStartWorking <-
+  TreeResultsToExplain |>
   filter(.pred_class == "yes") |>
   distinct(
+    hour = hour(request_datetime),
+    week_day = wday(request_datetime),
     week_cycle = (wday(request_datetime) - 1) * 24 + hour(request_datetime)
   ) |>
   arrange(week_cycle)
+
+setDT(ValidHoursToStartWorking)
+
+pin_write(
+  BoardLocal,
+  ValidHoursToStartWorking,
+  name = "ValidHoursToStartWorking",
+  type = "qs2"
+)
+```
+
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Valid Hours
+ValidHoursToStartWorking <- pin_read(BoardLocal, "ValidHoursToStartWorking")
+
+ValidHoursToStartWorking |>
+  gt() |>
+  # Add a title and subtitle
+  tab_header(
+    title = md("**Valid Hour To Use**"),
+    subtitle = "In case that of low value start times"
+  ) |>
+  # Left-align text, center numbers for better readability
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) |>
+  # Give it a clean, modern theme
+  opt_stylize(style = 1, color = "gray")
+```
+
+
+```{r}
+setDT(DecisionTreeAugmented)
+
+update_start_trip <- function(
+  trips_dt,
+  start_day_fitted_model,
+  valid_times_dt
+) {
+  # Validating data imported
+  stopifnot(
+    "trips_dt must be a data.table" = data.table::is.data.table(trips_dt)
+  )
+  stopifnot(
+    "valid_times_dt must be a data.table" = data.table::is.data.table(
+      valid_times_dt
+    )
+  )
+
+  # Validating the the dataframes present the expected columns
+  if (!all(c("hvfhs_license_num", "request_datetime") %chin% names(trips_dt))) {
+    stop(
+      "trips_dt must have `hvfhs_license_num` and `request_datetime` as columns."
+    )
+  }
+  if (!all(c("hour", "week_day", "week_cycle") %chin% names(valid_times_dt))) {
+    stop(
+      "valid_times_dt must have `hour`, `week_day`, and `week_cycle` as columns."
+    )
+  }
+
+  # Adding the possibility that the next valid hour will take place next week
+  valid_times_next_week =
+    data.table::copy(valid_times_dt)[
+      j = week_cycle := week_cycle + 7 * 24
+    ][j = rbind(valid_times_dt, .SD)]
+}
+
+
+DecisionTreeAugmentedAsNo <- DecisionTreeAugmented[.pred_class == "no"]
+DecisionTreeAugmentedAsNo[, hvfhs_license_num := "HV0003"]
+
+DecisionTreeAugmentedAsNo[
+  j = request_datetime := {
+    # Converting current time to cycle
+    current_week_cycle =
+      (lubridate::wday(request_datetime) - 1) *
+      24 +
+      lubridate::hour(request_datetime)
+
+    # Defining the new time to cycle
+    next_week_cycle = ValidHoursToStartWorking[
+      list(current_week_cycle = current_week_cycle),
+      on = .(week_cycle > current_week_cycle),
+      mult = "first",
+      x.week_cycle
+    ]
+
+    new_request_datetime = request_datetime +
+      lubridate::dhours(next_week_cycle - current_week_cycle)
+  }
+]
+
+predict(
+  DecisionTreeWfFitted,
+  DecisionTreeAugmentedAsNo,
+  type = "class"
+) |>
+  table()
 ```
 
