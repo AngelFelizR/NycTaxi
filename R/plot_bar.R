@@ -9,6 +9,7 @@
 #' @param color_highlight Character string specifying the color for the top categories. Default is "lightslateblue"
 #' @param color_gray Character string specifying the color for non-top categories. Default is "gray80"
 #' @param n_top Integer specifying the number of top categories to highlight. Default is 4
+#' @param base_family Character string specifying the font family used in the plot.
 #'
 #' @return A ggplot2 object showing the count of trips by category
 #'

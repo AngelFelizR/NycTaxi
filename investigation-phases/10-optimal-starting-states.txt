@@ -1227,5 +1227,113 @@ ValidHoursToStartWorking |>
 
 ```{r}
 setDT(DecisionTreeAugmented)
+
+update_start_trip <- function(
+  trips_dt,
+  start_day_fitted_model,
+  valid_start_times_dt
+) {
+  # Validating data imported
+  stopifnot(
+    "trips_dt must be a data.table" = data.table::is.data.table(trips_dt)
+  )
+  stopifnot(
+    "valid_start_times_dt must be a data.table" = data.table::is.data.table(
+      valid_start_times_dt
+    )
+  )
+
+  # Validating the the dataframes present the expected columns
+  if (
+    !all(
+      c("hvfhs_license_num", "request_datetime", "DOLocationID") %chin%
+        names(trips_dt)
+    )
+  ) {
+    stop(
+      "trips_dt must have `hvfhs_license_num`, `DOLocationID`, and `request_datetime` as columns."
+    )
+  }
+  if (
+    !all(c("hour", "week_day", "week_cycle") %chin% names(valid_start_times_dt))
+  ) {
+    stop(
+      "valid_start_times_dt must have `hour`, `week_day`, and `week_cycle` as columns."
+    )
+  }
+
+  # We know that to pass the model taxi needs to user Uber
+  # We are also adding daily_hourly_wage_mean as was used to train the model
+  trips_dt = data.table::copy(trips_dt)
+  trips_dt[, `:=`(
+    hvfhs_license_num = "HV0003",
+    daily_hourly_wage_mean = 0,
+    simulation_id = 0
+  )]
+
+  # Defining cases that need to updated to start at better time
+  update_time_cases = which(
+    stats::predict(
+      start_day_fitted_model,
+      new_data = trips_dt,
+      type = "class"
+    )[[".pred_class"]] ==
+      "no"
+  )
+
+  # Adding the possibility that the next valid hour will take place next week
+  valid_times_next_week =
+    data.table::copy(valid_start_times_dt)[
+      j = week_cycle := week_cycle + 7 * 24
+    ][j = rbind(valid_start_times_dt, .SD)]
+
+  trips_dt[
+    update_time_cases,
+    j = request_datetime := {
+      # Converting current time to cycle
+      current_week_cycle =
+        (lubridate::wday(request_datetime) - 1) *
+        24 +
+        lubridate::hour(request_datetime)
+
+      # Defining the new time to cycle
+      next_week_cycle = valid_times_next_week[
+        list(current_week_cycle = current_week_cycle),
+        on = .(week_cycle > current_week_cycle),
+        mult = "first",
+        x.week_cycle
+      ]
+
+      # Waiting until the correct time
+      updated_request_datetime =
+        lubridate::floor_date(request_datetime, unit = "hour") +
+        lubridate::dhours(next_week_cycle - current_week_cycle)
+
+      # Updating the time
+      updated_request_datetime
+    }
+  ]
+
+  high_value_start = stats::predict(
+    start_day_fitted_model,
+    new_data = trips_dt[update_time_cases],
+    type = "class"
+  )[[".pred_class"]] ==
+    "yes"
+
+  stopifnot("All trips must be high value" = all(high_value_start))
+
+  # We don't need to keep this variable implemented during training
+  trips_dt[, `:=`(daily_hourly_wage_mean = NULL, simulation_id = NULL)]
+
+  # Retorning updated trips
+  return(trips_dt)
+}
+
+update_start_trip(
+  DecisionTreeAugmented,
+  start_day_fitted_model = DecisionTreeWfFitted,
+  valid_start_times_dt = ValidHoursToStartWorking
+)[]
 ```
 

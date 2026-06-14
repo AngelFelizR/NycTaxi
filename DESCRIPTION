@@ -19,6 +19,7 @@ Imports:
     dplyr,
     duckdb,
     future.apply,
+    generics,
     ggplot2,
     glue,
     leaflet,
@@ -31,16 +32,15 @@ Imports:
     sf,
     stats,
     tibble,
+    tidyr,
     timeDate,
     tmap,
     tune,
     utils,
-    withr,
-    workflows
+    withr
 Suggests:
     future,
     knitr,
-    pkgload,
     rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

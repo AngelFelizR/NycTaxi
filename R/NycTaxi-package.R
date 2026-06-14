@@ -33,6 +33,8 @@
 #' @importFrom dplyr transmute
 #' @importFrom duckdb duckdb
 #' @importFrom future.apply future_lapply
+#' @importFrom generics augment
+#' @importFrom generics required_pkgs
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 element_blank
 #' @importFrom ggplot2 element_text
@@ -65,11 +67,15 @@
 #' @importFrom leaflet markerClusterOptions
 #' @importFrom lubridate as_datetime
 #' @importFrom lubridate cyclic_encoding
+#' @importFrom lubridate dhours
+#' @importFrom lubridate floor_date
+#' @importFrom lubridate hour
 #' @importFrom lubridate hours
 #' @importFrom lubridate make_datetime
 #' @importFrom lubridate minutes
 #' @importFrom lubridate month
 #' @importFrom lubridate seconds
+#' @importFrom lubridate wday
 #' @importFrom lubridate year
 #' @importFrom maptiles get_tiles
 #' @importFrom patchwork plot_annotation
@@ -95,12 +101,16 @@
 #' @importFrom sf st_polygon
 #' @importFrom sf st_sfc
 #' @importFrom stats median
+#' @importFrom stats power.anova.test
+#' @importFrom stats power.t.test
 #' @importFrom stats predict
 #' @importFrom stats quantile
 #' @importFrom stats reorder
 #' @importFrom stats sd
 #' @importFrom stats setNames
+#' @importFrom stats var
 #' @importFrom tibble as_tibble
+#' @importFrom tidyr pivot_wider
 #' @importFrom timeDate listHolidays
 #' @importFrom tmap tm_basemap
 #' @importFrom tmap tm_borders
@@ -157,5 +167,23 @@ utils::globalVariables(c(
   ".pred_class",
   "cost_wrong_no",
   "cost_wrong_yes",
-  ".config"
+  ".config",
+
+  # More cases
+  ".data",
+  "correct_model",
+  "n",
+  "week_cycle",
+  "x.week_cycle",
+  "initial_day_time",
+  "sim_dropoff_datetime",
+  "sim_driver_pay",
+  "sim_tips",
+  "daily_hourly_wage",
+  "total_earnings",
+  "total_hours_worked",
+  "simulation_id",
+  "simulation_seed",
+  "var1",
+  "var2"
 ))

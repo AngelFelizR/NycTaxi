@@ -25,6 +25,8 @@ two categorical variables in \code{dt} to be plotted.}
 
 \item{sep}{The separator string to use between the proportion (percentage)
 and the count in the text labels on the heatmap tiles. Defaults to " | ".}
+
+\item{base_family}{Character string specifying the font family used in the plot.}
 }
 \value{
 A ggplot2 object representing the heatmap.

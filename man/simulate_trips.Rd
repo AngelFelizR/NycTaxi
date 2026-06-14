@@ -10,15 +10,17 @@ simulate_trips(
   seeds = NULL,
   fitted_wf = NULL,
   threshold = NULL,
+  start_day_fitted_model = NULL,
+  valid_start_times_dt = NULL,
   verbose = FALSE
 )
 }
 \arguments{
 \item{conn}{A DBI connection to the DuckDB database that contains the
 \code{NycTrips} table (all trip records) and the \code{PointMeanDistance} table
-(pre-computed mean miles between every pair of zones).}
+(pre‑computed mean miles between every pair of zones).}
 
-\item{start_points}{A \code{data.table} of reservoir-sampled starting trips
+\item{start_points}{A \code{data.table} of reservoir‑sampled starting trips
 (one row per replicate). Must contain at least the columns
 \code{trip_id}, \code{request_datetime}, \code{trip_time}, \code{DOLocationID},
 \code{hvfhs_license_num}, \code{wav_match_flag}, \code{driver_pay}, \code{tips}.
@@ -31,8 +33,9 @@ becomes deterministic (always selects the first candidate returned by the
 SQL query — \verb{ORDER BY request_datetime}).}
 
 \item{fitted_wf}{Optional fitted \code{tidymodels} \code{workflow} (XGBoost policy).
-When supplied the random-acceptance logic is replaced by a model-based
-decision.}
+When supplied the random‑acceptance logic is replaced by a model‑based
+decision. To also pre‑optimise start times, provide
+\code{start_day_fitted_model} and \code{valid_start_times_dt} as well.}
 
 \item{threshold}{Optional numeric scalar in \verb{[0,1]}. Only used when
 \code{fitted_wf} is not \code{NULL}.
@@ -42,18 +45,29 @@ decision.}
 is accepted when \code{.pred_yes > threshold}.
 }}
 
+\item{start_day_fitted_model}{Optional fitted \code{tidymodels} workflow (tree model)
+that predicts whether a start time is “high‑value”. Must have a \code{predict()}
+method returning \code{.pred_class} with levels \code{"yes"/"no"}. Used together with
+\code{valid_start_times_dt} and \code{fitted_wf} to pre‑optimise start points via
+\code{optimize_trip_start_time()}. If \code{NULL}, no pre‑optimisation is performed.}
+
+\item{valid_start_times_dt}{Optional \code{data.table} defining valid start hours.
+Must contain columns \code{hour}, \code{week_day}, and \code{week_cycle} (see
+\code{optimize_trip_start_time} for details). Only used when
+\code{start_day_fitted_model} is not \code{NULL}.}
+
 \item{verbose}{Logical scalar (default \code{FALSE}).
-When \code{TRUE}, the function prints detailed per-iteration progress messages
+When \code{TRUE}, the function prints detailed per‑iteration progress messages
 inside the main simulation loop:
 \itemize{
-\item current time / distance / time-window limits at the start of each search,
+\item current time / distance / time‑window limits at the start of each search,
 \item break insertion,
 \item search expansion when no candidates are found,
-\item policy rejection (with the 3-second penalty),
+\item policy rejection (with the 3‑second penalty),
 \item successful trip acceptance.
 }
 
-The top-level progress line
+The top‑level progress line
 (\verb{[timestamp] Simulation X/Y | ID: ... | Pending: ...}) is \strong{always} printed,
 regardless of this setting. Useful for debugging long runs or watching the
 search behaviour live.}
@@ -68,7 +82,7 @@ replicates. Columns (all prefixed with \code{sim_} except \code{simulation_id}):
 \item \code{sim_request_datetime}, \code{sim_dropoff_datetime}
 \item \code{sim_trip_time}, \code{sim_driver_pay}, \code{sim_tips}
 }
-The table is ready for downstream hourly-wage calculations and bootstrap
+The table is ready for downstream hourly‑wage calculations and bootstrap
 confidence intervals.
 }
 \description{
@@ -76,8 +90,8 @@ Runs the exact empirical Monte-Carlo simulation described in Warren B. Powell (2
 \emph{Sequential Decision Analytics and Modeling} and formalised in the ADP chapter of the
 project documentation. For each starting trip in \code{start_points} it simulates a
 complete 8-hour + 30-minute workday by repeatedly querying the database for
-candidate trips that satisfy the search-radius, time-window, company, WAV, and
-shift-limit constraints.
+candidate trips that satisfy the search‑radius, time‑window, company, WAV, and
+shift‑limit constraints.
 }
 \details{
 Two operating modes are supported:
@@ -89,12 +103,18 @@ uniform sampling over \eqn{\mathcal{C}_t^n}.
 \item \strong{Policy mode} (\code{fitted_wf} supplied): the fitted XGBoost workflow
 predicts acceptance probability; the trip is accepted only if the decision
 (class or probability > \code{threshold}) is positive. Rejected trips incur a
-3-second waiting penalty and the search continues (possibly expanding the
+3‑second waiting penalty and the search continues (possibly expanding the
 radius).
+\item \strong{Pre‑optimisation of start times}: if \code{start_day_fitted_model} and
+\code{valid_start_times_dt} are also supplied (together with \code{fitted_wf}), the
+function first calls \code{optimize_trip_start_time()} on \code{start_points}. This
+forces the taxi company to Uber and delays each start time to the next
+"high‑value" hour/day combination according to the decision tree model,
+ensuring that every simulated shift begins from a favourable state.
 }
 
 All simulation assumptions from the baseline chapter are enforced:
-fixed taxi company, WAV compatibility, 4-hour break (taken only after
+fixed taxi company, WAV compatibility, 4‑hour break (taken only after
 completing a trip), acceptance of a final trip even if it overruns 8 hours,
 expanding search radius (1 → 3 → 5 miles, then +2 miles every 2 minutes),
 and the “more passengers than taxis” rule (random draw from candidates).
@@ -103,16 +123,17 @@ The core loop implements the transition function and exogenous information
 process exactly as formalised in Powell’s mathematical model:
 \itemize{
 \item Candidate set \eqn{\mathcal{C}_t^n} is obtained via a fast SQL join
-on the pre-computed \code{PointMeanDistance} table.
+on the pre‑computed \code{PointMeanDistance} table.
 \item When a trip is rejected by the policy the clock advances by 3 seconds
 (simulated driver wait) and the search radius may expand.
-\item The 30-minute break is inserted only after a trip finishes and only
+\item The 30‑minute break is inserted only after a trip finishes and only
 once per day.
 \item The final trip is always accepted even if it finishes after the
-nominal 8-hour limit.
+nominal 8‑hour limit.
 }
 }
 \examples{
+\dontrun{
   # ---------------------------------------------------------------
   # Minimal deterministic baseline example
   # ---------------------------------------------------------------
@@ -138,5 +159,5 @@ nominal 8-hour limit.
   print(sim[, .(simulation_id, sim_trip_id, sim_request_datetime)])
 
   DBI::dbDisconnect(con, shutdown = TRUE)
-
+}
 }

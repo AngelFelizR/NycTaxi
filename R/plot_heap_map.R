@@ -10,6 +10,7 @@
 #' @param color_low The color to represent low counts in the heatmap.
 #' @param sep The separator string to use between the proportion (percentage)
 #'   and the count in the text labels on the heatmap tiles. Defaults to " | ".
+#' @param base_family Character string specifying the font family used in the plot.
 #'
 #' @return A ggplot2 object representing the heatmap.
 #'

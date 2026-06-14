@@ -94,7 +94,7 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
       total_hours_worked = difftime(
         max(sim_dropoff_datetime, na.rm = TRUE),
         min(initial_day_time, na.rm = TRUE),
-        unit = "hours"
+        units = "hours"
       ) |>
         as.double(),
       total_earnings = sum(sim_driver_pay, na.rm = TRUE) +

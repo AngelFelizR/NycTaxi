@@ -2,6 +2,8 @@
 ^output/
 ^nix$
 ^nix/
+^result$
+^result/$
 ^docs$
 ^docs/
 ^investigation-phases$
@@ -31,11 +33,13 @@
 ^\.Rproj\.user$
 ^\.vscode$
 ^[.]?air[.]toml$
-^result/$
-^result$
 ^default.nix$
 ^Dockerfile$
 ^generate_env.R$
 ^params.yml$
 ^.envrc$
-^result$
+^docker-compose\.yml$
+^initial-zones\.R$
+^notes\.txt$
+^SBS-TFM$
+^setup\.sh$

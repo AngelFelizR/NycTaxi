@@ -66,6 +66,8 @@ ECDF plot. Default is NULL (automatic breaks).}
 
 \item{curve_limits}{Numeric vector of length 2 specifying x-axis limits for
 the ECDF plot. Default is NULL (automatic limits).}
+
+\item{base_family}{Character string specifying the font family used in the plot.}
 }
 \value{
 A patchwork object containing three ggplot2 plots arranged vertically:

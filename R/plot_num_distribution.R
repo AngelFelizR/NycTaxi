@@ -31,6 +31,7 @@
 #'   ECDF plot. Default is NULL (automatic breaks).
 #' @param curve_limits Numeric vector of length 2 specifying x-axis limits for
 #'   the ECDF plot. Default is NULL (automatic limits).
+#' @param base_family Character string specifying the font family used in the plot.
 #'
 #' @return A patchwork object containing three ggplot2 plots arranged vertically:
 #'   \itemize{

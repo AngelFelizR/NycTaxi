@@ -171,7 +171,7 @@ for (i in seq_along(TauGrid)) {
       total_hours_worked = difftime(
         max(sim_dropoff_datetime),
         min(initial_day_time),
-        unit = "hours"
+        units = "hours"
       ) |>
         as.double(),
       total_earnings = sum(sim_driver_pay, na.rm = TRUE) +

@@ -23,6 +23,8 @@ plot_bar(
 \item{color_gray}{Character string specifying the color for non-top categories. Default is "gray80"}
 
 \item{n_top}{Integer specifying the number of top categories to highlight. Default is 4}
+
+\item{base_family}{Character string specifying the font family used in the plot.}
 }
 \value{
 A ggplot2 object showing the count of trips by category
