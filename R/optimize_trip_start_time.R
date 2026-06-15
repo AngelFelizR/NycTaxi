@@ -102,6 +102,7 @@ optimize_trip_start_time <- function(
   # We are also adding daily_hourly_wage_mean as was used to train the model
   trips_dt = data.table::copy(trips_dt)
   trips_dt[, `:=`(
+    DOLocationID = as.character(DOLocationID),
     hvfhs_license_num = "HV0003",
     daily_hourly_wage_mean = 0,
     simulation_id = 0
@@ -160,7 +161,9 @@ optimize_trip_start_time <- function(
   stopifnot("All trips must be high value" = all(high_value_start))
 
   # We don't need to keep this variable implemented during training
-  trips_dt[, `:=`(daily_hourly_wage_mean = NULL, simulation_id = NULL)]
+  trips_dt[, `:=`(daily_hourly_wage_mean = NULL,
+                  simulation_id = NULL,
+                  DOLocationID = as.double(DOLocationID))]
 
   # Retorning updated trips
   return(trips_dt)

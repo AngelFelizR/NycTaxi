@@ -1201,7 +1201,6 @@ pin_write(
 )
 ```
 
-
 ```{r}
 #| code-fold: true
 #| code-summary: "Show the code"
@@ -1222,10 +1221,5 @@ ValidHoursToStartWorking |>
   ) |>
   # Give it a clean, modern theme
   opt_stylize(style = 1, color = "gray")
-```
-
-
-```{r}
-setDT(DecisionTreeAugmented)
 ```
 
