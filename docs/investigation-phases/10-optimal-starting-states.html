@@ -206,12 +206,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#defining-combinations-to-simulate" id="toc-defining-combinations-to-simulate" class="nav-link active" data-scroll-target="#defining-combinations-to-simulate">Defining combinations to simulate</a></li>
-  <li><a href="#running-simulation" id="toc-running-simulation" class="nav-link" data-scroll-target="#running-simulation">Running simulation</a></li>
-  <li><a href="#exploring-results" id="toc-exploring-results" class="nav-link" data-scroll-target="#exploring-results">Exploring results</a></li>
-  <li><a href="#finding-hidden-patterns" id="toc-finding-hidden-patterns" class="nav-link" data-scroll-target="#finding-hidden-patterns">Finding hidden patterns</a></li>
-  <li><a href="#confirming-pattern-effect" id="toc-confirming-pattern-effect" class="nav-link" data-scroll-target="#confirming-pattern-effect">Confirming pattern effect</a></li>
-  <li><a href="#extracting-bussines-rules-from-tree-model" id="toc-extracting-bussines-rules-from-tree-model" class="nav-link" data-scroll-target="#extracting-bussines-rules-from-tree-model">Extracting bussines rules from tree model</a></li>
+  <li><a href="#defining-combinations-to-simulate" id="toc-defining-combinations-to-simulate" class="nav-link active" data-scroll-target="#defining-combinations-to-simulate">Defining Combinations to Simulate</a></li>
+  <li><a href="#running-the-simulation" id="toc-running-the-simulation" class="nav-link" data-scroll-target="#running-the-simulation">Running the Simulation</a></li>
+  <li><a href="#exploring-results" id="toc-exploring-results" class="nav-link" data-scroll-target="#exploring-results">Exploring Results</a></li>
+  <li><a href="#finding-hidden-patterns" id="toc-finding-hidden-patterns" class="nav-link" data-scroll-target="#finding-hidden-patterns">Finding Hidden Patterns</a></li>
+  <li><a href="#confirming-pattern-effect" id="toc-confirming-pattern-effect" class="nav-link" data-scroll-target="#confirming-pattern-effect">Confirming Pattern Effect</a></li>
+  <li><a href="#defining-policy-to-implement" id="toc-defining-policy-to-implement" class="nav-link" data-scroll-target="#defining-policy-to-implement">Defining Policy to Implement</a></li>
+  <li><a href="#evaluating-the-policy" id="toc-evaluating-the-policy" class="nav-link" data-scroll-target="#evaluating-the-policy">Evaluating the Policy</a></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
   </ul>
 </nav>
     </div>
@@ -238,7 +240,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>Once have a policy to decide if a trip should be taken or rejected then it’s important to validate if any of the next factors could cause an increase of decrease on taxi results:</p>
+<p>Once we have a policy to decide if a trip should be taken or rejected, it is important to validate whether any of the following factors could cause an increase or decrease in taxi results:</p>
 <ul>
 <li>Company</li>
 <li>Start zone</li>
@@ -246,8 +248,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Hour of the day</li>
 </ul>
 <section id="defining-combinations-to-simulate" class="level2">
-<h2 class="anchored" data-anchor-id="defining-combinations-to-simulate">Defining combinations to simulate</h2>
-<p>As we have 196 zones to evaluete, 3 days to evaluete for each day of the week (7), 2 taxi companies and we divide the day in 8 moments to measure (one each 3 hours), we end with an experiment of <strong>65,856 days</strong> to simulate.</p>
+<h2 class="anchored" data-anchor-id="defining-combinations-to-simulate">Defining Combinations to Simulate</h2>
+<p>As we have 196 zones to evaluate, 3 days to evaluate for each day of the week (7), 2 taxi companies, and we divide the day into 8 moments to measure (one every 3 hours), we end up with an experiment of <strong>65,856 days</strong> to simulate.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -258,7 +260,7 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>As the <code>DOLocationID</code>is the variable used in the simulation to define the start zone of the fist trip to simulate we need to simulate all avaiable zones for each combination.</p>
+<p>As <code>DOLocationID</code> is the variable used in the simulation to define the start zone of the first trip to simulate, we need to simulate all available zones for each combination.</p>
 </div>
 </div>
 <div class="cell">
@@ -360,7 +362,7 @@ Note
 <span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">everything</span>()</span>
 <span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
 <span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Give it a clean, modern theme</span></span>
-<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>  <span class="fu">opt_stylize</span>(<span class="at">style =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"blue"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>  <span class="fu">opt_stylize</span>(<span class="at">style =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"gray"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div id="ziglifcplv" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
@@ -393,13 +395,13 @@ Note
   width: auto;
   border-top-style: solid;
   border-top-width: 2px;
-  border-top-color: #004D80;
+  border-top-color: #000000;
   border-right-style: none;
   border-right-width: 2px;
   border-right-color: #D3D3D3;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #004D80;
+  border-bottom-color: #000000;
   border-left-style: none;
   border-left-width: 2px;
   border-left-color: #D3D3D3;
@@ -449,16 +451,16 @@ Note
 #ziglifcplv .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
   border-left-style: none;
   border-left-width: 1px;
   border-left-color: #D3D3D3;
@@ -510,7 +512,7 @@ Note
 #ziglifcplv .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
   vertical-align: bottom;
   padding-top: 5px;
   padding-bottom: 5px;
@@ -535,10 +537,10 @@ Note
   text-transform: inherit;
   border-top-style: solid;
   border-top-width: 2px;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
   border-left-style: none;
   border-left-width: 1px;
   border-left-color: #D3D3D3;
@@ -557,10 +559,10 @@ Note
   font-weight: initial;
   border-top-style: solid;
   border-top-width: 2px;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
   vertical-align: middle;
 }
 
@@ -580,26 +582,26 @@ Note
   margin: 10px;
   border-top-style: none;
   border-top-width: 1px;
-  border-top-color: #89D3FE;
+  border-top-color: #D5D5D5;
   border-left-style: none;
   border-left-width: 1px;
-  border-left-color: #89D3FE;
+  border-left-color: #D5D5D5;
   border-right-style: none;
   border-right-width: 1px;
-  border-right-color: #89D3FE;
+  border-right-color: #D5D5D5;
   vertical-align: middle;
   overflow-x: hidden;
 }
 
 #ziglifcplv .gt_stub {
   color: #FFFFFF;
-  background-color: #0076BA;
+  background-color: #5F5F5F;
   font-size: 100%;
   font-weight: initial;
   text-transform: inherit;
   border-right-style: solid;
   border-right-width: 2px;
-  border-right-color: #0076BA;
+  border-right-color: #5F5F5F;
   padding-left: 5px;
   padding-right: 5px;
 }
@@ -638,7 +640,7 @@ Note
 
 #ziglifcplv .gt_first_summary_row {
   border-top-style: solid;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_first_summary_row.thick {
@@ -652,12 +654,12 @@ Note
   padding-right: 5px;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_grand_summary_row {
   color: #333333;
-  background-color: #89D3FE;
+  background-color: #D5D5D5;
   text-transform: inherit;
   padding-top: 8px;
   padding-bottom: 8px;
@@ -672,7 +674,7 @@ Note
   padding-right: 5px;
   border-top-style: double;
   border-top-width: 6px;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_last_grand_summary_row_top {
@@ -682,7 +684,7 @@ Note
   padding-right: 5px;
   border-bottom-style: double;
   border-bottom-width: 6px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_striped {
@@ -692,10 +694,10 @@ Note
 #ziglifcplv .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
-  border-top-color: #0076BA;
+  border-top-color: #5F5F5F;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #0076BA;
+  border-bottom-color: #5F5F5F;
 }
 
 #ziglifcplv .gt_footnotes {
@@ -911,10 +913,10 @@ Note
 </div>
 </div>
 </section>
-<section id="running-simulation" class="level2">
-<h2 class="anchored" data-anchor-id="running-simulation">Running simulation</h2>
-<p>As I knew that running the hole process would take me several days I decided to store the results of simulations on disk for each zone. In this way I was able to keep the experiment as I was expecting and stop the process between days to allow the computer to rest between days and redice the risk of loossing all the progress I had problems with memory while using the computer for dealy activities.</p>
-<p>To avoid the overhead of using a IDE the next code was source from terminal after connecting with <code>ssh NycTaxi</code> to consume the fewer results as possible.</p>
+<section id="running-the-simulation" class="level2">
+<h2 class="anchored" data-anchor-id="running-the-simulation">Running the Simulation</h2>
+<p>As I knew that running the whole process would take me several days, I decided to store the results of the simulations on disk for each zone. In this way, I was able to keep the experiment running as expected and stop the process between days to allow the computer to rest and reduce the risk of losing all progress. I also avoided memory problems while using the computer for daily activities.</p>
+<p>To avoid the overhead of using an IDE, the next code was sourced from the terminal after connecting with <code>ssh NycTaxi</code> to consume as few resources as possible.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="do">## Loading env</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -999,10 +1001,10 @@ Note
 <span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"✅ All zones simulated!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Here is the list of zone simulated and we can see that it took around <strong>102 minutes</strong> to complete each zone which mean that I invest around <strong>14 days</strong> of computation to see the next results.</p>
+<p>Here is the list of zones simulated, and we can see that it took around <strong>102 minutes</strong> to complete each zone, which means I invested around <strong>14 days</strong> of computation to obtain the results below.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">angelfeliz@debian:~/r-projects/NycTaxi$</span> ls <span class="at">-ld</span> ../NycTaxiPins/Board/InitialZoneSim_ZoneId_<span class="pp">*</span> <span class="kw">|</span> <span class="fu">wc</span> <span class="at">-l</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">196</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Now we just need to summary the results to start the exploration.</p>
+<p>Now we just need to summarize the results to start the exploration.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>consolidate_all_simulations <span class="ot">&lt;-</span> <span class="cf">function</span>(zone_id_data, board, sim_start_days) {</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  consolidated_data <span class="ot">=</span></span>
@@ -1049,9 +1051,9 @@ Note
 </div>
 </section>
 <section id="exploring-results" class="level2">
-<h2 class="anchored" data-anchor-id="exploring-results">Exploring results</h2>
-<p>Before anything, it’s important to confirm if after changing the initial conditions of trips had an effect over the target variable. Just imagene that the we see the same value for all combinations we could stop the question just by making the first chart.</p>
-<p>But you can see floowing chart preset a lot variation, it seems like the data is following a <strong>log-normal</strong> due it’s right tail. This are really promessing results, the goal behind this experiment is to indentify the starting configurations that can beat the current baseline of <strong>$55.09</strong> and it’s clear based on the chart that the <strong>top 10%</strong> presented higher daily hourly have than the base line.</p>
+<h2 class="anchored" data-anchor-id="exploring-results">Exploring Results</h2>
+<p>Before anything, it is important to confirm if changing the initial conditions of trips had an effect on the target variable. Just imagine that we see the same value for all combinations—we could stop the question simply by making the first chart.</p>
+<p>But you can see in the following chart that there is a lot of variation. The data appears to follow a <strong>log-normal</strong> distribution due to its long right tail. These are really promising results. The goal behind this experiment is to identify the starting configurations that can beat the current baseline of <strong>$55.09</strong>, and it is clear based on the chart that the <strong>top 10%</strong> present higher daily hourly wages than the baseline.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -1139,7 +1141,7 @@ Note
 </div>
 </div>
 </div>
-<p>As we can see the improment behind the the policy only benefit a <strong>Uber</strong> drivers as the median Hourly Wage for <strong>Lyft</strong> drivers match this the exact value of the baseline, as result our policy will always recomend <strong>Uber</strong> as taxi company.</p>
+<p>As we can see, the improvement behind the policy only benefits <strong>Uber</strong> drivers, as the median hourly wage for <strong>Lyft</strong> drivers matches the exact value of the baseline. As a result, our policy will always recommend <strong>Uber</strong> as the taxi company.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -1211,7 +1213,7 @@ Note
 </div>
 </div>
 </div>
-<p>After isoliating the effect of the taxi company in the hourly wage we can see by selected the zones with highest and lowers median that change in the target variable explanied by starting zone is low due that that we are evaluating <strong>196 zones</strong> that increase in the median of Uber drivers was only <strong>$2</strong> over or baseline ($62.88) after implementing the trip selection model and based on the boxplot we can conclude that zones don’t provide enough information to explain the variance present in the target variable.</p>
+<p>After isolating the effect of the taxi company on the hourly wage, we can see by selecting the zones with the highest and lowest medians that the change in the target variable explained by starting zone is low. We are evaluating <strong>196 zones</strong>, and the increase in the median for Uber drivers was only <strong>$2</strong> over the baseline ($62.88) after implementing the trip selection model. Based on the boxplot, we can conclude that zones do not provide enough information to explain the variance present in the target variable.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -1290,7 +1292,7 @@ Note
 </div>
 </div>
 </div>
-<p>Based on the next chart we can see a strong effect of start hour in the target variable and some moderate interactions with the day of the week as the hourly wage is higher at 0 hours on Sundays and Saturdays, but those increases are not present on week days.</p>
+<p>Based on the next chart, we can see a strong effect of start hour on the target variable and some moderate interactions with the day of the week. The hourly wage is higher at 0 hours on Sundays and Saturdays, but those increases are not present on weekdays.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -1373,10 +1375,10 @@ Note
 </div>
 </section>
 <section id="finding-hidden-patterns" class="level2">
-<h2 class="anchored" data-anchor-id="finding-hidden-patterns">Finding hidden patterns</h2>
-<p>Based on the prior exploration it’s clear that the most important rule found so far is to take Uber as the company, but to improve earning we need to find better interactions between variables and for that reason we are going to start with <strong>tree model to see the model can find the most important interactions</strong> to explain changes in the target variable.</p>
-<p>To tune the model we know that the must important hyperparam is the <code>tree_depth</code> to limit how many splits the tree can make, which controls vertical complexity of the model and as result we want to use the <strong>minimum value</strong> posible.</p>
-<p>As we have a lot of data to explore due the number of zones of the experiment we know that the <code>min_n</code> to set the minimum number of data points required in a node to allow a further split won’t be a important hyperparam as must of the split will have many data points to avoid overfit.</p>
+<h2 class="anchored" data-anchor-id="finding-hidden-patterns">Finding Hidden Patterns</h2>
+<p>Based on the prior exploration, it is clear that the most important rule found so far is to choose Uber as the company. However, to improve earnings further, we need to find better interactions between variables. For that reason, we are going to start with a <strong>tree model to see if the model can find the most important interactions</strong> to explain changes in the target variable.</p>
+<p>To tune the model, we know that the most important hyperparameter is <code>tree_depth</code> to limit how many splits the tree can make, which controls vertical complexity. As a result, we want to use the <strong>minimum value</strong> possible.</p>
+<p>Since we have a lot of data to explore due to the number of zones in the experiment, we know that <code>min_n</code>—which sets the minimum number of data points required in a node to allow a further split—will not be an important hyperparameter, as most splits will have many data points to avoid overfitting.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeSpec <span class="ot">&lt;-</span> <span class="fu">decision_tree</span>(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">"classification"</span>,</span>
@@ -1384,11 +1386,11 @@ Note
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">min_n =</span> <span class="dv">10</span></span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>To help the tree finding the important pattern we are going to apply the following transformations to the orininal data:</p>
+<p>To help the tree find the important patterns, we apply the following transformations to the original data:</p>
 <ul>
-<li>As <code>start_zone</code> present high cardinality of zone we substitute with <code>hourly_wage_mean_by_zone</code> after isolating the effect of taxi company.</li>
-<li>To allow the model to see hour of the day and the time of the week as the cycles they represent in the real live where the same time is repited very 24 hours and the same time in the week is repeted every 168 hours we are creating the variabes <code>day_cycle_sin_1</code> and <code>day_cycle_cos_1</code> instead of just showing <code>time_hour</code> and <code>week_cycle_sin_1</code> and <code>week_cycle_cos_1</code> instead of using the original <code>week_day</code>.</li>
-<li>We are showing the <code>taxi_company</code> company as boolean variable to keep all variable numeric.</li>
+<li>As <code>start_zone</code> presents high cardinality, we substitute it with <code>hourly_wage_mean_by_zone</code> after isolating the effect of taxi company.</li>
+<li>To allow the model to see hour of the day and time of the week as the cycles they represent in real life—where the same time repeats every 24 hours and the same time in the week repeats every 168 hours—we create the variables <code>day_cycle_sin_1</code> and <code>day_cycle_cos_1</code> instead of just using <code>time_hour</code>, and <code>week_cycle_sin_1</code> and <code>week_cycle_cos_1</code> instead of using the original <code>week_day</code>.</li>
+<li>We show <code>taxi_company</code> as a boolean variable to keep all variables numeric.</li>
 </ul>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeRecipe <span class="ot">&lt;-</span> <span class="fu">recipe</span>(</span>
@@ -1440,14 +1442,14 @@ Note
 <span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Removing original variables</span></span>
 <span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">step_upsample</span>(is_top_trip, <span class="at">over_ratio =</span> <span class="fu">tune</span>(<span class="st">"over_ratio"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Now after all this configuration we are ready to consolidate all that logic into a compact workflow that will help us to fit and evaluate our model using all tools from tidymodels.</p>
+<p>Now, after all this configuration, we are ready to consolidate all that logic into a compact workflow that will help us fit and evaluate our model using all tools from tidymodels.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeWf <span class="ot">&lt;-</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">workflow</span>() <span class="sc">|&gt;</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_recipe</span>(DecisionTreeRecipe) <span class="sc">|&gt;</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">add_model</span>(DecisionTreeSpec)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>As this as simple model and we just need to tune 2 params we can use the grid method the find the best trip possible with 10 fold cross validation to estimate the model error without taking testing data, as we just need to understand the results of the experiment rather than using this model to make predictions.</p>
+<p>As this is a simple model and we just need to tune 2 parameters, we can use the grid method to find the best trip possible with 10-fold cross-validation to estimate the model error without taking testing data. We just need to understand the results of the experiment rather than using this model to make predictions.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeWfRegularGrid <span class="ot">&lt;-</span> <span class="fu">grid_regular</span>(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tree_depth</span>(<span class="at">range =</span> <span class="fu">c</span>(<span class="dv">2</span>L, <span class="dv">16</span>L)),</span>
@@ -1481,7 +1483,7 @@ Note
 <span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"qs2"</span></span>
 <span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>After making all this expliration we not only need to take the configuration that better predict the results, but instead the one that loss less prediction power without moving too high in the <code>tree_depth</code>. For that reason rathen than using the default function <code>select_best</code> we are going to use a diferent version that is more flexible in the <strong>brier_class</strong> score to select the configuration with less model complexity as we want a model <strong>easy to explain</strong>.</p>
+<p>After all this exploration, we not only need to take the configuration that better predicts the results, but instead the one that loses less prediction power without moving too high in <code>tree_depth</code>. For that reason, rather than using the default function <code>select_best</code>, we use a different version that is more flexible in the <strong>brier_class</strong> score to select the configuration with less model complexity, as we want a model that is <strong>easy to explain</strong>.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeWfTuned <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
@@ -1532,7 +1534,7 @@ Note
 </div>
 </div>
 </div>
-<p>Now we are ready to train train the model and see the probabilities predicted by the model are related with the variable that we want to maximize and the results we really good as we can see that the median of <code>daily_hourly_wage_mean</code> increases with the probability of the trip to be of high value.</p>
+<p>Now we are ready to train the model and see the probabilities predicted by the model. The results are really good, as we can see that the median of <code>daily_hourly_wage_mean</code> increases with the probability of the trip being of high value.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>DecisionTreeWfFitted <span class="ot">&lt;-</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">finalize_workflow</span>(DecisionTreeWf, DecisionTreeWfBestConfig) <span class="sc">|&gt;</span></span>
@@ -1603,7 +1605,7 @@ Note
 </div>
 </div>
 </div>
-<p>I feel really good of the resolts provided in the confution matrix, as it was able to predict 41% of days with high value and only predict as high value trips wrongly for 5% of all trips possible, which seems to be a solic pattern.</p>
+<p>I feel really good about the results provided in the confusion matrix, as the model was able to predict 41% of days as high value and only incorrectly predicted high-value trips for 5% of all possible trips—a solid pattern.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -1669,8 +1671,8 @@ Note
 </div>
 </section>
 <section id="confirming-pattern-effect" class="level2">
-<h2 class="anchored" data-anchor-id="confirming-pattern-effect">Confirming pattern effect</h2>
-<p>To facilite the interpretation of the effect of using the tree model to change the behavior of the taxi driver, we will range all variables from 0 to 1 in under to have the model coefficients in dollars per hour.</p>
+<h2 class="anchored" data-anchor-id="confirming-pattern-effect">Confirming Pattern Effect</h2>
+<p>To facilitate the interpretation of the effect of using the tree model to change the behavior of the taxi driver, we will range all variables from 0 to 1 in order to have the model coefficients in dollars per hour.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplore <span class="ot">&lt;-</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  DecisionTreeRecipe <span class="sc">|&gt;</span></span>
@@ -1685,7 +1687,7 @@ Note
 <span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>As we want to define the effect of using the tree model over the hourly mean wage of the drivers it’s really important to confirm that the variables used to train the model don’t present colliniality and based on the table it’s clear that <code>taxi_company_Uber</code> and <code>hourly_wage_mean_by_zone</code> are apporting the same information. As result we know that <code>hourly_wage_mean_by_zone</code> it’s just dividing drivers’s company an <strong>the zone is not providing any information.</strong></p>
+<p>As we want to define the effect of using the tree model on the hourly mean wage of drivers, it is really important to confirm that the variables used to train the model do not present collinearity. Based on the table, it is clear that <code>taxi_company_Uber</code> and <code>hourly_wage_mean_by_zone</code> are contributing the same information. As a result, we know that <code>hourly_wage_mean_by_zone</code> is just dividing drivers by company, and <strong>the zone is not providing any additional information.</strong></p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -2822,9 +2824,9 @@ Note
 </div>
 </div>
 </section>
-<section id="extracting-bussines-rules-from-tree-model" class="level2">
-<h2 class="anchored" data-anchor-id="extracting-bussines-rules-from-tree-model">Extracting bussines rules from tree model</h2>
-<p>To understand how the model can get so incredible results let’s just plot the model to see how it is using the features.</p>
+<section id="defining-policy-to-implement" class="level2">
+<h2 class="anchored" data-anchor-id="defining-policy-to-implement">Defining Policy to Implement</h2>
+<p>To understand how the model can achieve such incredible results, let’s plot the model to see how it is using the features.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show the code</summary>
@@ -2872,7 +2874,7 @@ Note
 </div>
 </div>
 </div>
-<p>As the must important variable to for the model was the <code>hourly_wage_mean_by_zone</code> let’s explore which zones were excluded from the zones for the model. As first step, we can extract the split used for that variable.</p>
+<p>As the most important variable for the model was <code>hourly_wage_mean_by_zone</code>, let’s explore which zones were excluded by the model. As a first step, we can extract the split used for that variable.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>HourlyWageMeanByZoneSplit <span class="ot">&lt;-</span></span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  TreeModelFittedEngine<span class="sc">$</span>splits[<span class="st">"hourly_wage_mean_by_zone"</span>, <span class="st">"index"</span>]</span>
@@ -2880,7 +2882,7 @@ Note
 <span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>HourlyWageMeanByZoneSplit</span>
 <span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] 59.65442</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>As the variable used by model are not easy to be interpreted by humans let’s integrate in a sigle dataframe the features used by the model, the features before using the recipe transformations and the preductions of the model to create visuals that translate what was learn by the model.</p>
+<p>As the variables used by the model are not easy to interpret by humans, let’s integrate into a single dataframe the features used by the model, the features before using the recipe transformations, and the predictions of the model to create visuals that translate what was learned by the model.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplain <span class="ot">&lt;-</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  DecisionTreeRecipe <span class="sc">|&gt;</span></span>
@@ -2895,7 +2897,7 @@ Note
 <span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ol type="1">
-<li>The <code>hourly_wage_mean_by_zone</code> (as explained before) only worked to seprate trips between <strong>Uber</strong> and <strong>Lyft</strong> to only select <strong>Uber</strong> at any zone.</li>
+<li>The <code>hourly_wage_mean_by_zone</code> (as explained before) only worked to separate trips between <strong>Uber</strong> and <strong>Lyft</strong> to only select <strong>Uber</strong> at any zone.</li>
 </ol>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplain <span class="sc">|&gt;</span></span>
@@ -2907,7 +2909,7 @@ Note
 <span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] 0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ol start="2" type="1">
-<li>It’s better to start working at night in order to get better results.</li>
+<li>It is better to start working at night in order to get better results.</li>
 </ol>
 <div class="cell">
 <details class="code-fold">
@@ -2964,30 +2966,1402 @@ Note
 </div>
 </div>
 </div>
+<p>Now we just need to take that information in a format that can be applied to the trips sampled from the data.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>TreeResultsToExplain <span class="sc">|&gt;</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(.pred_class <span class="sc">==</span> <span class="st">"yes"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_cycle =</span> (<span class="fu">wday</span>(request_datetime) <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> <span class="fu">hour</span>(request_datetime)</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(week_cycle)</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 13 × 1</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    week_cycle</span></span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         &lt;dbl&gt;</span></span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1          0</span></span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2          3</span></span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3          6</span></span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4         63</span></span>
-<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5         66</span></span>
-<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6         69</span></span>
-<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7         87</span></span>
-<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8         90</span></span>
-<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9         93</span></span>
-<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10        111</span></span>
-<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11        114</span></span>
-<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12        117</span></span>
-<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13        165</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>ValidHoursToStartWorking <span class="ot">&lt;-</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  TreeResultsToExplain <span class="sc">|&gt;</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(.pred_class <span class="sc">==</span> <span class="st">"yes"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">hour =</span> <span class="fu">hour</span>(request_datetime),</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_day =</span> <span class="fu">wday</span>(request_datetime),</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_cycle =</span> (<span class="fu">wday</span>(request_datetime) <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">*</span> <span class="dv">24</span> <span class="sc">+</span> <span class="fu">hour</span>(request_datetime)</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(week_cycle)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="fu">setDT</span>(ValidHoursToStartWorking)</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="fu">pin_write</span>(</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  ValidHoursToStartWorking,</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">name =</span> <span class="st">"ValidHoursToStartWorking"</span>,</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"qs2"</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>ValidHoursToStartWorking <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(BoardLocal, <span class="st">"ValidHoursToStartWorking"</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>ValidHoursToStartWorking <span class="sc">|&gt;</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Add a title and subtitle</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_header</span>(</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">md</span>(<span class="st">"**Valid Hour To Use**"</span>),</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"In case that of low value start times"</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Left-align text, center numbers for better readability</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_align</span>(</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">align =</span> <span class="st">"center"</span>,</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">everything</span>()</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Give it a clean, modern theme</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">opt_stylize</span>(<span class="at">style =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"gray"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="ajkvxycjdd" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ajkvxycjdd table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#ajkvxycjdd thead, #ajkvxycjdd tbody, #ajkvxycjdd tfoot, #ajkvxycjdd tr, #ajkvxycjdd td, #ajkvxycjdd th {
+  border-style: none;
+}
+
+#ajkvxycjdd p {
+  margin: 0;
+  padding: 0;
+}
+
+#ajkvxycjdd .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #000000;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #000000;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ajkvxycjdd .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#ajkvxycjdd .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ajkvxycjdd .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ajkvxycjdd .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ajkvxycjdd .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #5F5F5F;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ajkvxycjdd .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ajkvxycjdd .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ajkvxycjdd .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ajkvxycjdd .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ajkvxycjdd .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ajkvxycjdd .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#ajkvxycjdd .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #5F5F5F;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#ajkvxycjdd .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #5F5F5F;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+  vertical-align: middle;
+}
+
+#ajkvxycjdd .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ajkvxycjdd .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ajkvxycjdd .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: none;
+  border-top-width: 1px;
+  border-top-color: #D5D5D5;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D5D5D5;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D5D5D5;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ajkvxycjdd .gt_stub {
+  color: #FFFFFF;
+  background-color: #5F5F5F;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #5F5F5F;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ajkvxycjdd .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#ajkvxycjdd .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#ajkvxycjdd .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#ajkvxycjdd .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ajkvxycjdd .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#ajkvxycjdd .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_grand_summary_row {
+  color: #333333;
+  background-color: #D5D5D5;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ajkvxycjdd .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_striped {
+  background-color: #F4F4F4;
+}
+
+#ajkvxycjdd .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #5F5F5F;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #5F5F5F;
+}
+
+#ajkvxycjdd .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ajkvxycjdd .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ajkvxycjdd .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ajkvxycjdd .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ajkvxycjdd .gt_left {
+  text-align: left;
+}
+
+#ajkvxycjdd .gt_center {
+  text-align: center;
+}
+
+#ajkvxycjdd .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ajkvxycjdd .gt_font_normal {
+  font-weight: normal;
+}
+
+#ajkvxycjdd .gt_font_bold {
+  font-weight: bold;
+}
+
+#ajkvxycjdd .gt_font_italic {
+  font-style: italic;
+}
+
+#ajkvxycjdd .gt_super {
+  font-size: 65%;
+}
+
+#ajkvxycjdd .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#ajkvxycjdd .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#ajkvxycjdd .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#ajkvxycjdd .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#ajkvxycjdd .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#ajkvxycjdd .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#ajkvxycjdd .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#ajkvxycjdd .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#ajkvxycjdd div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<thead>
+<tr class="gt_heading header">
+<th colspan="3" class="gt_heading gt_title gt_font_normal"><strong>Valid Hour To Use</strong></th>
+</tr>
+<tr class="gt_heading even">
+<th colspan="3" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border">In case that of low value start times</th>
+</tr>
+<tr class="gt_col_headings header">
+<th id="hour" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">hour</th>
+<th id="week_day" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">week_day</th>
+<th id="week_cycle" class="gt_col_heading gt_columns_bottom_border gt_center" data-quarto-table-cell-role="th" scope="col">week_cycle</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">0</td>
+<td class="gt_row gt_center" headers="week_day">1</td>
+<td class="gt_row gt_center" headers="week_cycle">0</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">3</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">1</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">3</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">6</td>
+<td class="gt_row gt_center" headers="week_day">1</td>
+<td class="gt_row gt_center" headers="week_cycle">6</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">15</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">3</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">63</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">18</td>
+<td class="gt_row gt_center" headers="week_day">3</td>
+<td class="gt_row gt_center" headers="week_cycle">66</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">21</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">3</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">69</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">15</td>
+<td class="gt_row gt_center" headers="week_day">4</td>
+<td class="gt_row gt_center" headers="week_cycle">87</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">18</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">4</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">90</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">21</td>
+<td class="gt_row gt_center" headers="week_day">4</td>
+<td class="gt_row gt_center" headers="week_cycle">93</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">15</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">5</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">111</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">18</td>
+<td class="gt_row gt_center" headers="week_day">5</td>
+<td class="gt_row gt_center" headers="week_cycle">114</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_center gt_striped" headers="hour">21</td>
+<td class="gt_row gt_center gt_striped" headers="week_day">5</td>
+<td class="gt_row gt_center gt_striped" headers="week_cycle">117</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_center" headers="hour">21</td>
+<td class="gt_row gt_center" headers="week_day">7</td>
+<td class="gt_row gt_center" headers="week_cycle">165</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<p>All this logic was implemented in the <code>optimize_trip_start_time</code> function, and we can make sure that the trips fill these conditions after applying the function over the trips used to create the baseline.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sampled data (Chapter 4)</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>SimulationStartDay <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">name =</span> <span class="st">"SimulationStartDay"</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>original_seeds <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">8199</span>, <span class="dv">50</span>, <span class="dv">7450</span>, <span class="dv">1430</span>, <span class="dv">9370</span>)</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>SimulationStartDayUpdated <span class="ot">&lt;-</span> <span class="fu">optimize_trip_start_time</span>(</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>  SimulationStartDay,</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_day_fitted_model =</span> DecisionTreeWfFitted,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">valid_start_times_dt =</span> ValidHoursToStartWorking</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(SimulationStartDay, SimulationStartDayUpdated) <span class="sc">|&gt;</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(\(dt) {</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    dt[,</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">list</span>(<span class="at">Uber_prop =</span> <span class="fu">mean</span>(hvfhs_license_num <span class="sc">==</span> <span class="st">"HV0003"</span>), <span class="at">N =</span> .N),</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>      by <span class="ot">=</span> <span class="fu">list</span>(</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">week_day =</span> <span class="fu">factor</span>(</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>          Weekdays[<span class="fu">wday</span>(request_datetime)],</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>          <span class="at">levels =</span> <span class="fu">c</span>(Weekdays[<span class="sc">-</span><span class="dv">1</span>L], Weekdays[<span class="dv">1</span>L])</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">|&gt;</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(<span class="fu">list</span>(</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">by =</span> <span class="st">"week_day"</span>,</span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">all =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">suffixes =</span> <span class="fu">c</span>(<span class="st">"_original"</span>, <span class="st">"_updated"</span>)</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>  )) <span class="sc">|&gt;</span></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">do.call</span>(</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">what =</span> <span class="st">"merge"</span></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Header &amp; Titles</span></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_header</span>(</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">"Simulation Start Days After Policy"</span>,</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">"Now all days are with Uber and any day starts on Monday or Friday"</span></span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Apply styling to Header (Dark Blue/Gray theme from your style)</span></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_style</span>(</span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">style =</span> <span class="fu">cell_text</span>(<span class="at">color =</span> <span class="st">"white"</span>, <span class="at">weight =</span> <span class="st">"bold"</span>),</span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">locations =</span> <span class="fu">cells_title</span>()</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_style</span>(</span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">style =</span> <span class="fu">cell_fill</span>(<span class="at">color =</span> <span class="st">"#2c3e50"</span>),</span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">locations =</span> <span class="fu">cells_title</span>()</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Format Proportions (Percentages look great here, or use decimals = 4 to match your preference)</span></span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fmt_percent</span>(</span>
+<span id="cb29-40"><a href="#cb29-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(Uber_prop_original, Uber_prop_updated),</span>
+<span id="cb29-41"><a href="#cb29-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">decimals =</span> <span class="dv">0</span></span>
+<span id="cb29-42"><a href="#cb29-42" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-43"><a href="#cb29-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-44"><a href="#cb29-44" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Format Counts (Integers)</span></span>
+<span id="cb29-45"><a href="#cb29-45" aria-hidden="true" tabindex="-1"></a>  <span class="fu">fmt_integer</span>(</span>
+<span id="cb29-46"><a href="#cb29-46" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(N_original, N_updated)</span>
+<span id="cb29-47"><a href="#cb29-47" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-48"><a href="#cb29-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-49"><a href="#cb29-49" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Handle Missing Values (Replaces NA with a clean em-dash)</span></span>
+<span id="cb29-50"><a href="#cb29-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sub_missing</span>(</span>
+<span id="cb29-51"><a href="#cb29-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">everything</span>(),</span>
+<span id="cb29-52"><a href="#cb29-52" aria-hidden="true" tabindex="-1"></a>    <span class="at">missing_text =</span> <span class="st">"—"</span></span>
+<span id="cb29-53"><a href="#cb29-53" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-54"><a href="#cb29-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-55"><a href="#cb29-55" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Group columns visually using spanners</span></span>
+<span id="cb29-56"><a href="#cb29-56" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
+<span id="cb29-57"><a href="#cb29-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="st">"ORIGINAL CONDITIONS"</span>,</span>
+<span id="cb29-58"><a href="#cb29-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(Uber_prop_original, N_original)</span>
+<span id="cb29-59"><a href="#cb29-59" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-60"><a href="#cb29-60" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
+<span id="cb29-61"><a href="#cb29-61" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="st">"UPDATED CONDITIONS"</span>,</span>
+<span id="cb29-62"><a href="#cb29-62" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(Uber_prop_updated, N_updated)</span>
+<span id="cb29-63"><a href="#cb29-63" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-64"><a href="#cb29-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-65"><a href="#cb29-65" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Clean Column Labels</span></span>
+<span id="cb29-66"><a href="#cb29-66" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_label</span>(</span>
+<span id="cb29-67"><a href="#cb29-67" aria-hidden="true" tabindex="-1"></a>    <span class="at">week_day =</span> <span class="st">"DAY OF WEEK"</span>,</span>
+<span id="cb29-68"><a href="#cb29-68" aria-hidden="true" tabindex="-1"></a>    <span class="at">Uber_prop_original =</span> <span class="st">"UBER PROP."</span>,</span>
+<span id="cb29-69"><a href="#cb29-69" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_original =</span> <span class="st">"N"</span>,</span>
+<span id="cb29-70"><a href="#cb29-70" aria-hidden="true" tabindex="-1"></a>    <span class="at">Uber_prop_updated =</span> <span class="st">"UBER PROP."</span>,</span>
+<span id="cb29-71"><a href="#cb29-71" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_updated =</span> <span class="st">"N"</span></span>
+<span id="cb29-72"><a href="#cb29-72" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-73"><a href="#cb29-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-74"><a href="#cb29-74" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Alignment</span></span>
+<span id="cb29-75"><a href="#cb29-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_align</span>(</span>
+<span id="cb29-76"><a href="#cb29-76" aria-hidden="true" tabindex="-1"></a>    <span class="at">align =</span> <span class="st">"left"</span>,</span>
+<span id="cb29-77"><a href="#cb29-77" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> week_day</span>
+<span id="cb29-78"><a href="#cb29-78" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb29-79"><a href="#cb29-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-80"><a href="#cb29-80" aria-hidden="true" tabindex="-1"></a>  <span class="co"># General Table Options</span></span>
+<span id="cb29-81"><a href="#cb29-81" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_options</span>(</span>
+<span id="cb29-82"><a href="#cb29-82" aria-hidden="true" tabindex="-1"></a>    <span class="at">table.font.names =</span> <span class="st">"Arial"</span>,</span>
+<span id="cb29-83"><a href="#cb29-83" aria-hidden="true" tabindex="-1"></a>    <span class="at">table.background.color =</span> <span class="st">"white"</span>,</span>
+<span id="cb29-84"><a href="#cb29-84" aria-hidden="true" tabindex="-1"></a>    <span class="at">column_labels.font.weight =</span> <span class="st">"bold"</span>,</span>
+<span id="cb29-85"><a href="#cb29-85" aria-hidden="true" tabindex="-1"></a>    <span class="at">column_labels.background.color =</span> <span class="st">"#f8f9fa"</span>,</span>
+<span id="cb29-86"><a href="#cb29-86" aria-hidden="true" tabindex="-1"></a>    <span class="at">table.width =</span> <span class="fu">pct</span>(<span class="dv">100</span>),</span>
+<span id="cb29-87"><a href="#cb29-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">quarto.disable_processing =</span> <span class="cn">TRUE</span></span>
+<span id="cb29-88"><a href="#cb29-88" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div id="rkmltgjwuj" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#rkmltgjwuj table {
+  font-family: Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#rkmltgjwuj thead, #rkmltgjwuj tbody, #rkmltgjwuj tfoot, #rkmltgjwuj tr, #rkmltgjwuj td, #rkmltgjwuj th {
+  border-style: none;
+}
+
+#rkmltgjwuj p {
+  margin: 0;
+  padding: 0;
+}
+
+#rkmltgjwuj .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: 100%;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#rkmltgjwuj .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#rkmltgjwuj .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#rkmltgjwuj .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_col_heading {
+  color: #333333;
+  background-color: #F8F9FA;
+  font-size: 100%;
+  font-weight: bold;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#rkmltgjwuj .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #F8F9FA;
+  font-size: 100%;
+  font-weight: bold;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#rkmltgjwuj .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#rkmltgjwuj .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#rkmltgjwuj .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#rkmltgjwuj .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#rkmltgjwuj .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#rkmltgjwuj .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#rkmltgjwuj .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#rkmltgjwuj .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#rkmltgjwuj .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#rkmltgjwuj .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rkmltgjwuj .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#rkmltgjwuj .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#rkmltgjwuj .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#rkmltgjwuj .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rkmltgjwuj .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#rkmltgjwuj .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rkmltgjwuj .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#rkmltgjwuj .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rkmltgjwuj .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#rkmltgjwuj .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rkmltgjwuj .gt_left {
+  text-align: left;
+}
+
+#rkmltgjwuj .gt_center {
+  text-align: center;
+}
+
+#rkmltgjwuj .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#rkmltgjwuj .gt_font_normal {
+  font-weight: normal;
+}
+
+#rkmltgjwuj .gt_font_bold {
+  font-weight: bold;
+}
+
+#rkmltgjwuj .gt_font_italic {
+  font-style: italic;
+}
+
+#rkmltgjwuj .gt_super {
+  font-size: 65%;
+}
+
+#rkmltgjwuj .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#rkmltgjwuj .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#rkmltgjwuj .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#rkmltgjwuj .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#rkmltgjwuj .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#rkmltgjwuj .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#rkmltgjwuj .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#rkmltgjwuj .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#rkmltgjwuj div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+<table class="gt_table" data-quarto-disable-processing="true" data-quarto-bootstrap="false">
+  <thead>
+    <tr class="gt_heading">
+      <td colspan="5" class="gt_heading gt_title gt_font_normal" style="color: #FFFFFF; font-weight: bold; background-color: #2C3E50;">Simulation Start Days After Policy</td>
+    </tr>
+    <tr class="gt_heading">
+      <td colspan="5" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style="color: #FFFFFF; font-weight: bold; background-color: #2C3E50;">Now all days are with Uber and any day starts on Monday or Friday</td>
+    </tr>
+    <tr class="gt_col_headings gt_spanner_row">
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="2" colspan="1" scope="col" id="week_day">DAY OF WEEK</th>
+      <th class="gt_center gt_columns_top_border gt_column_spanner_outer" rowspan="1" colspan="2" scope="colgroup" id="ORIGINAL CONDITIONS">
+        <div class="gt_column_spanner">ORIGINAL CONDITIONS</div>
+      </th>
+      <th class="gt_center gt_columns_top_border gt_column_spanner_outer" rowspan="1" colspan="2" scope="colgroup" id="UPDATED CONDITIONS">
+        <div class="gt_column_spanner">UPDATED CONDITIONS</div>
+      </th>
+    </tr>
+    <tr class="gt_col_headings">
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="Uber_prop_original">UBER PROP.</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="N_original">N</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="Uber_prop_updated">UBER PROP.</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col" id="N_updated">N</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td headers="week_day" class="gt_row gt_left">Monday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">69%</td>
+<td headers="N_original" class="gt_row gt_right">140</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">—</td>
+<td headers="N_updated" class="gt_row gt_right">—</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Tuesday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">68%</td>
+<td headers="N_original" class="gt_row gt_right">120</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">100%</td>
+<td headers="N_updated" class="gt_row gt_right">384</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Wednesday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">71%</td>
+<td headers="N_original" class="gt_row gt_right">144</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">100%</td>
+<td headers="N_updated" class="gt_row gt_right">142</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Thursday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">73%</td>
+<td headers="N_original" class="gt_row gt_right">152</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">100%</td>
+<td headers="N_updated" class="gt_row gt_right">154</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Friday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">72%</td>
+<td headers="N_original" class="gt_row gt_right">161</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">—</td>
+<td headers="N_updated" class="gt_row gt_right">—</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Saturday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">75%</td>
+<td headers="N_original" class="gt_row gt_right">178</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">100%</td>
+<td headers="N_updated" class="gt_row gt_right">345</td></tr>
+    <tr><td headers="week_day" class="gt_row gt_left">Sunday</td>
+<td headers="Uber_prop_original" class="gt_row gt_right">78%</td>
+<td headers="N_original" class="gt_row gt_right">166</td>
+<td headers="Uber_prop_updated" class="gt_row gt_right">100%</td>
+<td headers="N_updated" class="gt_row gt_right">36</td></tr>
+  </tbody>
+  
+</table>
+</div>
+</div>
+</div>
+</section>
+<section id="evaluating-the-policy" class="level2">
+<h2 class="anchored" data-anchor-id="evaluating-the-policy">Evaluating the Policy</h2>
+<p>To evaluate this policy under the same conditions we evaluated the baseline and the accept/reject policy, we are using the same simulation with the difference that now we are passing the <code>start_day_fitted_model</code> and <code>valid_start_times_dt</code> arguments, which will be used by <code>optimize_trip_start_time</code> to change the initial conditions of each day.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Production Policy (Chapter 9)</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>AcceptRejectPolicyFitted <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">"AcceptRejectPolicyFitted"</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Running simulation</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>con <span class="ot">&lt;-</span> <span class="fu">dbConnect</span>(<span class="fu">duckdb</span>(), <span class="at">dbdir =</span> <span class="fu">here</span>(<span class="st">"../NycTaxiBigFiles/my-db.duckdb"</span>))</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>FinalStartTimeResults <span class="ot">&lt;-</span> <span class="fu">simulate_trips</span>(</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>  con,</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>  SimulationStartDay,</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">seeds =</span> original_seeds,</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">fitted_wf =</span> AcceptRejectPolicyFitted,</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_day_fitted_model =</span> DecisionTreeWfFitted,</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">valid_start_times_dt =</span> ValidHoursToStartWorking</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a><span class="fu">dbDisconnect</span>(con, <span class="at">shutdown =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a><span class="fu">pin_write</span>(</span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>  BoardLocal,</span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a>  FinalStartTimeResults,</span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>  <span class="st">"FinalStartTimeResults"</span>,</span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"qs2"</span></span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>This final run took approximately <strong>2 days</strong> on the available hardware.</p>
+</div>
+</div>
+<p>Now we can consolidate all results in order to compare the three strategies under the same conditions.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>SimulationHourlyWage <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(BoardLocal, <span class="st">"SimulationHourlyWage"</span>)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>FinalPfaResults <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(BoardLocal, <span class="st">"FinalPfaResults"</span>)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>FinalStartTimeResults <span class="ot">&lt;-</span> <span class="fu">pin_read</span>(BoardLocal, <span class="st">"FinalStartTimeResults"</span>)</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>PolicyLevels <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Accept All Trips"</span>,</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Accept Based On Policy"</span>,</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Setting Start Time"</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>FinalPfaResultsSummary <span class="ot">&lt;-</span> <span class="fu">rbind</span>(</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sim_start_trip_summary</span>(SimulationHourlyWage, SimulationStartDay)[,</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">strategy :=</span> PolicyLevels[<span class="dv">1</span>L]</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>  ],</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sim_start_trip_summary</span>(FinalPfaResults, SimulationStartDay)[,</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">strategy :=</span> PolicyLevels[<span class="dv">2</span>L]</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>  ],</span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sim_start_trip_summary</span>(FinalStartTimeResults, SimulationStartDayUpdated)[,</span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">strategy :=</span> PolicyLevels[<span class="dv">3</span>L]</span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>  ],</span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">fill =</span> <span class="cn">FALSE</span></span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a>FinalPfaResultsSummary[, strategy <span class="sc">:</span><span class="er">=</span> <span class="fu">factor</span>(strategy, PolicyLevels)]</span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>FinalPfaMeansAfterStart <span class="ot">&lt;-</span></span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a>  FinalPfaResultsSummary[,</span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a>    .(<span class="at">daily_hourly_wage_mean =</span> <span class="fu">mean</span>(daily_hourly_wage_mean)),</span>
+<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>    keyby <span class="ot">=</span> <span class="st">"strategy"</span></span>
+<span id="cb31-30"><a href="#cb31-30" aria-hidden="true" tabindex="-1"></a>  ][, <span class="fu">setattr</span>(daily_hourly_wage_mean, <span class="st">"names"</span>, <span class="fu">as.character</span>(strategy))]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The results are amazing: we move from having <strong>$55.09 per hour</strong> to being able to earn on average <strong>$69.07</strong> if we implement both policies at the same time. We can also see that the chart presents outliers of days that ended earning more than <strong>$90</strong>, which was not possible even using the accept/reject policy alone.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>PolicyLevelsFillColors <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  Params<span class="sc">$</span>ColorGray,</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  Params<span class="sc">$</span>ColorGray,</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  Params<span class="sc">$</span>ColorHighlight</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="fu">setattr</span>(PolicyLevelsFillColors, <span class="st">"names"</span>, PolicyLevels)</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(FinalPfaResultsSummary, <span class="fu">aes</span>(strategy, daily_hourly_wage_mean)) <span class="sc">+</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_boxplot</span>(<span class="fu">aes</span>(<span class="at">fill =</span> strategy), <span class="at">width =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> FinalPfaMeansAfterStart[<span class="dv">3</span>L], <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> PolicyLevelsFillColors</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> <span class="fu">breaks_width</span>(<span class="dv">5</span>), <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**"</span>,</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>      PolicyLevels[<span class="dv">3</span>L],</span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**&lt;/span&gt; "</span>,</span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**is the best policy**"</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="fu">paste0</span>(</span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>      <span class="st">"The new mean kept around **"</span>,</span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a>      <span class="fu">dollar</span>(FinalPfaMeansAfterStart[<span class="dv">3</span>L], <span class="at">accuracy =</span> <span class="dv">1</span>),</span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a>      <span class="st">"** confirming stable results"</span></span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb32-29"><a href="#cb32-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Strategy Implemented"</span>,</span>
+<span id="cb32-30"><a href="#cb32-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Mean Hourly Wage"</span></span>
+<span id="cb32-31"><a href="#cb32-31" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb32-32"><a href="#cb32-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb32-33"><a href="#cb32-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb32-34"><a href="#cb32-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">14</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb32-35"><a href="#cb32-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.subtitle =</span> <span class="fu">element_markdown</span>(<span class="at">size =</span> <span class="dv">12</span>, <span class="at">family =</span> Params<span class="sc">$</span>BaseFontFamily),</span>
+<span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>),</span>
+<span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.major.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb32-38"><a href="#cb32-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.x =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb32-39"><a href="#cb32-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor.y =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb32-40"><a href="#cb32-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"none"</span></span>
+<span id="cb32-41"><a href="#cb32-41" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="10-optimal-starting-states_files/figure-html/Mean Hourly Wage after policy-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>If we compare the difference between the accept/reject policy and the policy created now to start the trips, we can confirm that the increase in the average is not due to an increase in variability but rather because in the majority of cases the taxi drivers are getting better results than in the original situation.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>InterceptToValidate <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>MeanPolicyDifference <span class="ot">&lt;-</span> FinalPfaResultsSummary[</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  strategy <span class="sc">!=</span> PolicyLevels[<span class="dv">1</span>L],</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>  .(</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">mean_difference =</span> <span class="fu">fifelse</span>(</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>      strategy <span class="sc">==</span> PolicyLevels[<span class="dv">2</span>L],</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>      <span class="sc">-</span>daily_hourly_wage_mean,</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>      daily_hourly_wage_mean</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>      <span class="fu">sum</span>()</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>  by <span class="ot">=</span> <span class="st">"simulation_id"</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>PropSimoOverIntercept <span class="ot">&lt;-</span> MeanPolicyDifference[, <span class="fu">mean</span>(</span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>  mean_difference <span class="sc">&gt;=</span> InterceptToValidate</span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>)]</span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(MeanPolicyDifference) <span class="sc">+</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="fu">aes</span>(mean_difference), <span class="at">bins =</span> <span class="dv">35</span>) <span class="sc">+</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> InterceptToValidate, <span class="at">linetype =</span> <span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">n.breaks =</span> <span class="dv">10</span>, <span class="at">label =</span> <span class="fu">dollar_format</span>(<span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="fu">paste0</span>(</span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>      <span class="st">"&lt;span style='color:"</span>,</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>      Params<span class="sc">$</span>ColorHighlight,</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>      <span class="st">";'&gt;**"</span>,</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>      <span class="fu">percent</span>(PropSimoOverIntercept, <span class="at">accuracy =</span> <span class="dv">1</span>),</span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**&lt;/span&gt; "</span>,</span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>      <span class="st">"**of simulated days ended earning more money**"</span></span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Mean Hourly Wage Increase"</span></span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>(<span class="at">base_family =</span> Params<span class="sc">$</span>BaseFontFamily) <span class="sc">+</span></span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">plot.title =</span> <span class="fu">element_markdown</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">size =</span> <span class="dv">14</span>),</span>
+<span id="cb33-38"><a href="#cb33-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">panel.grid.minor =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb33-39"><a href="#cb33-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>)</span>
+<span id="cb33-40"><a href="#cb33-40" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="10-optimal-starting-states_files/figure-html/Prop of improved simulation days-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li><p><strong>Platform Selection:</strong> Drivers should exclusively choose <strong>Uber</strong>. The selective trip policy provides no benefits for Lyft, whose median wage stagnates at the $55.09 baseline , whereas driving for Uber adds up to <strong>+$7.71/hour</strong>.</p></li>
+<li><p><strong>Geographic Zones:</strong> Initial start zones have a negligible impact (only a $2 variance over the baseline). Due to severe multicollinearity with the choice of company, geographic start zones provide no useful independent information.</p></li>
+<li><p><strong>Shift Timing:</strong> Favorable starting hours (especially night shifts) add up to <strong>+$5.52/hour</strong> , while unfavorable starting times subtract up to <strong>-$2.33/hour</strong>.</p></li>
+<li><p><strong>Day of the Week:</strong> Day-of-the-week variance is minor (under $1.58 in either direction) ; however, the optimized policy explicitly excludes <strong>Mondays and Fridays</strong> as sub-optimal working days.</p></li>
+<li><p><strong>Final Policy Lift:</strong> Pairing the trip-acceptance policy with the strategic “Setting Start Time” configuration boosts average hourly wages from <strong>$55.09 to $69.07</strong> , while unlocking exceptional high-yield outlier days exceeding <strong>$90/hour</strong>.</p></li>
+</ul>
 
 
 </section>

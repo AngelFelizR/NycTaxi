@@ -296,7 +296,7 @@ The analysis shows that approximately 24% of trips are rejected under the **75th
 #| code-fold: true
 #| code-summary: "Show the code"
 # Importing data
-ValidZoneSample2023 <-
+ValidZoneSample2022 <-
   pin_list(BoardLocal) |>
   grep(pattern = "^OneMonthData", value = TRUE) |>
   sort() |>
@@ -306,7 +306,7 @@ ValidZoneSample2023 <-
 
 ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")
 
-ValidZoneSample2023[, `:=`(
+ValidZoneSample2022[, `:=`(
   company = fcase(
     hvfhs_license_num == "HV0002" , "Juno" ,
     hvfhs_license_num == "HV0003" , "Uber" ,
@@ -336,7 +336,7 @@ ValidZoneSample2023[, `:=`(
 # If we check the taxi zone look up table, we can find the `Borough` and
 # `service_zone` of each table.
 
-ValidZoneSample2023[
+ValidZoneSample2022[
   ZoneCodesRef,
   on = c("PULocationID" = "LocationID"),
   `:=`(
@@ -346,7 +346,7 @@ ValidZoneSample2023[
   )
 ]
 
-ValidZoneSample2023[
+ValidZoneSample2022[
   ZoneCodesRef,
   on = c("DOLocationID" = "LocationID"),
   `:=`(
@@ -356,7 +356,7 @@ ValidZoneSample2023[
   )
 ]
 
-ValidZoneSample2023[, .N, by = "take_current_trip"][, `:=`(
+ValidZoneSample2022[, .N, by = "take_current_trip"][, `:=`(
   prop = N / sum(N),
   take_current_trip = reorder(take_current_trip, N)
 )] |>
@@ -406,7 +406,7 @@ We restrict analysis to trips ≥ 2 minutes (as decided in the baseline) and exp
 #| fig-height: 7.5
 #| fig-width: 8
 TrainingSampleValidCat <-
-  ValidZoneSample2023[
+  ValidZoneSample2022[
     trip_time_min >= 2,
     c(.SD, list("trip_id" = trip_id)) |> lapply(as.character),
     .SDcols = \(x) is.character(x) | is.factor(x) | is.integer(x)
@@ -448,7 +448,7 @@ ggplot(
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 plot_num_distribution(
-  ValidZoneSample2023[trip_time_min >= 2],
+  ValidZoneSample2022[trip_time_min >= 2],
   trip_miles,
   title = "trip_miles",
   take_current_trip,
@@ -468,7 +468,7 @@ plot_num_distribution(
 #| code-summary: "Show the code"
 #| fig-height: 7.5
 plot_num_distribution(
-  ValidZoneSample2023[trip_time_min >= 2],
+  ValidZoneSample2022[trip_time_min >= 2],
   trip_time_min,
   take_current_trip,
   manual_fill_values = c("N" = Params$ColorHighlight, "Y" = Params$ColorGray),

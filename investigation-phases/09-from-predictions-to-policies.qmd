@@ -445,6 +445,18 @@ ggplot(FinalPfaResultsSummary, aes(strategy, daily_hourly_wage_mean)) +
   )
 ```
 
+```{r}
+#| eval: false
+#| echo: false
+#| output: false
+pin_write(
+  BoardLocal,
+  FinalPfaMeans,
+  "FinalPfaMeans",
+  type = "qs2"
+)
+```
+
 When we examine the improvement on a per-simulation-day basis, the gains are remarkably consistent: most simulated days earned more money after implementing the policy than using the original staregy.
 
 ```{r}
