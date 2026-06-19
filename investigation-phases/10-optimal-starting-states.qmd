@@ -1037,7 +1037,7 @@ LinearModelTreeEffect <- linear_reg() |>
 create_lm_gt_table(LinearModelTreeEffect)
 ```
 
-## Extracting bussines rules from tree model
+## Defining policy to implement
 
 To understand how the model can get so incredible results let's just plot the model to see how it is using the features.
 
@@ -1171,13 +1171,7 @@ TreeResultsToExplain |>
   )
 ```
 
-## Creating policy
-
-As we know that this rule only works for **Uber**, then the first before validating with the tree model if the time is good is to make sure that the company for each start trip correspond to Uber.
-
-Then we will use the tree model see if the time is correct to start working of we should wait until finding the **next valid hour** to start working.
-
-Now we just need extract the valid hours and used as part of t reference for the simulation.
+Now we just need to take that information in format that can be applyied to the strips sampled from the data.
 
 ```{r}
 #| eval: false
@@ -1222,4 +1216,290 @@ ValidHoursToStartWorking |>
   # Give it a clean, modern theme
   opt_stylize(style = 1, color = "gray")
 ```
+
+All this logic information was implemented in the `optimize_trip_start_time` and we can make sure the the trips fills this conditions after applying the functions over the trips used to create the baseline.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| label: Results of Apply Start Policy
+SimulationStartDayUpdated <- optimize_trip_start_time(
+  SimulationStartDay,
+  start_day_fitted_model = DecisionTreeWfFitted,
+  valid_start_times_dt = ValidHoursToStartWorking
+)
+```
+
+```{r}
+list(SimulationStartDay, SimulationStartDayUpdated) |>
+  lapply(\(dt) {
+    dt[,
+      list(Uber_prop = mean(hvfhs_license_num == "HV0003"), N = .N),
+      by = list(
+        week_day = factor(
+          Weekdays[wday(request_datetime)],
+          levels = c(Weekdays[-1L], Weekdays[1L])
+        )
+      )
+    ]
+  }) |>
+  c(list(
+    by = "week_day",
+    all = TRUE,
+    suffixes = c("_original", "_updated")
+  )) |>
+  do.call(
+    what = "merge"
+  ) |>
+  gt() |>
+  # Header & Titles
+  tab_header(
+    title = "Simulation Start Days After Policy",
+    subtitle = "Now all days are with Uber and any day starts on Monday or Friday"
+  ) |>
+
+  # Apply styling to Header (Dark Blue/Gray theme from your style)
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#2c3e50"),
+    locations = cells_title()
+  ) |>
+
+  # Format Proportions (Percentages look great here, or use decimals = 4 to match your preference)
+  fmt_percent(
+    columns = c(Uber_prop_original, Uber_prop_updated),
+    decimals = 0
+  ) |>
+
+  # Format Counts (Integers)
+  fmt_integer(
+    columns = c(N_original, N_updated)
+  ) |>
+
+  # Handle Missing Values (Replaces NA with a clean em-dash)
+  sub_missing(
+    columns = everything(),
+    missing_text = "—"
+  ) |>
+
+  # Group columns visually using spanners
+  tab_spanner(
+    label = "ORIGINAL CONDITIONS",
+    columns = c(Uber_prop_original, N_original)
+  ) |>
+  tab_spanner(
+    label = "UPDATED CONDITIONS",
+    columns = c(Uber_prop_updated, N_updated)
+  ) |>
+
+  # Clean Column Labels
+  cols_label(
+    week_day = "DAY OF WEEK",
+    Uber_prop_original = "UBER PROP.",
+    N_original = "N",
+    Uber_prop_updated = "UBER PROP.",
+    N_updated = "N"
+  ) |>
+
+  # Alignment
+  cols_align(
+    align = "left",
+    columns = week_day
+  ) |>
+
+  # General Table Options
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    table.width = pct(100),
+    quarto.disable_processing = TRUE
+  )
+```
+
+## Evaluating Policy
+
+To evaluate this policy under the same conditions we evaluete the baseline and the accept/reject policy we are using the same simulation with the difference that now we are passing the `start_day_fitted_model` and `valid_start_times_dt` arguments that will be use by the `optimize_trip_start_time` to change initial condition of each day.
+
+```{r}
+#| eval: false
+# Sampled data (Chapter 4)
+SimulationStartDay <- pin_read(
+  BoardLocal,
+  name = "SimulationStartDay"
+)
+original_seeds <- c(8199, 50, 7450, 1430, 9370)
+
+# Production Policy (Chapter 9)
+AcceptRejectPolicyFitted <- pin_read(
+  BoardLocal,
+  "AcceptRejectPolicyFitted"
+)
+
+# Running simulation
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+
+FinalStartTimeResults <- simulate_trips(
+  con,
+  SimulationStartDay,
+  seeds = original_seeds,
+  fitted_wf = AcceptRejectPolicyFitted,
+  start_day_fitted_model = DecisionTreeWfFitted,
+  valid_start_times_dt = ValidHoursToStartWorking
+)
+
+dbDisconnect(con, shutdown = TRUE)
+
+pin_write(
+  BoardLocal,
+  FinalStartTimeResults,
+  "FinalStartTimeResults",
+  type = "qs2"
+)
+```
+
+::: {.callout-note}
+This final run took approximately **2 days** on the available hardware.
+:::
+
+Now we can consolidate all results in under to comparete the 3 strategies under the same conditions.
+```{r}
+SimulationHourlyWage <- pin_read(BoardLocal, "SimulationHourlyWage")
+FinalPfaResults <- pin_read(BoardLocal, "FinalPfaResults")
+FinalStartTimeResults <- pin_read(BoardLocal, "FinalStartTimeResults")
+
+PolicyLevels <- c(
+  "Accept All Trips",
+  "Accept Based On Policy",
+  "Setting Start Time"
+)
+
+FinalPfaResultsSummary <- rbind(
+  sim_start_trip_summary(SimulationHourlyWage, SimulationStartDay)[,
+    strategy := PolicyLevels[1L]
+  ],
+  sim_start_trip_summary(FinalPfaResults, SimulationStartDay)[,
+    strategy := PolicyLevels[2L]
+  ],
+  sim_start_trip_summary(FinalStartTimeResults, SimulationStartDayUpdated)[,
+    strategy := PolicyLevels[3L]
+  ],
+  fill = FALSE
+)
+
+FinalPfaResultsSummary[, strategy := factor(strategy, PolicyLevels)]
+
+FinalPfaMeans <-
+  FinalPfaResultsSummary[,
+    .(daily_hourly_wage_mean = mean(daily_hourly_wage_mean)),
+    keyby = "strategy"
+  ][, setattr(daily_hourly_wage_mean, "names", as.character(strategy))]
+```
+
+The results are amizing we move from having **\$`r round(FinalPfaMeans[1L], 2)` per hour** to be able to earn on average **\$`r round(FinalPfaMeans[3L], 2)`** if we implement both policies at the same time. We also con see that the chart present outliers of days that ended earning more than **\$90** that was not possible even using the accept/reject policy.
+
+
+```{r}
+#| label: Mean Hourly Wage after policy
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+PolicyLevelsFillColors <- c(
+  Params$ColorGray,
+  Params$ColorGray,
+  Params$ColorHighlight
+)
+setattr(PolicyLevelsFillColors, "names", PolicyLevels)
+
+ggplot(FinalPfaResultsSummary, aes(strategy, daily_hourly_wage_mean)) +
+  geom_boxplot(aes(fill = strategy), width = 0.5) +
+  geom_hline(yintercept = FinalPfaMeans[3L], linetype = 2) +
+  scale_fill_manual(
+    values = PolicyLevelsFillColors
+  ) +
+  scale_y_continuous(breaks = breaks_width(5), label = dollar_format(1)) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**",
+      PolicyLevels[3L],
+      "**</span> ",
+      "**is the best policy**"
+    ),
+    subtitle = paste0(
+      "The new mean kept around **",
+      dollar(FinalPfaMeans[3L], accuracy = 1),
+      "** confirming stable results"
+    ),
+    x = "Strategy Implemented",
+    y = "Mean Hourly Wage"
+  ) +
+  theme_light(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(size = 14, family = Params$BaseFontFamily),
+    plot.subtitle = element_markdown(size = 12, family = Params$BaseFontFamily),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none"
+  )
+```
+
+If we compare the difference between the accept/reject policy and the policy created now to start the trips  we can confirm that the increase on the average is no due an increase on variability but because that in the mayority of cases the taxis drivers are getting better results that the original situation.
+
+```{r}
+#| label: Prop of improved simulation days
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+InterceptToValidate <- 0
+
+MeanPolicyDifference <- FinalPfaResultsSummary[
+  strategy != PolicyLevels[1L],
+  .(
+    mean_difference = fifelse(
+      strategy == PolicyLevels[2L],
+      -daily_hourly_wage_mean,
+      daily_hourly_wage_mean
+    ) |>
+      sum()
+  ),
+  by = "simulation_id"
+]
+
+PropSimoOverIntercept <- MeanPolicyDifference[, mean(
+  mean_difference >= InterceptToValidate
+)]
+
+ggplot(MeanPolicyDifference) +
+  geom_histogram(aes(mean_difference), bins = 35) +
+  geom_vline(xintercept = InterceptToValidate, linetype = 2) +
+  scale_x_continuous(n.breaks = 10, label = dollar_format(1)) +
+  labs(
+    title = paste0(
+      "<span style='color:",
+      Params$ColorHighlight,
+      ";'>**",
+      percent(PropSimoOverIntercept, accuracy = 1),
+      "**</span> ",
+      "**of simulated days ended earning more money**"
+    ),
+    x = "Mean Hourly Wage Increase"
+  ) +
+  theme_minimal(base_family = Params$BaseFontFamily) +
+  theme(
+    plot.title = element_markdown(face = "bold", size = 14),
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold")
+  )
+```
+
+## Key Takeaways
+
 

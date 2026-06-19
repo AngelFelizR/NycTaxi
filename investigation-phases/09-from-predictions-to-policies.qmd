@@ -445,20 +445,13 @@ ggplot(FinalPfaResultsSummary, aes(strategy, daily_hourly_wage_mean)) +
   )
 ```
 
-```{r}
-#| eval: false
-#| echo: false
-pin_write(
-  BoardLocal,
-  FinalPfaMeans,
-  "FinalPfaMeans",
-  type = "qs2"
-)
-```
-
-When we examine the improvement on a per-simulation-day basis, the gains are remarkably consistent: most simulated days earn **at least $2 extra per hour**, and the distribution of improvements is approximately normal.
+When we examine the improvement on a per-simulation-day basis, the gains are remarkably consistent: most simulated days earned more money after implementing the policy than using the original staregy.
 
 ```{r}
+#| label: Proportion of improved simulation days
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
 MeanPolicyDifference <- FinalPfaResultsSummary[,
   .(
     mean_difference = fifelse(
@@ -471,15 +464,9 @@ MeanPolicyDifference <- FinalPfaResultsSummary[,
   by = "simulation_id"
 ]
 
-shapiro.test(MeanPolicyDifference$mean_difference)
-```
 
-```{r}
-#| label: Prop of improved simulation days
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 5
-InterceptToValidate <- 2
+InterceptToValidate <- 0
+
 PropSimoOverIntercept <- MeanPolicyDifference[, mean(
   mean_difference >= InterceptToValidate
 )]
@@ -495,7 +482,7 @@ ggplot(MeanPolicyDifference) +
       ";'>**",
       percent(PropSimoOverIntercept, accuracy = 1),
       "**</span> ",
-      "**of simulated days are earning at least 2 dollars extra**"
+      "**of simulated days ended earning more money**"
     ),
     x = "Mean Hourly Wage Increase"
   ) +

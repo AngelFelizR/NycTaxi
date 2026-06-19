@@ -323,7 +323,7 @@ ggplot(VariablesPerDataset) +
   )
 ```
 
-It's clear that **there is one way we can read the variables one by one** and hypothesize the variables to select. Instead, we are going to flow some steps to reduce the number of variable and the classify them in to groups to select.
+It's clear that **there is one way we can read the variables one by one** and hypothesize the variables to select. Instead, we are going to follow some steps to reduce the number of variable and the classify them in to groups to select.
 
 Just by looking to the raw data, I found that many variables measure the same thing for particular groups based on:
 
@@ -618,7 +618,7 @@ ConceptsToExploreClusters <-
 ```
 
 
-To understand what kind of variables we have in each cluster lets use the **statistic tf-idf** to list the **top 5 words** (after removing stop words) of each cluster and use that reference to select the must meaningful ones for this context.
+To understand what kind of variables we have in each cluster lets use the **statistic tf-idf** to list the **top 5 words** (after removing stop words) of each cluster and use that reference to select the most meaningful ones for this context.
 
 ```{r}
 CustomStopWords <- c(

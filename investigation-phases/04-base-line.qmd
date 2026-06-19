@@ -467,7 +467,7 @@ ggplot(SimulationHourlyWageSummary) +
 After simulating 1,061 **independent** starting conditions (each averaged over 5 reproducible seeds), we can use the Monte Carlo results to infer the distribution of the mean **Daily Hourly Wage** for any day.
 
 ```{r}
-#| label: Plotting internval
+#| label: Plotting interval
 #| code-fold: true
 #| code-summary: "Show the code"
 #| fig-height: 5.5
