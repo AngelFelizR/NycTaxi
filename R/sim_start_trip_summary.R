@@ -91,6 +91,8 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
   sim_results_summary <- sim_results[,
     .(
       n_trips = .N,
+      initial_day_time,
+      sim_dropoff_datetime,
       total_hours_worked = difftime(
         max(sim_dropoff_datetime, na.rm = TRUE),
         min(initial_day_time, na.rm = TRUE),
@@ -103,6 +105,10 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
     by = c("simulation_id", "simulation_seed")
   ][, daily_hourly_wage := total_earnings / total_hours_worked][,
     j = c(
+      list(
+        initial_day_time = initial_day_time,
+        final_dropoff_datetime = sim_dropoff_datetime
+      ),
       stats::setNames(
         lapply(.SD, base::mean, na.rm = TRUE),
         paste0(names(.SD), "_mean")
@@ -112,7 +118,7 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
         paste0(names(.SD), "_sd")
       )
     ),
-    .SDcols = !c("simulation_seed"),
+    .SDcols = !c("simulation_seed", "initial_day_time", "sim_dropoff_datetime"),
     by = "simulation_id"
   ]
 
@@ -121,6 +127,8 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
     sim_results_summary,
     c(
       "simulation_id",
+      "initial_day_time",
+      "final_dropoff_datetime",
       paste0("n_trips", c("_mean", "_sd")),
       paste0("total_hours_worked", c("_mean", "_sd")),
       paste0("total_earnings", c("_mean", "_sd")),

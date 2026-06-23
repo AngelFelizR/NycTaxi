@@ -1,0 +1,428 @@
+---
+title: "Data Collection Process"
+execute:
+  eval: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r}
+# Loading functions ----
+
+## To manage relative paths
+library(here)
+library(pins)
+library(qs2)
+
+## Manipulate data
+library(data.table)
+library(sf)
+library(DBI)
+library(duckdb)
+library(lubridate)
+library(timeDate)
+library(ggtext)
+library(scales)
+library(gt)
+
+## To run predictions
+library(tidymodels)
+library(embed)
+
+## Custom functions, board & params
+devtools::load_all()
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+Params <- yaml::read_yaml(here("params.yml"))
+BigFilesPath <- here::here("../NycTaxiBigFiles")
+```
+
+## Downloading the Source Page
+
+```{r SourcePage}
+#| eval: false
+#| label: Getting 2024 data
+SourcePage <- rvest::read_html(
+  "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
+)
+
+TripLinks <-
+  SourcePage |>
+  rvest::html_elements(xpath = '//div[@class="faq-answers"]//li/a') |>
+  rvest::html_attr("href") |>
+  grep(pattern = "fhvhv_[a-z]+_2024-\\d{2}\\.parquet", value = TRUE) |>
+  trimws() |>
+  sort()
+
+FileNames <- basename(TripLinks)
+
+ParquetFolderPath <- file.path(BigFilesPath, "trip-data")
+
+YearFoldersPath <-
+  gsub(
+    x = FileNames,
+    pattern = "^fhvhv_tripdata_|-\\d{2}\\.parquet$",
+    replacement = ""
+  ) |>
+  paste0("year=", a = _) |>
+  unique() |>
+  file.path(ParquetFolderPath, a = _)
+
+MonthFoldersPath <-
+  paste(
+    gsub(
+      x = FileNames,
+      pattern = "^fhvhv_tripdata_|-\\d{2}\\.parquet$",
+      replacement = ""
+    ) |>
+      paste0("year=", a = _),
+    gsub(
+      x = FileNames,
+      pattern = "^fhvhv_tripdata_\\d{4}-|\\.parquet$",
+      replacement = ""
+    ) |>
+      paste0("month=", a = _),
+    sep = "/"
+  ) |>
+  file.path(ParquetFolderPath, a = _) |>
+  sort()
+
+FoldersToCreate <- c(
+  BigFilesPath,
+  ParquetFolderPath,
+  YearFoldersPath,
+  MonthFoldersPath
+)
+
+for (paths in FoldersToCreate) {
+  if (!file.exists(paths)) dir.create(paths)
+}
+
+options(timeout = 1800)
+
+# Parquet trip data
+for (link_i in seq_along(TripLinks)) {
+  download.file(
+    TripLinks[link_i],
+    destfile = file.path(MonthFoldersPath[link_i], "part-0.parquet"),
+    mode = "wb"
+  )
+}
+
+ParquetSource <-
+  file.path(MonthFoldersPath, "part-0.parquet") |>
+  paste0("'", a = _, "'") |>
+  paste0(collapse = ", ") |>
+  paste0("read_parquet([", a = _, "])")
+
+
+con <- DBI::dbConnect(
+  duckdb::duckdb(),
+  dbdir = file.path(BigFilesPath, "my-db.duckdb")
+)
+
+NycTripsCreateTable <- glue::glue_safe(
+  "
+CREATE TABLE NycTrips2024 AS
+    SELECT 
+        ROW_NUMBER() OVER () AS trip_id,
+        *,
+        (driver_pay + tips) / (trip_time / 3600) AS performance_per_hour
+    FROM {ParquetSource}
+"
+)
+
+DBI::dbExecute(con, NycTripsCreateTable)
+
+DBI::dbDisconnect(con, shutdown = TRUE)
+
+rm(con)
+```
+
+```{r}
+file.path(BigFilesPath, "my-db.duckdb") |>
+  file.size() |>
+  structure(class = "object_size") |>
+  format(units = "auto")
+```
+
+```{r}
+#| label: Sampling data for 2024
+#| eval: false
+# Sampling 1,061 trips from db
+SimulationStartDayQuery <- "
+SELECT t1.*
+FROM NycTrips2024 t1
+INNER JOIN PointMeanDistance t2
+  ON t1.PULocationID = t2.PULocationID AND
+     t1.DOLocationID = t2.DOLocationID
+WHERE t1.year = 2024
+      AND t1.trip_time >= (60 * 2)
+      AND t1.trip_miles > 0
+      AND t1.driver_pay > 0
+USING SAMPLE reservoir(1061 ROWS) REPEATABLE (1144);
+"
+con <- DBI::dbConnect(
+  duckdb::duckdb(),
+  dbdir = here::here("../NycTaxiBigFiles/my-db.duckdb")
+)
+SimulationStartDay2024 <- DBI::dbGetQuery(con, SimulationStartDayQuery)
+DBI::dbDisconnect(con, shutdown = TRUE)
+
+# Saving results
+data.table::setDT(SimulationStartDay2024)
+
+pins::pin_write(
+  BoardLocal,
+  SimulationStartDay2024,
+  "SimulationStartDay2024",
+  type = "qs2"
+)
+
+pillar::glimpse(SimulationStartDay2024)
+```
+
+```{r}
+#| label: Importing sampled data
+#| echo: false
+
+# Production Policy (Chapter 9)
+AcceptRejectPolicyFitted <- pin_read(
+  BoardLocal,
+  "AcceptRejectPolicyFitted"
+)
+
+# Start Time Policy (Chapter 10)
+DecisionTreeWfFitted <- pin_read(
+  BoardLocal,
+  "DecisionTreeWfFitted"
+)
+
+ValidHoursToStartWorking <- pin_read(
+  BoardLocal,
+  "ValidHoursToStartWorking"
+)
+
+if (!exists("SimulationStartDay2024")) {
+  SimulationStartDay2024 <- BoardLocal |>
+    pins::pin_read("SimulationStartDay2024")
+
+  pillar::glimpse(SimulationStartDay2024)
+}
+```
+
+
+```{r}
+#| eval: false
+#| label: running simulations for 2024
+# Production Policy (Chapter 9)
+AcceptRejectPolicyFitted <- pin_read(
+  BoardLocal,
+  "AcceptRejectPolicyFitted"
+)
+
+# Start Time Policy (Chapter 10)
+DecisionTreeWfFitted <- pin_read(
+  BoardLocal,
+  "DecisionTreeWfFitted"
+)
+
+ValidHoursToStartWorking <- pin_read(
+  BoardLocal,
+  "ValidHoursToStartWorking"
+)
+
+
+# Running base
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+SimulationHourlyWage2024 <- simulate_trips(
+  con,
+  SimulationStartDay2024,
+  seeds = 8199,
+  db_table_name = "NycTrips2024"
+)
+dbDisconnect(con, shutdown = TRUE)
+
+pin_write(
+  BoardLocal,
+  SimulationHourlyWage2024,
+  "SimulationHourlyWage2024",
+  type = "qs2"
+)
+
+
+# Running simulation
+con <- dbConnect(duckdb(), dbdir = here("../NycTaxiBigFiles/my-db.duckdb"))
+FinalStartTimeResults2024 <- simulate_trips(
+  con,
+  SimulationStartDay2024,
+  seeds = 8199,
+  fitted_wf = AcceptRejectPolicyFitted,
+  start_day_fitted_model = DecisionTreeWfFitted,
+  valid_start_times_dt = ValidHoursToStartWorking,
+  db_table_name = "NycTrips2024"
+)
+dbDisconnect(con, shutdown = TRUE)
+
+pin_write(
+  BoardLocal,
+  FinalStartTimeResults2024,
+  "FinalStartTimeResults2024",
+  type = "qs2"
+)
+```
+
+
+
+```{r}
+SimulationHourlyWage2024 <- pin_read(BoardLocal, "SimulationHourlyWage2024")
+FinalStartTimeResults2024 <- pin_read(BoardLocal, "FinalStartTimeResults2024")
+
+SimulationStartDay2024Optimazed <- optimize_trip_start_time(
+  SimulationStartDay2024,
+  start_day_fitted_model = DecisionTreeWfFitted,
+  valid_start_times_dt = ValidHoursToStartWorking
+)
+
+PolicyLevels <- c(
+  "Accept All Trips",
+  "Setting Start Time"
+)
+
+FinalPfaResultsSummary2024 <- rbind(
+  sim_start_trip_summary(SimulationHourlyWage2024, SimulationStartDay2024)[,
+    strategy := PolicyLevels[1L]
+  ],
+  sim_start_trip_summary(
+    FinalStartTimeResults2024,
+    SimulationStartDay2024Optimazed
+  )[, strategy := PolicyLevels[2L]],
+  fill = FALSE
+)
+
+FinalPfaResultsSummary2024[, strategy := factor(strategy, PolicyLevels)]
+
+FinalPfaMeansAfterStart2024 <-
+  FinalPfaResultsSummary2024[,
+    .(daily_hourly_wage_mean = mean(daily_hourly_wage_mean)),
+    keyby = "strategy"
+  ][, setattr(daily_hourly_wage_mean, "names", as.character(strategy))]
+```
+
+```{r}
+#| label: Policy performance over time
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
+PolicyLevelsFillColors <- c(
+  Params$ColorGray,
+  Params$ColorHighlight
+)
+setattr(PolicyLevelsFillColors, "names", PolicyLevels)
+
+TargetMean <- FinalPfaMeansAfterStart2024[2L]
+
+MonthlySummary <- FinalPfaResultsSummary2024[
+  j = list(mean_wage = mean(daily_hourly_wage_mean, na.rm = TRUE)),
+  keyby = list(month = floor_date(initial_day_time, "month"), strategy)
+]
+
+HighlightedLastPoint <- MonthlySummary[strategy == PolicyLevels[2L], .SD[.N]]
+
+ggplot(
+  MonthlySummary,
+  aes(
+    x = month,
+    y = mean_wage,
+    color = strategy,
+    group = strategy
+  )
+) +
+  geom_line(
+    linewidth = 1.2
+  ) +
+  geom_point(
+    size = 3
+  ) +
+  geom_hline(
+    yintercept = TargetMean,
+    linetype = 2
+  ) +
+  annotate(
+    "text",
+    x = max(MonthlySummary$month) + days(5),
+    y = TargetMean + 0.6,
+    label = paste0(
+      "2024 Mean: ",
+      dollar(TargetMean)
+    ),
+    hjust = 1,
+    size = 4
+  ) +
+  geom_label(
+    data = HighlightedLastPoint,
+    aes(
+      label = dollar(mean_wage)
+    ),
+    color = Params$ColorHighlight,
+    fill = "white",
+    fontface = "bold",
+    show.legend = FALSE,
+    nudge_x = 10
+  ) +
+  scale_color_manual(
+    values = PolicyLevelsFillColors
+  ) +
+  scale_x_date(
+    date_breaks = "1 month",
+    date_labels = "%b"
+  ) +
+  scale_y_continuous(
+    breaks = breaks_width(5),
+    labels = dollar_format(accuracy = 1)
+  ) +
+  labs(
+    title = paste0(
+      "**The <span style='color:",
+      Params$ColorHighlight,
+      ";'>defined policy</span> consistently delivers higher hourly wages**"
+    ),
+    subtitle = paste0(
+      "Hourly wage remained near **$69** while outperforming the alternative strategy in **2024**"
+    ),
+    x = "Month",
+    y = "Mean Hourly Wage"
+  ) +
+  coord_cartesian(
+    clip = "off"
+  ) +
+  theme_light(
+    base_family = Params$BaseFontFamily
+  ) +
+  theme(
+    plot.title = element_markdown(
+      size = 14,
+      family = Params$BaseFontFamily
+    ),
+    plot.subtitle = element_markdown(
+      size = 12,
+      family = Params$BaseFontFamily
+    ),
+    axis.text = element_text(
+      color = "black"
+    ),
+    axis.title = element_text(
+      face = "bold"
+    ),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+```

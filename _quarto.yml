@@ -30,7 +30,7 @@ website:
             href: investigation-phases/06-expanding-geospatial-data.qmd
           - text: "07 - Exploring Transportation and Socioeconomic Patterns"
             href: investigation-phases/07-expanding-transportation-socioeconomic.qmd
-          - text: "08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data"
+          - text: "08 - Training and Selecting Model To Implement"
             href: investigation-phases/08-policy-function-approximation.qmd  
           - text: "09 - From Predictions to Policies: Integrating ML into Stochastic Optimization"
             href: investigation-phases/09-from-predictions-to-policies.qmd

@@ -64,6 +64,7 @@
 #'   Must contain columns `hour`, `week_day`, and `week_cycle` (see
 #'   `optimize_trip_start_time` for details). Only used when
 #'   `start_day_fitted_model` is not `NULL`.
+#' @param db_table_name A character defining the name of table to query from.
 #' @param verbose Logical scalar (default `FALSE`).
 #'   When `TRUE`, the function prints detailed per‑iteration progress messages
 #'   inside the main simulation loop:
@@ -133,7 +134,7 @@
 #'   DBI::dbDisconnect(con, shutdown = TRUE)
 #'}
 #' @export
-simulate_trips = function(
+simulate_trips <- function(
   conn,
   start_points,
   seeds = NULL,
@@ -141,6 +142,7 @@ simulate_trips = function(
   threshold = NULL,
   start_day_fitted_model = NULL,
   valid_start_times_dt = NULL,
+  db_table_name = "NycTrips",
   verbose = FALSE
 ) {
   # This function confirms if:
@@ -155,26 +157,26 @@ simulate_trips = function(
       !is.null(start_day_fitted_model) &&
       !is.null(valid_start_times_dt)
   ) {
-    start_points = optimize_trip_start_time(
+    start_points <- optimize_trip_start_time(
       start_points,
       start_day_fitted_model = start_day_fitted_model,
       valid_start_times_dt = valid_start_times_dt
     )
   }
 
-  cases_to_simulate = expand.grid(
+  cases_to_simulate <- expand.grid(
     start_point_id = 1:nrow(start_points),
     seed = if (!is.null(seeds)) seeds else NA_real_
   )
 
   # Total number of simulations for progress tracking
-  total_cases = nrow(cases_to_simulate)
+  total_cases <- nrow(cases_to_simulate)
 
   # START simulation
-  all_simulations_table =
+  all_simulations_table <-
     lapply(1:total_cases, \(simulation_i) {
       # GETTING INITIAL TRIP
-      initial_conditions = start_points[
+      initial_conditions <- start_points[
         cases_to_simulate$start_point_id[simulation_i],
       ]
       initial_conditions[,
@@ -189,7 +191,7 @@ simulate_trips = function(
 
       # TRACKING STATUS
       # Calculate proportion of cases pending
-      pending_prop = round((total_cases - (simulation_i - 1)) / total_cases, 4)
+      pending_prop <- round((total_cases - (simulation_i - 1)) / total_cases, 4)
 
       if (verbose) {
         cat(sprintf(
@@ -206,10 +208,10 @@ simulate_trips = function(
       # DEFINING Vehicle Profile
 
       # 1. Setting taxi company
-      taxi_company_code = initial_conditions$hvfhs_license_num
+      taxi_company_code <- initial_conditions$hvfhs_license_num
 
       # 2. Confirming if WAV trips can be taken with SQL
-      can_take_wav =
+      can_take_wav <-
         if (initial_conditions$wav_match_flag == "Y") {
           "('Y', 'N')"
         } else {
@@ -219,14 +221,14 @@ simulate_trips = function(
       # DEFINING Shift Constraints
 
       # 1. Defining the limit to take new trips
-      last_time_to_take_trips =
+      last_time_to_take_trips <-
         initial_conditions$request_datetime +
         lubridate::seconds(initial_conditions$trip_time) +
         lubridate::hours(8) +
         lubridate::minutes(30)
 
       # 2. Defining the time to take the break
-      time_to_take_break =
+      time_to_take_break <-
         initial_conditions$request_datetime +
         lubridate::seconds(initial_conditions$trip_time) +
         lubridate::hours(4)
@@ -234,26 +236,26 @@ simulate_trips = function(
       # DEFINING Initial Operational State
 
       # 1. Confirms that the trips hasn't been taken
-      taken_break = FALSE
+      taken_break <- FALSE
 
       # 2. Defining datetime to start simulation
-      current_time =
+      current_time <-
         initial_conditions$request_datetime +
         lubridate::seconds(initial_conditions$trip_time)
 
       # 3. Start position
-      current_position = initial_conditions$DOLocationID
+      current_position <- initial_conditions$DOLocationID
 
       # DEFINING Initial Search Policy
 
       # 1. Defining time limit for first iteration
-      trip_time_limit = current_time + lubridate::minutes(1)
+      trip_time_limit <- current_time + lubridate::minutes(1)
 
       # 2. Defining distance limit for first iteration
-      trip_dist_limit = 1
+      trip_dist_limit <- 1
 
       # DEFINING vars to store information
-      simulated_trips = initial_conditions[FALSE, ]
+      simulated_trips <- initial_conditions[FALSE, ]
       if (!is.null(seeds)) {
         set.seed(cases_to_simulate$seed[simulation_i])
       }
@@ -273,12 +275,12 @@ simulate_trips = function(
 
         # TAKING Break
         if (taken_break == FALSE && current_time >= time_to_take_break) {
-          taken_break = TRUE
-          current_time = current_time + lubridate::minutes(30)
+          taken_break <- TRUE
+          current_time <- current_time + lubridate::minutes(30)
 
           # FIX: Reset search window so it starts after the break
-          trip_time_limit = current_time + lubridate::minutes(1)
-          trip_dist_limit = 1
+          trip_time_limit <- current_time + lubridate::minutes(1)
+          trip_dist_limit <- 1
 
           if (verbose) {
             # 2. TRACK THE BREAK
@@ -290,10 +292,10 @@ simulate_trips = function(
         }
 
         # The query to extract information from DB
-        query_to_find_trips = glue::glue(
+        query_to_find_trips <- glue::glue(
           "
         SELECT t1.*
-        FROM NycTrips t1
+        FROM {db_table_name} t1
         INNER JOIN (
           SELECT * FROM PointMeanDistance 
           WHERE
@@ -322,21 +324,21 @@ simulate_trips = function(
         )
 
         # Running the query
-        trips_found = DBI::dbGetQuery(conn, query_to_find_trips)
+        trips_found <- DBI::dbGetQuery(conn, query_to_find_trips)
         data.table::setDT(trips_found)
 
-        trips_found_rows = nrow(trips_found)
+        trips_found_rows <- nrow(trips_found)
 
         if (trips_found_rows == 0L) {
           # TRIP NOT FOUNDs
           if (trip_dist_limit == 1) {
-            current_time = current_time + lubridate::minutes(1)
+            current_time <- current_time + lubridate::minutes(1)
           } else {
-            current_time = current_time + lubridate::minutes(2)
+            current_time <- current_time + lubridate::minutes(2)
           }
 
-          trip_time_limit = trip_time_limit + lubridate::minutes(2)
-          trip_dist_limit = trip_dist_limit + 2
+          trip_time_limit <- trip_time_limit + lubridate::minutes(2)
+          trip_dist_limit <- trip_dist_limit + 2
 
           if (verbose) {
             # 3. TRACK SEARCH EXPANSION
@@ -346,15 +348,15 @@ simulate_trips = function(
           # TRIP FOUND
           if (!is.null(seeds)) {
             # Adding stokastic part based on seed
-            sampled_trip = trips_found[sample.int(trips_found_rows, 1L), ]
+            sampled_trip <- trips_found[sample.int(trips_found_rows, 1L), ]
           } else {
             # Here de determinist part of testing
-            sampled_trip = trips_found[1L, ]
+            sampled_trip <- trips_found[1L, ]
           }
 
           if (!is.null(fitted_wf)) {
             # Tranforming data tipe for modeling
-            model_sampled_trip = data.table::copy(sampled_trip)
+            model_sampled_trip <- data.table::copy(sampled_trip)
             model_sampled_trip[, `:=`(
               PULocationID = as.character(PULocationID),
               DOLocationID = as.character(DOLocationID),
@@ -363,7 +365,7 @@ simulate_trips = function(
             )]
             # TRIP FOUND & POLICY
             # Getting model prediction
-            decision_dt = predict(
+            decision_dt <- predict(
               fitted_wf,
               new_data = model_sampled_trip,
               type = if (is.null(threshold)) "class" else "prob"
@@ -371,7 +373,7 @@ simulate_trips = function(
 
             # Taking the decision based on \theta
             if (!is.null(threshold)) {
-              decision_dt = dplyr::mutate(
+              decision_dt <- dplyr::mutate(
                 decision_dt,
                 .pred_class = if_else(
                   .pred_yes > threshold,
@@ -385,13 +387,13 @@ simulate_trips = function(
             # By rejecting trip we just lost time
             # Need to find another trip from the data
             if (decision_dt$.pred_class == "no") {
-              current_time =
+              current_time <-
                 sampled_trip$request_datetime +
                 lubridate::seconds(3)
 
               if (current_time > trip_time_limit) {
-                trip_time_limit = trip_time_limit + lubridate::minutes(2)
-                trip_dist_limit = trip_dist_limit + 2
+                trip_time_limit <- trip_time_limit + lubridate::minutes(2)
+                trip_dist_limit <- trip_dist_limit + 2
               }
               if (verbose) {
                 # 4. TRACK POLICY REJECTION
@@ -400,7 +402,7 @@ simulate_trips = function(
                   current_time
                 ))
               }
-              sampled_trip = NULL
+              sampled_trip <- NULL
             }
           }
 
@@ -455,7 +457,7 @@ simulate_trips = function(
       data.table::setDT(simulated_trips)
 
       # Returning the data in the expected shape
-      shaped_table =
+      shaped_table <-
         simulated_trips[, list(
           simulation_id = simulation_id,
           simulation_seed = simulation_seed,

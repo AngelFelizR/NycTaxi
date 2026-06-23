@@ -12,6 +12,7 @@ simulate_trips(
   threshold = NULL,
   start_day_fitted_model = NULL,
   valid_start_times_dt = NULL,
+  db_table_name = "NycTrips",
   verbose = FALSE
 )
 }
@@ -55,6 +56,8 @@ method returning \code{.pred_class} with levels \code{"yes"/"no"}. Used together
 Must contain columns \code{hour}, \code{week_day}, and \code{week_cycle} (see
 \code{optimize_trip_start_time} for details). Only used when
 \code{start_day_fitted_model} is not \code{NULL}.}
+
+\item{db_table_name}{A character defining the name of table to query from.}
 
 \item{verbose}{Logical scalar (default \code{FALSE}).
 When \code{TRUE}, the function prints detailed per‑iteration progress messages
