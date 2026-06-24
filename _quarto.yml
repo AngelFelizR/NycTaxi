@@ -12,30 +12,43 @@ website:
     title: false
     collapse-below: lg
     left:
-      - text: Home
-        href: index.qmd
-      - text: "Project Phases"
-        menu:
-          - text: "01 - Business Understanding Overview"
-            href: investigation-phases/01-business-understanding.qmd   
-          - text: "02 - Data Collection Process"
-            href: investigation-phases/02-data-collection-process.qmd         
-          - text: "03 - Initial Exploration"
-            href: investigation-phases/03-initial-exploration.qmd   
-          - text: "04 - Simulation-Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers"
-            href: investigation-phases/04-base-line.qmd
-          - text: "05 - Lookahead-Based Labeling for Learning an Improved ADP Policy"
-            href: investigation-phases/05-lookahead-labeling.qmd 
-          - text: "06 - Expanding Geospatial Information"
-            href: investigation-phases/06-expanding-geospatial-data.qmd
-          - text: "07 - Exploring Transportation and Socioeconomic Patterns"
-            href: investigation-phases/07-expanding-transportation-socioeconomic.qmd
-          - text: "08 - Training and Selecting Model To Implement"
-            href: investigation-phases/08-policy-function-approximation.qmd  
-          - text: "09 - From Predictions to Policies: Integrating ML into Stochastic Optimization"
-            href: investigation-phases/09-from-predictions-to-policies.qmd
-          - text: "10 - Optimal Starting States"
-            href: investigation-phases/10-optimal-starting-states.qmd  
+    - text: Home
+      href: index.qmd
+    - text: "Project Phases"
+      menu:
+        # --- FASE 1: ENTENDIMIENTO Y DATOS ---
+        - text: "📌 Business & Data Understanding"
+        - text: "01 - Business Understanding Overview"
+          href: investigation-phases/01-business-understanding.qmd   
+        - text: "02 - Data Collection Process"
+          href: investigation-phases/02-data-collection-process.qmd         
+        - text: "03 - Initial Exploration"
+          href: investigation-phases/03-initial-exploration.qmd
+
+        # --- FASE 2: MODELO BASE Y PREPARACIÓN ---
+        - text: "⚙️ Baseline & Data Preparation"
+        - text: "04 - Simulation‑Based Baseline Wage"
+          href: investigation-phases/04-base-line.qmd
+        - text: "05 - Lookahead‑Based Labeling (ADP)"
+          href: investigation-phases/05-lookahead-labeling.qmd 
+        - text: "06 - Expanding Geospatial Information"
+          href: investigation-phases/06-expanding-geospatial-data.qmd
+        - text: "07 - Transportation & Socioeconomic Patterns"
+          href: investigation-phases/07-expanding-transportation-socioeconomic.qmd
+
+        # --- FASE 3: MODELADO Y POLÍTICAS ---
+        - text: "🧠 Policy Modeling & Selection"
+        - text: "08 - Training & Selecting Model to Implement"
+          href: investigation-phases/08-policy-function-approximation.qmd  
+        - text: "09 - From Predictions to Policies (Stochastic Optimization)"
+          href: investigation-phases/09-from-predictions-to-policies.qmd
+        - text: "10 - Maximizing Earnings via Optimal Starting States"
+          href: investigation-phases/10-optimal-starting-states.qmd
+
+        # --- FASE 4: VALIDACIÓN, MONITOREO Y DESPLIEGUE ---
+        - text: "🚀 MLOps: Validation, Monitoring & Deployment"
+        - text: "11 - Validating Policy on Out‑of‑Sample (2024) Data"
+          href: investigation-phases/11-validating-vs-next-year-data.qmd
     right:
       - text: "About Angel Feliz"
         href: https://angelfeliz.com/

@@ -4,31 +4,31 @@ title: "🚕 How an Uber driver can earn an extra $2,000 per month without worki
 
 <br>
 
-## 📋 Executive Summary
+## Executive Summary
 
 ### 🚨 The Problem
 
-NYC taxi and rideshare drivers work long, exhausting shifts, but most are leaving money on the table. Without a clear strategy, they accept nearly every trip that comes their way—wasting precious time on low-value rides that drag down their hourly wage. 😓
+NYC taxi and rideshare drivers work long, exhausting shifts, but most are leaving money on the table. Without a clear strategy, they accept nearly every trip that comes their way—wasting precious time on low-value rides that drag down their hourly wage. 
 
 ### 🎯 The Business Goal
 
-**Increase average taxi driver earnings by 20%**—without working more hours. 📈
+**Increase average taxi driver earnings by 20%**—without working more hours. 
 
 ### 📍 Project Scope
 
-We focused on **high-volume for-hire vehicles** (Uber, Lyft, Juno, Via) operating within **Manhattan, Brooklyn, and Queens**—the busiest boroughs in NYC. 🗽
+We focused on **high-volume for-hire vehicles** (Uber, Lyft, Juno, Via) operating within **Manhattan, Brooklyn, and Queens**—the busiest boroughs in NYC.
 
 ### 💡 The Solution
 
 We built a data‑driven decision system that answers two simple but powerful questions:
 
-1. **🤔 Which trips should I accept?** – A machine learning model (XGBoost) classifies each trip as high‑value or low‑value in real time. The winning strategy? Our model recommends **accepting only trips that have a 90%+ chance of being among the top 25% most profitable** in the next few minutes. This alone adds **+$8/hour**. 💰
+1. **🤔 Which trips should I accept?** – A machine learning model (XGBoost) classifies each trip as high‑value or low‑value in real time. The winning strategy? Our model recommends **accepting only trips that have a 90%+ chance of being among the top 25% most profitable** in the next few minutes. This alone adds **+$8/hour**. 
 
-2. **⏰ When and with whom should I start my shift?** – Through simulation, we discovered that the starting zone barely matters 🗺️, but **choosing Uber over Lyft** 🚗 and **working night shifts** 🌙 adds up another **+$6 per hour**.
+2. **⏰ When and with whom should I start my shift?** – Through simulation, we discovered that the starting zone barely matters, but **choosing Uber over Lyft** and **working night shifts** adds up another **+$6 per hour**.
 
 > **Combine both strategies → +$14/hour → 25% more earnings → $2,200 extra per month** 💸
 
-No extra hours. No extra effort. Just smarter decisions. 🧠✨
+No extra hours. No extra effort. Just smarter decisions. ✨
 
 ## 🏆 Results Highlight
 
@@ -39,6 +39,12 @@ Drivers implementing our full strategy saw their average hourly wage rise from *
 Working 8-hour days, 5 days a week, this improvement translates to roughly **$2,200 in additional monthly earnings** for a full-time driver.
 
 ![](figures/Mean%20Hourly%20Wage%20after%20policy-1.png)
+
+### 🔒 **Proven for the Real World**
+The true test came when we validated our policy on **2024 data**—a year the models were not trained on. The performance held strong, with the policy achieving an average hourly wage of **$67.87**. More importantly, it **consistently outperformed the baseline** in every single month, maintaining a solid advantage of **$7–$17 per hour**. This confirms the strategy is reliable and adaptable to changing conditions.
+
+![](figures/Policy%20performance%20over%20time-1.png)
+
 
 ## 🔑 **Key Insights We Discovered**
 
@@ -96,6 +102,7 @@ Following the steps of both methodologies, we organized the articles created in 
 | | **Data Preparation** | [6. Expanding Geospatial Information](https://angelfelizr.github.io/NycTaxi/investigation-phases/06-expanding-geospatial-data.html) <br> [7. Expanding Transportation and Socioeconomic Patterns](https://angelfelizr.github.io/NycTaxi/investigation-phases/07-expanding-transportation-socioeconomic.html) |
 | | **Modeling and Evaluation** | [8. Training and Selecting Model To Implement](https://angelfelizr.github.io/NycTaxi/investigation-phases/08-policy-function-approximation.html) |
 | **Defining and Evaluating New Policies** | **Modeling and Evaluation** | [9. From Predictions to Policies: Integrating ML into Stochastic Optimization](https://angelfelizr.github.io/NycTaxi/investigation-phases/09-from-predictions-to-policies.html) <br> [10.Maximizing Driver Earnings by Selecting the Best Configuration and Time to Start](https://angelfelizr.github.io/NycTaxi/investigation-phases/10-optimal-starting-states.html) |
+|  | **MLOps: Model Validation & Monitoring** | [11. Validating Policy Performance on Out-of-Sample (2024) Data](https://angelfelizr.github.io/NycTaxi/investigation-phases/11-validating-vs-next-year-data.html) |
 |  | **Deployment** | 11. Serving Model by a Shiny Web App *(Planned)* |
 
 ## 🔮 What's Next

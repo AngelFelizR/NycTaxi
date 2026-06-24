@@ -161,6 +161,7 @@ window.Quarto = {
  <span class="menu-text">Project Phases</span>
     </a>
     <ul class="dropdown-menu" aria-labelledby="nav-menu-project-phases">    
+        <li class="dropdown-header">📌 Business &amp; Data Understanding</li>
         <li>
     <a class="dropdown-item" href="../investigation-phases/01-business-understanding.html">
  <span class="dropdown-text">01 - Business Understanding Overview</span></a>
@@ -173,13 +174,14 @@ window.Quarto = {
     <a class="dropdown-item" href="../investigation-phases/03-initial-exploration.html">
  <span class="dropdown-text">03 - Initial Exploration</span></a>
   </li>  
+        <li class="dropdown-header">⚙️ Baseline &amp; Data Preparation</li>
         <li>
     <a class="dropdown-item" href="../investigation-phases/04-base-line.html">
- <span class="dropdown-text">04 - Simulation-Based Estimation of the Baseline Hourly Wage for NYC Taxi Drivers</span></a>
+ <span class="dropdown-text">04 - Simulation‑Based Baseline Wage</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/05-lookahead-labeling.html">
- <span class="dropdown-text">05 - Lookahead-Based Labeling for Learning an Improved ADP Policy</span></a>
+ <span class="dropdown-text">05 - Lookahead‑Based Labeling (ADP)</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/06-expanding-geospatial-data.html">
@@ -187,19 +189,25 @@ window.Quarto = {
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/07-expanding-transportation-socioeconomic.html">
- <span class="dropdown-text">07 - Exploring Transportation and Socioeconomic Patterns</span></a>
+ <span class="dropdown-text">07 - Transportation &amp; Socioeconomic Patterns</span></a>
   </li>  
+        <li class="dropdown-header">🧠 Policy Modeling &amp; Selection</li>
         <li>
     <a class="dropdown-item" href="../investigation-phases/08-policy-function-approximation.html">
- <span class="dropdown-text">08 - Policy Function Approximation: Training the Classifier and Validating Threshold on Held-Out Data</span></a>
+ <span class="dropdown-text">08 - Training &amp; Selecting Model to Implement</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/09-from-predictions-to-policies.html">
- <span class="dropdown-text">09 - From Predictions to Policies: Integrating ML into Stochastic Optimization</span></a>
+ <span class="dropdown-text">09 - From Predictions to Policies (Stochastic Optimization)</span></a>
   </li>  
         <li>
     <a class="dropdown-item" href="../investigation-phases/10-optimal-starting-states.html">
- <span class="dropdown-text">10 - Optimal Starting States</span></a>
+ <span class="dropdown-text">10 - Maximizing Earnings via Optimal Starting States</span></a>
+  </li>  
+        <li class="dropdown-header">🚀 MLOps: Validation, Monitoring &amp; Deployment</li>
+        <li>
+    <a class="dropdown-item" href="../investigation-phases/11-validating-vs-next-year-data.html">
+ <span class="dropdown-text">11 - Validating Policy on Out‑of‑Sample (2024) Data</span></a>
   </li>  
     </ul>
   </li>
@@ -710,30 +718,30 @@ $ performance_per_hour &lt;dbl&gt; 57.95, 68.57, 48.89, 64.43, 49.03, 64.27, 45.
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(SimulationHourlyWageSummary)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>   simulation_id n_trips_mean n_trips_sd total_hours_worked_mean
-           &lt;num&gt;        &lt;num&gt;      &lt;num&gt;                   &lt;num&gt;
-1:     232477404         30.2     4.3243                   8.598
-2:     410212402         26.0     0.7071                   8.776
-3:     371998117         21.0     2.3452                   8.744
-4:     342529321         23.6     1.1402                   8.555
-5:     305917160         29.0     2.6458                   8.801
-6:     264601024         29.8     3.9623                   8.683
-   total_hours_worked_sd total_earnings_mean total_earnings_sd
-                   &lt;num&gt;               &lt;num&gt;             &lt;num&gt;
-1:               0.14524               397.8             62.31
-2:               0.26401               520.1             80.47
-3:               0.15620               434.6             38.29
-4:               0.06854               477.2             29.09
-5:               0.16554               561.2             18.49
-6:               0.19292               491.7             32.47
-   daily_hourly_wage_mean daily_hourly_wage_sd
-                    &lt;num&gt;                &lt;num&gt;
-1:                  46.25                7.193
-2:                  59.39               10.233
-3:                  49.70                4.267
-4:                  55.79                3.564
-5:                  63.78                2.262
-6:                  56.63                3.472</code></pre>
+<pre><code>   simulation_id    initial_day_time final_dropoff_datetime n_trips_mean
+           &lt;num&gt;              &lt;POSc&gt;                 &lt;POSc&gt;        &lt;num&gt;
+1:     232477404 2023-02-03 15:35:43    2023-02-03 20:20:18         30.2
+2:     232477404 2023-02-03 15:35:43    2023-02-03 20:19:59         30.2
+3:     232477404 2023-02-03 15:35:43    2023-02-03 20:08:14         30.2
+4:     232477404 2023-02-03 15:35:43    2023-02-03 20:02:38         30.2
+5:     232477404 2023-02-03 15:35:43    2023-02-03 20:14:40         30.2
+6:     410212402 2023-11-08 23:56:56    2023-11-09 04:09:38         26.0
+   n_trips_sd total_hours_worked_mean total_hours_worked_sd total_earnings_mean
+        &lt;num&gt;                   &lt;num&gt;                 &lt;num&gt;               &lt;num&gt;
+1:     4.3243                   8.598                0.1452               397.8
+2:     4.3243                   8.598                0.1452               397.8
+3:     4.3243                   8.598                0.1452               397.8
+4:     4.3243                   8.598                0.1452               397.8
+5:     4.3243                   8.598                0.1452               397.8
+6:     0.7071                   8.776                0.2640               520.1
+   total_earnings_sd daily_hourly_wage_mean daily_hourly_wage_sd
+               &lt;num&gt;                  &lt;num&gt;                &lt;num&gt;
+1:             62.31                  46.25                7.193
+2:             62.31                  46.25                7.193
+3:             62.31                  46.25                7.193
+4:             62.31                  46.25                7.193
+5:             62.31                  46.25                7.193
+6:             80.47                  59.39               10.233</code></pre>
 </div>
 </div>
 <p>Here we can confirm that was the simulations ended after 8.5 hours.</p>
@@ -818,7 +826,7 @@ $ performance_per_hour &lt;dbl&gt; 57.95, 68.57, 48.89, 64.43, 49.03, 64.27, 45.
 </section>
 <section id="business-case" class="level2">
 <h2 class="anchored" data-anchor-id="business-case">Business Case</h2>
-<p>Based on the simulation’s results we can confirm that the average earnings for a taxi driver per hour goes between $54.82 and $55.37 with 95% confidence with a mean of <strong>$55.09 dollars per hour</strong>.</p>
+<p>Based on the simulation’s results we can confirm that the average earnings for a taxi driver per hour goes between $54.97 and $55.21 with 95% confidence with a mean of <strong>$55.09 dollars per hour</strong>.</p>
 <p>That means that for incrementing 20% the new rate must be at least <strong>$66.11 dollars per hour</strong>, which translate to be an increase of <strong>$1,762.92 every month</strong>.</p>
 
 
