@@ -13,6 +13,12 @@ knitr::opts_chunk$set(
 )
 ```
 
+As we use using data from 2022-2023 to train and tune our policy in this chapter, we are going to aproximate how the created policy would work on production by been used by the taxi drivers.
+
+## Defining Enviroment
+
+We first need to load all the functions to be used.
+
 ```{r}
 # Loading functions ----
 
@@ -44,6 +50,8 @@ BigFilesPath <- here::here("../NycTaxiBigFiles")
 ```
 
 ## Downloading the Source Page
+
+Know we just repeat the steps we applyied to download all the data and consolidating evething into a the new table `NycTrips2024` in our duckdb database.
 
 ```{r SourcePage}
 #| eval: false
@@ -145,17 +153,14 @@ DBI::dbDisconnect(con, shutdown = TRUE)
 rm(con)
 ```
 
-```{r}
-file.path(BigFilesPath, "my-db.duckdb") |>
-  file.size() |>
-  structure(class = "object_size") |>
-  format(units = "auto")
-```
+## Saving a sample from 2024
+
+We have all the data we just need to select a sample to be taken as starting point for simulating each day.
 
 ```{r}
 #| label: Sampling data for 2024
 #| eval: false
-# Sampling 1,061 trips from db
+# Sampling 1,058 trips from db
 SimulationStartDayQuery <- "
 SELECT t1.*
 FROM NycTrips2024 t1
@@ -166,7 +171,7 @@ WHERE t1.year = 2024
       AND t1.trip_time >= (60 * 2)
       AND t1.trip_miles > 0
       AND t1.driver_pay > 0
-USING SAMPLE reservoir(1061 ROWS) REPEATABLE (1144);
+USING SAMPLE reservoir(1058 ROWS) REPEATABLE (1144);
 "
 con <- DBI::dbConnect(
   duckdb::duckdb(),
@@ -209,14 +214,17 @@ ValidHoursToStartWorking <- pin_read(
   "ValidHoursToStartWorking"
 )
 
-if (!exists("SimulationStartDay2024")) {
-  SimulationStartDay2024 <- BoardLocal |>
-    pins::pin_read("SimulationStartDay2024")
+SimulationStartDay2024 <- pin_read(
+  BoardLocal,
+  "SimulationStartDay2024"
+)
 
-  pillar::glimpse(SimulationStartDay2024)
-}
+pillar::glimpse(SimulationStartDay2024)
 ```
 
+## Running simulation
+
+Now we are ready to simulate the **1,058 days** of 2024 with selecting all trips vs implementing 2 policies created.
 
 ```{r}
 #| eval: false
@@ -278,9 +286,16 @@ pin_write(
 )
 ```
 
+##  Exploring simulation results
 
+Now we can say without any fear the the recipe found in general and not the result of overfitting.
 
 ```{r}
+#| label: Policy performance over time
+#| code-fold: true
+#| code-summary: "Show the code"
+#| fig-height: 5
+
 SimulationHourlyWage2024 <- pin_read(BoardLocal, "SimulationHourlyWage2024")
 FinalStartTimeResults2024 <- pin_read(BoardLocal, "FinalStartTimeResults2024")
 
@@ -313,13 +328,7 @@ FinalPfaMeansAfterStart2024 <-
     .(daily_hourly_wage_mean = mean(daily_hourly_wage_mean)),
     keyby = "strategy"
   ][, setattr(daily_hourly_wage_mean, "names", as.character(strategy))]
-```
 
-```{r}
-#| label: Policy performance over time
-#| code-fold: true
-#| code-summary: "Show the code"
-#| fig-height: 5
 
 PolicyLevelsFillColors <- c(
   Params$ColorGray,
@@ -330,7 +339,7 @@ setattr(PolicyLevelsFillColors, "names", PolicyLevels)
 TargetMean <- FinalPfaMeansAfterStart2024[2L]
 
 MonthlySummary <- FinalPfaResultsSummary2024[
-  j = list(mean_wage = mean(daily_hourly_wage_mean, na.rm = TRUE)),
+  j = list(N = .N, mean_wage = mean(daily_hourly_wage_mean, na.rm = TRUE)),
   keyby = list(month = floor_date(initial_day_time, "month"), strategy)
 ]
 
@@ -426,3 +435,5 @@ ggplot(
     legend.position = "none"
   )
 ```
+
+## Key Takeaways

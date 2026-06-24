@@ -91,8 +91,8 @@ sim_start_trip_summary <- function(sim_results, sim_start_days) {
   sim_results_summary <- sim_results[,
     .(
       n_trips = .N,
-      initial_day_time,
-      sim_dropoff_datetime,
+      initial_day_time = mean(initial_day_time),
+      sim_dropoff_datetime = mean(sim_dropoff_datetime),
       total_hours_worked = difftime(
         max(sim_dropoff_datetime, na.rm = TRUE),
         min(initial_day_time, na.rm = TRUE),
