@@ -1,0 +1,700 @@
+---
+title: "Defining the Shiny App"
+editor_options: 
+  chunk_output_type: console
+execute:
+  message: false
+  warning: false
+---
+
+## Overview
+
+The final deliverable of this project is an interactive Shiny application that transforms the policy developed throughout the previous chapters into a practical decision-support tool for taxi drivers. Rather than presenting a machine learning model as a black box, the application explains every recommendation, allowing drivers to understand why a trip should be accepted or rejected.
+
+The application simulates an entire driver shift using representative NYC trips and provides a recommendation for every incoming request. Each recommendation is accompanied by local explanations generated with Ceteris-paribus Profiles, allowing the driver to see which characteristics of the trip most influenced the decision.
+
+This deployment demonstrates the complete pipeline developed throughout the project, from data engineering and machine learning to stochastic optimization and explainable AI.
+
+```{r}
+#| echo: false
+#| fig.width: 10
+#| fig.height: 2.5
+#| out.width: "100%"
+
+DiagrammeR::grViz(
+  "
+digraph ShinyApp {
+
+graph [layout = dot, rankdir = LR]
+
+node [
+shape = box,
+style = filled,
+fillcolor = '#D3CDF7',
+fontname = Arial
+]
+
+Trip      [label='Incoming\nTrip']
+Recipe    [label='Feature\nEngineering']
+Model     [label='Policy\nModel']
+Decision  [label='Accept /\nReject']
+Explain   [label='DALEX']
+CP        [label='Top 5\nCeteris-paribus\nProfiles']
+Driver    [label='Driver']
+
+Trip -> Recipe
+Recipe -> Model
+Model -> Decision
+Model -> Explain
+Explain -> CP
+Decision -> Driver
+CP -> Driver
+
+}
+"
+)
+```
+
+The workflow begins with the raw trip information available when a driver receives a request. The feature engineering recipe transforms these variables into the engineered predictors expected by the policy model. The model produces an accept/reject recommendation, while DALEX generates local explanations that identify the variables driving that recommendation.
+
+## User Workflow
+
+The application has been designed around the driver's decision process rather than around the machine learning model itself.
+
+A typical session consists of the following steps:
+
+1. Select a representative simulated work shift.
+2. Receive one trip request at a time.
+3. Review the model's recommendation to accept or reject the trip.
+4. Inspect the five most influential variables through Ceteris-paribus Profiles.
+5. Continue until the simulated shift finishes.
+6. Review summary statistics, including accepted trips and estimated hourly earnings.
+
+This workflow mirrors how the policy would operate in practice while exposing the reasoning behind every recommendation.
+
+## Application Architecture
+
+The application will be developed as a standalone R package using **golem**, providing a production-grade modular architecture that is easy to maintain, test, and deploy.
+
+The package is organized into two primary Shiny modules.
+
+### Shift Simulation Module
+
+This module simulates an entire driver shift using a lightweight DuckDB database containing representative trips stored under `inst/extdata/`. It sequentially feeds trip requests into the policy model, reproducing the same decision-making process evaluated during the simulation studies presented in previous chapters.
+
+### Explainability Module
+
+This module generates local explanations for every recommendation using DALEX's Ceteris-paribus Profiles.
+
+Instead of simply displaying "Accept" or "Reject," the application identifies the variables that contributed most to the decision and illustrates how modifying each variable would change the model's prediction.
+
+Together, these two modules combine sequential decision making with explainable artificial intelligence, making the policy transparent rather than opaque.
+
+The trained model and preprocessing recipe are serialized and distributed with the package, eliminating any external runtime dependencies.
+
+## Why We Need a Separate Model for the App
+
+The production model (`AcceptRejectPolicyFitted`) was trained and optimized through the complete Approximate Dynamic Programming pipeline developed throughout this project.
+
+Although this model performs well, it retains three columns that were intentionally preserved during training as metadata rather than predictors:
+
+* `trip_id`
+* `performance_per_hour`
+* `percentile_75_performance`
+
+These variables are ignored during prediction but remain available in the training data for downstream analyses.
+
+This becomes problematic when generating local explanations.
+
+DALEX computes Ceteris-paribus Profiles by perturbing every variable present in the supplied dataset. Because it cannot distinguish between genuine predictors and metadata, it would attempt to vary these three columns, producing explanations with no practical interpretation.
+
+Rather than forcing the explainability framework to ignore selected variables, we train a second model whose inputs exactly match the information available to a driver at the moment a trip request arrives.
+
+## Why `AcceptRejectPolicyExplainFitted` Is Suitable for Both Roles
+
+The explainable model is trained using the same:
+
+* training data,
+* XGBoost architecture,
+* optimized hyperparameters,
+* probability threshold (τ* = 0.9),
+
+as the production model.
+
+The only difference is the feature engineering recipe.
+
+Instead of exposing metadata columns, the recipe begins directly from the seven raw trip variables available when a request is received. Every engineered feature generated from those variables is therefore a legitimate predictor.
+
+Consequently, every variable manipulated by DALEX has a meaningful interpretation.
+
+This allows a single model object to serve two purposes simultaneously:
+
+1. produce the accept/reject recommendation; and
+2. generate faithful local explanations for that recommendation.
+
+A single deployable model also simplifies package maintenance and reduces deployment complexity.
+
+## Training the Explainable Model
+
+The explainable model reuses exactly the same hyperparameter configuration identified during Bayesian optimization in Chapter 8.
+
+The only modification is the preprocessing recipe, which excludes the metadata variables while preserving all engineered predictors derived from the seven raw trip inputs.
+
+After preprocessing, the training data contains the same 172 engineered predictors used by the production model, while ensuring every feature corresponds to information available before a trip is accepted.
+
+The workflow then combines:
+
+* the transformed training data,
+* a minimal identity recipe,
+* the finalized XGBoost specification, and
+* the calibrated probability threshold (τ* = 0.9).
+
+The resulting workflow is fitted and serialized for deployment inside the Shiny package.
+
+### Loading Functions to Use
+
+```{r}
+# Loading functions ----
+
+## To manage relative paths
+library(here)
+library(pins)
+library(qs2)
+
+## Manipulate data
+library(data.table)
+library(sf)
+library(DBI)
+library(duckdb)
+library(lubridate)
+library(timeDate)
+library(ggtext)
+library(scales)
+library(gt)
+
+## To run predictions
+library(tidymodels)
+library(themis)
+library(embed)
+
+## Custom functions, board & params
+devtools::load_all()
+BoardLocal <- board_folder(here("../NycTaxiPins/Board"))
+Params <- yaml::read_yaml(here("params.yml"))
+BigFilesPath <- here::here("../NycTaxiBigFiles")
+```
+
+### Loading Training Data from 2022
+
+```{r}
+AcsVariablesByZoneId <-
+  pin_read(BoardLocal, "AcsVariablesByZoneId")[,
+    LocationID := as.character(LocationID)
+  ]
+
+OmsDensityFeatures <- pin_read(BoardLocal, "OmsDensityFeatures")[,
+  LocationID := as.character(LocationID)
+]
+
+ZoneCodesRef <- pin_read(BoardLocal, "ZoneCodesRef")[, c(
+  "LocationID",
+  "Borough",
+  "service_zone"
+)]
+
+SampledData <-
+  pin_list(BoardLocal) |>
+  grep(pattern = "^OneMonthData", value = TRUE) |>
+  sort() |>
+  head(12L) |>
+  lapply(FUN = pin_read, board = BoardLocal) |>
+  rbindlist() |>
+  tibble::as_tibble() |>
+  mutate(
+    take_current_trip = fifelse(take_current_trip == 1L, "yes", "no") |>
+      factor(levels = c("yes", "no")),
+    PULocationID = as.character(PULocationID),
+    DOLocationID = as.character(DOLocationID)
+  )
+
+set.seed(2545)
+SampledDataSplit <- initial_split(SampledData, strata = take_current_trip)
+
+TrainingSample <- training(SampledDataSplit)
+
+BestXgboostConfig <- pin_read(
+  BoardLocal,
+  name = "BestXgboostConfig"
+)
+```
+
+### Model Specification
+
+We reuse the exact same hyperparameter configuration found during Bayesian optimization in Chapter 8. The only difference from the production model is that this workflow will be built on a recipe that does not include the three metadata columns.
+
+```{r}
+#| label: defining model
+
+XgboostExplainSpec <-
+  boost_tree(
+    trees = 250,
+    tree_depth = tune(),
+    learn_rate = tune(),
+    mtry = tune(),
+    min_n = tune(),
+    loss_reduction = tune(),
+    sample_size = tune()
+  ) |>
+  set_mode("classification") |>
+  set_engine("xgboost") |>
+  finalize_model(BestXgboostConfig)
+
+XgboostExplainSpec
+```
+
+### Feature Engineering Recipe
+
+The recipe below defines the full feature engineering pipeline starting directly from the raw trip fields that a driver would have available at the moment of receiving a request. Unlike the production recipe, it does not include `trip_id`, `performance_per_hour`, or `percentile_75_performance` — these columns are simply never introduced, which ensures DALEX can treat every column in the transformed dataset as a genuine predictor.
+
+```{r}
+#| eval: false
+#| label: Defining Full Recipe
+#| code-fold: true
+#| code-summary: "Show the code"
+
+XgboostExplainRecipe <-
+  # Starting Recipe
+  recipe(
+    take_current_trip ~
+      PULocationID +
+      DOLocationID +
+      hvfhs_license_num +
+      trip_miles +
+      driver_pay +
+      trip_time +
+      request_datetime,
+    data = TrainingSample
+  ) |>
+
+  # Selecting variables over 2 min with miles and pay
+  step_filter(trip_time >= (60 * 2), trip_miles > 0, driver_pay > 0) |>
+
+  # Renaming variables to join
+  step_rename(PU_LocationID = PULocationID, DO_LocationID = DOLocationID) |>
+
+  # Adding Geospatial Data
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = ZoneCodesRef,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = AcsVariablesByZoneId,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+  step_join_geospatial_features(
+    ends_with("LocationID"),
+    spatial_features = OmsDensityFeatures,
+    col_prefix = c("DO_", "PU_")
+  ) |>
+
+  # Transforming strings to factors
+  step_string2factor(all_string_predictors()) |>
+
+  # Daily cycle
+  step_harmonic(
+    request_datetime,
+    frequency = 1,
+    cycle_size = 3600 * 24,
+    keep_original_cols = TRUE
+  ) |>
+  step_rename(
+    request_datetime_sin_daily = request_datetime_sin_1,
+    request_datetime_cos_daily = request_datetime_cos_1
+  ) |>
+
+  # Weekly cycle
+  step_harmonic(
+    request_datetime,
+    frequency = 1,
+    cycle_size = 3600 * 24 * 7,
+    keep_original_cols = TRUE
+  ) |>
+  step_rename(
+    request_datetime_sin_weekly = request_datetime_sin_1,
+    request_datetime_cos_weekly = request_datetime_cos_1
+  ) |>
+
+  # Extracting additional information
+  step_date(
+    request_datetime,
+    features = c(
+      "year",
+      "week",
+      "decimal",
+      "semester",
+      "quarter",
+      "doy",
+      "dow",
+      "mday",
+      "month"
+    )
+  ) |>
+
+  step_holiday(
+    request_datetime,
+    holidays = c(
+      'USChristmasDay',
+      'USColumbusDay',
+      'USCPulaskisBirthday',
+      'USDecorationMemorialDay',
+      'USElectionDay',
+      'USGoodFriday',
+      'USInaugurationDay',
+      'USIndependenceDay',
+      'USJuneteenthNationalIndependenceDay',
+      'USLaborDay',
+      'USLincolnsBirthday',
+      'USMemorialDay',
+      'USMLKingsBirthday',
+      'USNewYearsDay',
+      'USPresidentsDay',
+      'USThanksgivingDay',
+      'USVeteransDay',
+      'USWashingtonsBirthday'
+    )
+  ) |>
+
+  step_mutate(
+    .pkgs = c("data.table", "lubridate", "timeDate"),
+
+    company = fcase(
+      hvfhs_license_num == "HV0002" ,
+      "Juno"                        ,
+      hvfhs_license_num == "HV0003" ,
+      "Uber"                        ,
+      hvfhs_license_num == "HV0004" ,
+      "Via"                         ,
+      hvfhs_license_num == "HV0005" ,
+      "Lyft"                        ,
+      default = "New"
+    ) |>
+      as.factor(),
+
+    request_datetime_am = am(request_datetime) |> as.integer(),
+    request_datetime_pm = pm(request_datetime) |> as.integer(),
+
+    `Days to USChristmasDay` = difftime(
+      USChristmasDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USColumbusDay` = difftime(
+      USColumbusDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USCPulaskisBirthday` = difftime(
+      USCPulaskisBirthday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USDecorationMemorialDay` = difftime(
+      USDecorationMemorialDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USElectionDay` = difftime(
+      USElectionDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USGoodFriday` = difftime(
+      USGoodFriday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USInaugurationDay` = difftime(
+      USInaugurationDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USIndependenceDay` = difftime(
+      USIndependenceDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USJuneteenthNationalIndependenceDay` = difftime(
+      USJuneteenthNationalIndependenceDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USLaborDay` = difftime(
+      USLaborDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USLincolnsBirthday` = difftime(
+      USLincolnsBirthday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USMemorialDay` = difftime(
+      USMemorialDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USMLKingsBirthday` = difftime(
+      USMLKingsBirthday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USNewYearsDay` = difftime(
+      USNewYearsDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USPresidentsDay` = difftime(
+      USPresidentsDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USThanksgivingDay` = difftime(
+      USThanksgivingDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USVeteransDay` = difftime(
+      USVeteransDay(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer(),
+    `Days to USWashingtonsBirthday` = difftime(
+      USWashingtonsBirthday(year(request_datetime)),
+      request_datetime,
+      units = 'days'
+    ) |>
+      as.integer()
+  ) |>
+
+  # Removing variables
+  step_rm(ends_with(c(
+    "LocationID",
+    "request_datetime",
+    "hvfhs_license_num"
+  ))) |>
+
+  # Steps for XGBoost
+  step_downsample(take_current_trip, under_ratio = 1) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_novel(all_nominal_predictors()) |>
+  step_other(all_nominal_predictors(), threshold = tune()) |>
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) |>
+  step_nzv(all_predictors()) |>
+
+  # Finalizing recipe with best hyperparameter config
+  finalize_recipe(BestXgboostConfig) |>
+  prep()
+
+pin_write(
+  BoardLocal,
+  XgboostExplainRecipe,
+  "XgboostExplainRecipe",
+  type = "qs2"
+)
+```
+
+```{r}
+XgboostExplainRecipe <- pin_read(
+  BoardLocal,
+  "XgboostExplainRecipe"
+)
+
+TrainingSampleTransformed <- juice(XgboostExplainRecipe)
+
+dim(TrainingSample) |> comma(accuracy = 1)
+dim(TrainingSampleTransformed) |> comma(accuracy = 1)
+```
+
+The training data started with 181,639 rows and 28 columns. After applying the recipe, it was reduced to **85,770 rows** — due to downsampling and the quality filters on `trip_time`, `trip_miles`, and `driver_pay` — while the number of columns expanded from the 7 raw predictors defined in the recipe formula to **172 engineered features**.
+
+### Workflow and Fitting
+
+The workflow below takes the already-transformed training data, applies a minimal identity recipe (`take_current_trip ~ .`), pairs it with the finalized XGBoost specification, and attaches the same probability threshold (τ* = 0.9) that was validated through Monte Carlo simulation in Chapter 9. This threshold means the model will only recommend accepting a trip when it is at least 90% confident the trip belongs to the top quartile of profitability.
+
+```{r}
+#| eval: false
+#| label: Training Explainable Model
+
+AcceptRejectPolicyExplain <- workflow(
+  preprocessor = recipe(
+    take_current_trip ~ .,
+    data = TrainingSampleTransformed
+  ),
+  spec = XgboostExplainSpec,
+  postprocessor = tailor::adjust_probability_threshold(
+    tailor::tailor(),
+    0.9
+  )
+)
+
+AcceptRejectPolicyExplainFitted <- fit(
+  AcceptRejectPolicyExplain,
+  data = TrainingSampleTransformed
+)
+
+pin_write(
+  BoardLocal,
+  AcceptRejectPolicyExplainFitted,
+  "AcceptRejectPolicyExplainFitted",
+  type = "qs2"
+)
+```
+
+### Comparing Predictions Against the Production Model
+
+To validate that replacing the production model with the explainable model is acceptable, we compare their predictions on the full training sample and examine the cases where they disagree.
+
+```{r}
+#| eval: false
+#| label: Confirm if models are the same
+
+AcceptRejectPolicyFitted <- pin_read(
+  BoardLocal,
+  "AcceptRejectPolicyFitted"
+)
+
+AcceptRejectPolicyExplainFitted <- pin_read(
+  BoardLocal,
+  "AcceptRejectPolicyExplainFitted"
+)
+
+PredictionsOriginalModel <- predict(
+  AcceptRejectPolicyFitted,
+  type = "class",
+  new_data = TrainingSample
+) |>
+  pull(.pred_class)
+
+PredictionsExplanableModel <-
+  bake(XgboostExplainRecipe, new_data = TrainingSample) |>
+  predict(
+    object = AcceptRejectPolicyExplainFitted,
+    type = "class"
+  ) |>
+  pull(.pred_class)
+
+CasesWithDiffPred <-
+  TrainingSample |>
+  filter(PredictionsExplanableModel != PredictionsOriginalModel)
+
+CasesWithDiffPredContext <- CasesWithDiffPred |>
+  bake(object = XgboostExplainRecipe) |>
+  predict(
+    object = AcceptRejectPolicyExplainFitted,
+    type = "prob"
+  ) |>
+  rename(.pred_yes_explain = .pred_yes, .pred_no_explain = .pred_no) |>
+  bind_cols(augment(AcceptRejectPolicyFitted, new_data = CasesWithDiffPred))
+
+pin_write(
+  BoardLocal,
+  CasesWithDiffPredContext,
+  "CasesWithDiffPredContext",
+  type = "qs2"
+)
+```
+
+```{r}
+#| echo: false
+
+CasesWithDiffPredContext <- pin_read(
+  BoardLocal,
+  "CasesWithDiffPredContext"
+)
+```
+
+The two models agree on **`r percent(1 - nrow(CasesWithDiffPredContext) / nrow(TrainingSample))`** of all training cases. The table below examines the disagreements in detail. A key observation is that both models make mistakes at the same rate — the cases where one model says "yes" and the other says "no" are roughly balanced regardless of the ground truth. This symmetry confirms that neither model is meaningfully better than the other in terms of predictive quality; they **simply disagree on which specific cases to get wrong**.
+
+This makes `AcceptRejectPolicyExplainFitted` **strictly superior** for the app: it achieves the same predictive quality as the production model while also enabling interpretable explanations. Maintaining a single model object simplifies deployment and maintenance.
+
+```{r}
+#| label: Summary Table
+#| code-fold: true
+#| code-summary: "Show the code"
+
+CasesWithDiffPredContext |>
+  group_by(take_current_trip, .pred_class) |>
+  summarize(
+    n = n(),
+    median_performance_per_hour = median(performance_per_hour),
+    median_pred_yes = median(.pred_yes),
+    median_pred_yes_explain = median(.pred_yes_explain)
+  ) |>
+  ungroup() |>
+  gt() |>
+  tab_header(
+    title = md("**The New Workflow Does Not Produce the Same Model**"),
+    subtitle = md("**But Produces Very Similar Results**")
+  ) |>
+  tab_spanner(label = "Median", columns = starts_with("median_")) |>
+  cols_label(
+    take_current_trip = "TRUTH",
+    .pred_class = "ORIGINAL PREDICTION",
+    n = "COUNT",
+    median_performance_per_hour = "$/HR",
+    median_pred_yes = "ORIGINAL PROB",
+    median_pred_yes_explain = "NEW PROB"
+  ) |>
+  fmt_number(
+    columns = n,
+    decimals = 0
+  ) |>
+  fmt_currency(
+    columns = median_performance_per_hour,
+    decimals = 2
+  ) |>
+  fmt_percent(
+    columns = c(median_pred_yes, median_pred_yes_explain),
+    decimals = 0
+  ) |>
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) |>
+  tab_options(
+    table.font.names = "Arial",
+    table.background.color = "white",
+    column_labels.font.weight = "bold",
+    column_labels.background.color = "#f8f9fa",
+    table.width = pct(100),
+    quarto.disable_processing = TRUE
+  ) |>
+  tab_style(
+    style = cell_text(color = "white", weight = "bold"),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_fill(color = "#2c3e50"),
+    locations = cells_title()
+  )
+```
+
